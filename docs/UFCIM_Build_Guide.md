@@ -420,17 +420,19 @@ export const createReservationSchema = z.object({
   timeSlot: timeSlotSchema,
 });
 
-export const createRecurringReservationSchema = z.object({
-  spaceId: uuidSchema,
-  startDate: futureDateSchema,
-  endDate: futureDateSchema,
-  dayOfWeek: z.number().int().min(0).max(6), // 0=Sunday
-  timeSlot: timeSlotSchema,
-  description: z.string().min(1).max(200),
-}).refine(
-  (d) => new Date(d.endDate) > new Date(d.startDate),
-  'End date must be after start date'
-);
+export const createRecurringReservationSchema = z
+  .object({
+    spaceId: uuidSchema,
+    startDate: futureDateSchema,
+    endDate: futureDateSchema,
+    dayOfWeek: z.number().int().min(0).max(6), // 0=Sunday
+    timeSlot: timeSlotSchema,
+    description: z.string().min(1).max(200),
+  })
+  .refine((d) => new Date(d.endDate) > new Date(d.startDate), {
+    message: 'End date must be after start date',
+    path: ['endDate'], // Zod v4: pass object so the error is attributed to the correct field
+  });
 
 export const updateReservationSchema = z.object({
   date: futureDateSchema.optional(),
@@ -661,7 +663,7 @@ export function validate<T extends z.ZodType>(schema: T) {
       if (err instanceof z.ZodError) {
         return c.json({
           error: 'Validation failed',
-          details: err.errors.map((e) => ({
+          details: err.issues.map((e) => ({
             field: e.path.join('.'),
             message: e.message,
           })),
@@ -686,7 +688,7 @@ export function validateQuery<T extends z.ZodType>(schema: T) {
       if (err instanceof z.ZodError) {
         return c.json({
           error: 'Invalid query parameters',
-          details: err.errors.map((e) => ({
+          details: err.issues.map((e) => ({
             field: e.path.join('.'),
             message: e.message,
           })),
