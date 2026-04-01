@@ -3,7 +3,7 @@
 > **Project:** UFCIM — Federal University of Ceará Infrastructure Manager
 > **Author:** Abner Augusto
 > **Status:** In Progress
-> **Last Updated:** 2026-03-31
+> **Last Updated:** 2026-04-01
 > **Version:** 1.0
 
 ---
@@ -274,13 +274,13 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 1.1 | Project scaffolding (dirs, configs, deps) | ⬜ Not Started | |
-| 1.2 | TypeScript + Wrangler configuration | ⬜ Not Started | |
-| 1.3 | D1 database creation | ⬜ Not Started | |
-| 1.4 | Drizzle schema definition | ⬜ Not Started | All 8 tables |
-| 1.5 | Generate and apply initial migration | ⬜ Not Started | |
-| 1.6 | Database client factory | ⬜ Not Started | D1 driver |
-| 1.7 | Seed data script | ⬜ Not Started | |
+| 1.1 | Project scaffolding (dirs, configs, deps) | ✅ Done | npm init, hono/drizzle-orm/zod/jose/wrangler |
+| 1.2 | TypeScript + Wrangler configuration | ✅ Done | tsconfig.json, wrangler.toml, drizzle.config.ts |
+| 1.3 | D1 database creation | ⬜ Not Started | Run `wrangler d1 create ufcim-db` and update wrangler.toml |
+| 1.4 | Drizzle schema definition | ✅ Done | All 8 tables + relations in src/db/schema.ts |
+| 1.5 | Generate and apply initial migration | ✅ Done | migrations/0000_lazy_wallow.sql generated |
+| 1.6 | Database client factory | ✅ Done | src/db/client.ts with D1 driver |
+| 1.7 | Seed data script | ✅ Done | src/db/seed.ts with 4 users, 3 spaces, 2 equipment |
 
 ### Phase 2: Middleware & Auth
 
