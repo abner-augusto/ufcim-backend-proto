@@ -1,0 +1,126 @@
+import { eq, and } from 'drizzle-orm';
+import { spaces, reservations, blockings } from '@/db/schema';
+import type { Database } from '@/db/client';
+import { NotFoundError } from '@/middleware/error-handler';
+import type { AuditLogService } from './audit-log.service';
+
+interface CreateSpaceInput {
+  number: string;
+  type: string;
+  block: string;
+  campus: string;
+  department: string;
+  capacity: number;
+  furniture?: string;
+  lighting?: string;
+  hvac?: string;
+  multimedia?: string;
+}
+
+interface ListSpacesFilters {
+  campus?: string;
+  block?: string;
+  department?: string;
+  type?: string;
+  page: number;
+  limit: number;
+}
+
+const TIME_SLOTS = ['morning', 'afternoon', 'evening'] as const;
+
+export class SpaceService {
+  private auditLog: AuditLogService;
+
+  constructor(
+    private db: Database,
+    auditLog: AuditLogService
+  ) {
+    this.auditLog = auditLog;
+  }
+
+  async create(userId: string, input: CreateSpaceInput) {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const [space] = await this.db
+      .insert(spaces)
+      .values({ id, ...input, createdAt: now, updatedAt: now })
+      .returning();
+
+    await this.auditLog.log(userId, 'create_space', id, 'space', `Created space ${input.number}`);
+
+    return space;
+  }
+
+  async update(id: string, userId: string, input: Partial<CreateSpaceInput>) {
+    const existing = await this.db.query.spaces.findFirst({ where: eq(spaces.id, id) });
+    if (!existing) throw new NotFoundError('Space');
+
+    const [updated] = await this.db
+      .update(spaces)
+      .set({ ...input, updatedAt: new Date().toISOString() })
+      .where(eq(spaces.id, id))
+      .returning();
+
+    await this.auditLog.log(userId, 'update_space', id, 'space', `Updated space ${existing.number}`);
+
+    return updated;
+  }
+
+  async getById(id: string) {
+    const space = await this.db.query.spaces.findFirst({
+      where: eq(spaces.id, id),
+      with: { equipment: true },
+    });
+    if (!space) throw new NotFoundError('Space');
+    return space;
+  }
+
+  async list(filters: ListSpacesFilters) {
+    return this.db.query.spaces.findMany({
+      where: and(
+        filters.campus ? eq(spaces.campus, filters.campus) : undefined,
+        filters.block ? eq(spaces.block, filters.block) : undefined,
+        filters.department ? eq(spaces.department, filters.department) : undefined,
+        filters.type ? eq(spaces.type, filters.type) : undefined
+      ),
+      limit: filters.limit,
+      offset: (filters.page - 1) * filters.limit,
+    });
+  }
+
+  /**
+   * Computes slot availability for a given space and date.
+   * Queries both reservations and blockings tables — no stored status column.
+   */
+  async getAvailability(spaceId: string, date: string) {
+    const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, spaceId) });
+    if (!space) throw new NotFoundError('Space');
+
+    const [confirmedReservations, activeBlockings] = await Promise.all([
+      this.db.query.reservations.findMany({
+        where: and(
+          eq(reservations.spaceId, spaceId),
+          eq(reservations.date, date),
+          eq(reservations.status, 'confirmed')
+        ),
+      }),
+      this.db.query.blockings.findMany({
+        where: and(
+          eq(blockings.spaceId, spaceId),
+          eq(blockings.date, date),
+          eq(blockings.status, 'active')
+        ),
+      }),
+    ]);
+
+    return TIME_SLOTS.map((slot) => ({
+      timeSlot: slot,
+      status: activeBlockings.some((b) => b.timeSlot === slot)
+        ? 'blocked'
+        : confirmedReservations.some((r) => r.timeSlot === slot)
+          ? 'reserved'
+          : 'available',
+    }));
+  }
+}
