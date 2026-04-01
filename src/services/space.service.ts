@@ -2,7 +2,7 @@ import { eq, and } from 'drizzle-orm';
 import { spaces, reservations, blockings } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError } from '@/middleware/error-handler';
-import type { AuditLogService } from './audit-log.service';
+import { AuditLogService } from './audit-log.service';
 
 interface CreateSpaceInput {
   number: string;
@@ -31,11 +31,8 @@ const TIME_SLOTS = ['morning', 'afternoon', 'evening'] as const;
 export class SpaceService {
   private auditLog: AuditLogService;
 
-  constructor(
-    private db: Database,
-    auditLog: AuditLogService
-  ) {
-    this.auditLog = auditLog;
+  constructor(private db: Database) {
+    this.auditLog = new AuditLogService(db);
   }
 
   async create(userId: string, input: CreateSpaceInput) {
