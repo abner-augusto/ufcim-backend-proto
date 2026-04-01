@@ -1,0 +1,55 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Dependency directories
+node_modules/
+/elixir_ls
+
+# TypeScript
+dist/
+*.tsbuildinfo
+
+# Environment variables
+# (Crucial: never commit your DB credentials or API keys)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env.vrt
+.dev.vars
+
+# Drizzle & Databases
+# If you use SQLite locally, ignore the DB file
+*.db
+*.db-journal
+*.sqlite
+# Drizzle Studio cache
+.drizzle/
+
+# Cloudflare Workers (if using Hono on Wrangler)
+.wrangler/
+.dev.vars
+
+# IDE / Editor folders
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS metadata
+.DS_Store
+Thumbs.db
