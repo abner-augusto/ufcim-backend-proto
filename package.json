@@ -1,0 +1,39 @@
+{
+  "name": "ufcim-backend-proto",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abner-augusto/ufcim-backend-proto.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/abner-augusto/ufcim-backend-proto/issues"
+  },
+  "homepage": "https://github.com/abner-augusto/ufcim-backend-proto#readme",
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.9",
+    "jose": "^6.2.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260401.1",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^6.0.2",
+    "wrangler": "^4.79.0"
+  }
+}
