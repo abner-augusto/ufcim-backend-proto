@@ -5,7 +5,7 @@ compatibility_date = "2024-12-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "ufcim-db"
-database_id = "<will be generated>"
+database_id = "6c2a2f98-6296-492d-b5e9-5c1db08385cb"
 
 [vars]
 JWKS_URL = "https://your-keycloak/realms/ufc/protocol/openid-connect/certs"
