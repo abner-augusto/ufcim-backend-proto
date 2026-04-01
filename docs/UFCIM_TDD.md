@@ -3,7 +3,7 @@
 > **Project:** UFCIM — Federal University of Ceará Infrastructure Manager
 > **Author:** Abner Augusto
 > **Status:** In Progress
-> **Last Updated:** 2026-04-01 (Phase 2)
+> **Last Updated:** 2026-04-01 (Phase 3)
 > **Version:** 1.0
 
 ---
@@ -297,11 +297,11 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 3.1 | Common schemas (pagination, date, UUID) | ⬜ Not Started | |
-| 3.2 | Reservation schemas | ⬜ Not Started | Including recurring |
-| 3.3 | Space schemas | ⬜ Not Started | |
-| 3.4 | Equipment schemas | ⬜ Not Started | |
-| 3.5 | Blocking schemas | ⬜ Not Started | |
+| 3.1 | Common schemas (pagination, date, UUID) | ✅ Done | uuidSchema, paginationSchema, timeSlotSchema, dateSchema, futureDateSchema |
+| 3.2 | Reservation schemas | ✅ Done | create, createRecurring (with cross-field refine), update |
+| 3.3 | Space schemas | ✅ Done | create, update (partial), spaceQuerySchema with filters |
+| 3.4 | Equipment schemas | ✅ Done | create, updateStatus |
+| 3.5 | Blocking schemas | ✅ Done | create (blockType enum) |
 
 ### Phase 4: Services (Business Logic)
 

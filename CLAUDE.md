@@ -97,4 +97,4 @@ npx tsc --noEmit                              # Type check without emitting
 
 ## Current Phase
 
-Phase 3: Validation Schemas (common, reservation, space, equipment, blocking)
+Phase 4: Services (user, space, equipment, reservation, blocking, notification, audit log)
