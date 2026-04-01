@@ -97,4 +97,4 @@ npx tsc --noEmit                              # Type check without emitting
 
 ## Current Phase
 
-Phase 5: Routes (app definition, all 7 resource route files, Workers entry point)
+Phase 6: Testing & Deployment (local dev, seed data, endpoint testing, deploy to Workers)

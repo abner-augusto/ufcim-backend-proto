@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { equipment, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError } from '@/middleware/error-handler';
-import type { AuditLogService } from './audit-log.service';
+import { AuditLogService } from './audit-log.service';
 
 interface CreateEquipmentInput {
   spaceId: string;
@@ -18,10 +18,11 @@ interface UpdateEquipmentStatusInput {
 }
 
 export class EquipmentService {
-  constructor(
-    private db: Database,
-    private auditLog: AuditLogService
-  ) {}
+  private auditLog: AuditLogService;
+
+  constructor(private db: Database) {
+    this.auditLog = new AuditLogService(db);
+  }
 
   async create(userId: string, input: CreateEquipmentInput) {
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });

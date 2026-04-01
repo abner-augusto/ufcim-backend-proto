@@ -3,7 +3,7 @@
 > **Project:** UFCIM — Federal University of Ceará Infrastructure Manager
 > **Author:** Abner Augusto
 > **Status:** In Progress
-> **Last Updated:** 2026-04-01 (Phase 4)
+> **Last Updated:** 2026-04-01 (Phase 5)
 > **Version:** 1.0
 
 ---
@@ -320,15 +320,15 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 5.1 | App definition + health check | ⬜ Not Started | |
-| 5.2 | Workers entry point | ⬜ Not Started | |
-| 5.3 | User routes | ⬜ Not Started | |
-| 5.4 | Space routes | ⬜ Not Started | |
-| 5.5 | Equipment routes | ⬜ Not Started | |
-| 5.6 | Reservation routes | ⬜ Not Started | |
-| 5.7 | Blocking routes | ⬜ Not Started | |
-| 5.8 | Notification routes | ⬜ Not Started | |
-| 5.9 | Log routes | ⬜ Not Started | |
+| 5.1 | App definition + health check | ✅ Done | CORS, logger, globalErrorHandler, syncFromToken middleware |
+| 5.2 | Workers entry point | ✅ Done | src/index.ts re-exports app |
+| 5.3 | User routes | ✅ Done | GET /users (staff), GET /users/me |
+| 5.4 | Space routes | ✅ Done | CRUD + GET /:id/availability (computed) |
+| 5.5 | Equipment routes | ✅ Done | POST, PATCH /:id/status, GET /space/:spaceId |
+| 5.6 | Reservation routes | ✅ Done | create, recurring, cancel, mine, by-space |
+| 5.7 | Blocking routes | ✅ Done | create, remove, by-space |
+| 5.8 | Notification routes | ✅ Done | list, read-all (static before /:id), mark-read |
+| 5.9 | Log routes | ✅ Done | GET /logs (staff only, filterable) |
 
 ### Phase 6: Testing & Deployment
 
