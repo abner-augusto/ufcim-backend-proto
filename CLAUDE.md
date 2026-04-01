@@ -97,4 +97,4 @@ npx tsc --noEmit                              # Type check without emitting
 
 ## Current Phase
 
-Phase 2: Middleware & Auth (JWT verification, RBAC, Zod middleware, error handling, CORS)
+Phase 3: Validation Schemas (common, reservation, space, equipment, blocking)

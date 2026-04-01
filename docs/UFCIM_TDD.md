@@ -3,7 +3,7 @@
 > **Project:** UFCIM — Federal University of Ceará Infrastructure Manager
 > **Author:** Abner Augusto
 > **Status:** In Progress
-> **Last Updated:** 2026-04-01
+> **Last Updated:** 2026-04-01 (Phase 2)
 > **Version:** 1.0
 
 ---
@@ -286,12 +286,12 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 2.1 | JWT auth middleware | ⬜ Not Started | JWKS verification |
-| 2.2 | RBAC middleware | ⬜ Not Started | Role extraction from JWT |
-| 2.3 | Zod validation middleware (body) | ⬜ Not Started | |
-| 2.4 | Zod validation middleware (query) | ⬜ Not Started | |
-| 2.5 | Global error handler | ⬜ Not Started | Custom error classes |
-| 2.6 | CORS configuration | ⬜ Not Started | |
+| 2.1 | JWT auth middleware | ✅ Done | jose JWKS verification (RS256) |
+| 2.2 | RBAC middleware | ✅ Done | Keycloak realm_access → app role |
+| 2.3 | Zod validation middleware (body) | ✅ Done | validate() — Zod v4 .issues |
+| 2.4 | Zod validation middleware (query) | ✅ Done | validateQuery() |
+| 2.5 | Global error handler | ✅ Done | AppError, NotFoundError, ConflictError, ForbiddenError, UnauthorizedError |
+| 2.6 | CORS configuration | ✅ Done | hono/cors + logger wired in app.ts |
 
 ### Phase 3: Validation Schemas
 
