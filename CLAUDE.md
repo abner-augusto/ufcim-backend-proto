@@ -97,4 +97,4 @@ npx tsc --noEmit                              # Type check without emitting
 
 ## Current Phase
 
-Phase 4: Services (user, space, equipment, reservation, blocking, notification, audit log)
+Phase 5: Routes (app definition, all 7 resource route files, Workers entry point)

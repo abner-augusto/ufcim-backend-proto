@@ -3,7 +3,7 @@
 > **Project:** UFCIM — Federal University of Ceará Infrastructure Manager
 > **Author:** Abner Augusto
 > **Status:** In Progress
-> **Last Updated:** 2026-04-01 (Phase 3)
+> **Last Updated:** 2026-04-01 (Phase 4)
 > **Version:** 1.0
 
 ---
@@ -307,14 +307,14 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 4.1 | User service (sync from JWT, CRUD) | ⬜ Not Started | |
-| 4.2 | Space service (CRUD, availability) | ⬜ Not Started | Computed availability |
-| 4.3 | Equipment service (CRUD, status) | ⬜ Not Started | |
-| 4.4 | Reservation service (create, cancel, list) | ⬜ Not Started | Core business rules |
-| 4.5 | Recurring reservation logic | ⬜ Not Started | Date generation, skip conflicts |
-| 4.6 | Blocking service (create, remove, cascade) | ⬜ Not Started | Cancels conflicting reservations |
-| 4.7 | Notification service (create, list, read) | ⬜ Not Started | |
-| 4.8 | Audit log service | ⬜ Not Started | |
+| 4.1 | User service (sync from JWT, CRUD) | ✅ Done | syncFromToken upserts via onConflictDoUpdate |
+| 4.2 | Space service (CRUD, availability) | ✅ Done | getAvailability queries reservations + blockings |
+| 4.3 | Equipment service (CRUD, status) | ✅ Done | updateStatus sets updatedBy |
+| 4.4 | Reservation service (create, cancel, list) | ✅ Done | student limit, dept check, cascade notify |
+| 4.5 | Recurring reservation logic | ✅ Done | generateRecurringDates, skips conflicts |
+| 4.6 | Blocking service (create, remove, cascade) | ✅ Done | overrides confirmed reservations, notifies user |
+| 4.7 | Notification service (create, list, read) | ✅ Done | markAsRead with ownership check |
+| 4.8 | Audit log service | ✅ Done | append-only log, filterable list |
 
 ### Phase 5: Routes
 

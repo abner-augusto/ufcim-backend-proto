@@ -1,0 +1,61 @@
+import { eq } from 'drizzle-orm';
+import { users } from '@/db/schema';
+import type { Database } from '@/db/client';
+import type { JwtPayload } from '@/types/auth';
+import { extractRole } from '@/middleware/rbac';
+import { NotFoundError } from '@/middleware/error-handler';
+
+export class UserService {
+  constructor(private db: Database) {}
+
+  /**
+   * Upsert a user from JWT claims. Called on every authenticated request
+   * (or on first login) to keep local user data in sync with Keycloak.
+   */
+  async syncFromToken(payload: JwtPayload) {
+    const role = extractRole(payload) ?? 'student';
+    const now = new Date().toISOString();
+
+    await this.db
+      .insert(users)
+      .values({
+        id: payload.sub,
+        name: payload.name,
+        registration: payload.registration ?? payload.preferred_username,
+        role,
+        department: payload.department ?? 'Unknown',
+        email: payload.email,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          name: payload.name,
+          email: payload.email,
+          role,
+          department: payload.department ?? 'Unknown',
+          updatedAt: now,
+        },
+      });
+
+    return this.getById(payload.sub);
+  }
+
+  async getById(id: string) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, id),
+    });
+    if (!user) throw new NotFoundError('User');
+    return user;
+  }
+
+  async list(page: number, limit: number) {
+    const data = await this.db.query.users.findMany({
+      orderBy: (u, { asc }) => [asc(u.name)],
+      limit,
+      offset: (page - 1) * limit,
+    });
+    return data;
+  }
+}
