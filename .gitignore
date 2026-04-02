@@ -53,3 +53,8 @@ dist/
 # OS metadata
 .DS_Store
 Thumbs.db
+.codex
+
+# Repomix
+repomix.config.json
+repomix-output.xml
