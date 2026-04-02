@@ -6,6 +6,7 @@ import { authMiddleware } from '@/middleware/auth';
 import { globalErrorHandler } from '@/middleware/error-handler';
 import { createDb } from '@/db/client';
 import { UserService } from '@/services/user.service';
+import { DEV_JWKS } from '@/dev/test-jwks';
 import { userRoutes } from '@/routes/users';
 import { spaceRoutes } from '@/routes/spaces';
 import { equipmentRoutes } from '@/routes/equipment';
@@ -25,6 +26,10 @@ app.onError(globalErrorHandler);
 
 // ── Health check (unauthenticated) ───────────────────────────────────────────
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+// ── Dev-only: serve test JWKS so local JWT verification works without Keycloak ──
+// Point JWKS_URL=http://localhost:8787/dev/jwks in .dev.vars to use this.
+app.get('/dev/jwks', (c) => c.json(DEV_JWKS));
 
 // ── Authenticated API routes ─────────────────────────────────────────────────
 const api = new Hono<AppEnv>();
