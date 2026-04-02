@@ -82,4 +82,16 @@ export class EquipmentService {
       orderBy: (e, { asc }) => [asc(e.name)],
     });
   }
+
+  async listGroupedBySpace() {
+    const allSpaces = await this.db.query.spaces.findMany({
+      with: { equipment: true },
+      orderBy: (s, { asc }) => [asc(s.number)],
+    });
+
+    return allSpaces.map((space) => ({
+      ...space,
+      equipment: [...space.equipment].sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+  }
 }

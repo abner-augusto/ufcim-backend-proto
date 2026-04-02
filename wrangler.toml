@@ -10,3 +10,4 @@ database_id = "6c2a2f98-6296-492d-b5e9-5c1db08385cb"
 [vars]
 JWKS_URL = "https://your-keycloak/realms/ufc/protocol/openid-connect/certs"
 JWT_ISSUER = "https://your-keycloak/realms/ufc"
+ENVIRONMENT = "production"

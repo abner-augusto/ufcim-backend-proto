@@ -18,6 +18,20 @@ const SEED = {
     projector1: '00000000-0000-0000-0000-000000000021',
     ac1: '00000000-0000-0000-0000-000000000022',
   },
+  recurrences: {
+    weeklyClass: '00000000-0000-0000-0000-000000000051',
+  },
+  reservations: {
+    todayReservation: '00000000-0000-0000-0000-000000000061',
+    recurring1: '00000000-0000-0000-0000-000000000062',
+    recurring2: '00000000-0000-0000-0000-000000000063',
+    canceled1: '00000000-0000-0000-0000-000000000064',
+  },
+  blockings: {
+    active1: '00000000-0000-0000-0000-000000000071',
+    active2: '00000000-0000-0000-0000-000000000072',
+    removed1: '00000000-0000-0000-0000-000000000073',
+  },
 };
 
 export async function seed(db: ReturnType<typeof createDb>) {
@@ -137,6 +151,156 @@ export async function seed(db: ReturnType<typeof createDb>) {
       notes: null,
       updatedBy: SEED.users.maintenance1,
       updatedAt: now,
+    },
+  ]).onConflictDoNothing();
+
+  await db.insert(schema.recurrences).values([
+    {
+      id: SEED.recurrences.weeklyClass,
+      description: 'Aula semanal de Engenharia de Software',
+      createdBy: SEED.users.professor1,
+      createdAt: now,
+    },
+  ]).onConflictDoNothing();
+
+  await db.insert(schema.reservations).values([
+    {
+      id: SEED.reservations.todayReservation,
+      spaceId: SEED.spaces.classroom1,
+      userId: SEED.users.professor1,
+      date: '2026-04-02',
+      timeSlot: 'morning',
+      status: 'confirmed',
+      recurrenceId: null,
+      changeOrigin: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: SEED.reservations.recurring1,
+      spaceId: SEED.spaces.classroom1,
+      userId: SEED.users.professor1,
+      date: '2026-04-09',
+      timeSlot: 'afternoon',
+      status: 'confirmed',
+      recurrenceId: SEED.recurrences.weeklyClass,
+      changeOrigin: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: SEED.reservations.recurring2,
+      spaceId: SEED.spaces.classroom1,
+      userId: SEED.users.professor1,
+      date: '2026-04-16',
+      timeSlot: 'afternoon',
+      status: 'confirmed',
+      recurrenceId: SEED.recurrences.weeklyClass,
+      changeOrigin: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: SEED.reservations.canceled1,
+      spaceId: SEED.spaces.studyRoom1,
+      userId: SEED.users.student1,
+      date: '2026-04-03',
+      timeSlot: 'evening',
+      status: 'canceled',
+      recurrenceId: null,
+      changeOrigin: null,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]).onConflictDoNothing();
+
+  await db.insert(schema.blockings).values([
+    {
+      id: SEED.blockings.active1,
+      spaceId: SEED.spaces.meetingRoom1,
+      createdBy: SEED.users.staff1,
+      date: '2026-04-02',
+      timeSlot: 'afternoon',
+      reason: 'Reunião do conselho departamental',
+      blockType: 'administrative',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: SEED.blockings.active2,
+      spaceId: SEED.spaces.studyRoom1,
+      createdBy: SEED.users.maintenance1,
+      date: '2026-04-05',
+      timeSlot: 'morning',
+      reason: 'Troca de unidade de ar condicionado',
+      blockType: 'maintenance',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: SEED.blockings.removed1,
+      spaceId: SEED.spaces.meetingRoom1,
+      createdBy: SEED.users.staff1,
+      date: '2026-03-29',
+      timeSlot: 'morning',
+      reason: 'Bloqueio removido de teste',
+      blockType: 'administrative',
+      status: 'removed',
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]).onConflictDoNothing();
+
+  await db.insert(schema.notifications).values([
+    {
+      id: '00000000-0000-0000-0000-000000000081',
+      userId: SEED.users.professor1,
+      title: 'Reserva confirmada',
+      message: 'Sua reserva da sala A101 foi confirmada.',
+      type: 'confirmed',
+      read: false,
+      sentAt: now,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000082',
+      userId: SEED.users.student1,
+      title: 'Reserva cancelada',
+      message: 'Sua reserva futura da sala B205 foi cancelada.',
+      type: 'canceled',
+      read: true,
+      sentAt: now,
+    },
+  ]).onConflictDoNothing();
+
+  await db.insert(schema.auditLogs).values([
+    {
+      id: '00000000-0000-0000-0000-000000000091',
+      userId: SEED.users.staff1,
+      actionType: 'create_space',
+      referenceId: SEED.spaces.classroom1,
+      referenceType: 'space',
+      timestamp: now,
+      details: 'Created space A101',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000092',
+      userId: SEED.users.professor1,
+      actionType: 'create_reservation',
+      referenceId: SEED.reservations.todayReservation,
+      referenceType: 'reservation',
+      timestamp: now,
+      details: 'Reserved space A101 on 2026-04-02 (morning)',
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000093',
+      userId: SEED.users.maintenance1,
+      actionType: 'create_blocking',
+      referenceId: SEED.blockings.active2,
+      referenceType: 'blocking',
+      timestamp: now,
+      details: 'Blocked space B205 on 2026-04-05 (morning)',
     },
   ]).onConflictDoNothing();
 

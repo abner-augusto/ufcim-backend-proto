@@ -339,9 +339,23 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 | 6.3 | All endpoints tested with sample JWT | ✅ Done | tests/endpoints.http covers all 23 endpoints |
 | 6.4 | Role/permission matrix fully enforced | ✅ Done | rbac() middleware on every protected route |
 | 6.4b | Unit test suite (Vitest) | ✅ Done | 89 tests: middleware, validators, services — run with `npm test`. Every new feature must include tests. |
-| 6.5 | Deploy to Cloudflare Workers | ⬜ Not Started | Run: npx wrangler deploy |
-| 6.6 | Remote D1 migration applied | ⬜ Not Started | Run: npx wrangler d1 execute ufcim-db --remote --file=migrations/0000_lazy_wallow.sql |
-| 6.7 | End-to-end smoke test on Workers | ⬜ Not Started | Update JWKS_URL in wrangler.toml to real Keycloak before deploy |
+| 6.5 | Admin dashboard local dev setup | ✅ Done | Dev auth bypass, local D1 seed data, staff-only HTMX admin served from same Hono app |
+| 6.6 | Deploy to Cloudflare Workers | ⬜ Not Started | Run: npx wrangler deploy |
+| 6.7 | Remote D1 migration applied | ⬜ Not Started | Run: npx wrangler d1 execute ufcim-db --remote --file=migrations/0000_lazy_wallow.sql |
+| 6.8 | End-to-end smoke test on Workers | ⬜ Not Started | Update JWKS_URL in wrangler.toml to real Keycloak before deploy |
+
+### Phase 6.5: Admin Dashboard
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 6.5.1 | Local development auth bypass | ✅ Done | Development-only mock staff user injected when Authorization header is absent |
+| 6.5.2 | Staff stats endpoint | ✅ Done | GET /api/v1/stats returns dashboard summary counts |
+| 6.5.3 | Admin SPA shell served by Hono | ✅ Done | /admin and subviews render a Tailwind + HTMX + Alpine shell |
+| 6.5.4 | Spaces management view | ✅ Done | List, detail, availability, create, and update flows |
+| 6.5.5 | Reservations operations view | ✅ Done | Filterable table with grouped recurring series and cancel action |
+| 6.5.6 | Blockings operations view | ✅ Done | Active list, create form, and remove action |
+| 6.5.7 | Equipment operations view | ✅ Done | Grouped-by-space listing with inline status updates |
+| 6.5.8 | Users and audit logs views | ✅ Done | Read-only users table and filterable paginated logs |
 
 ### Phase 7: Production Migration (Future)
 

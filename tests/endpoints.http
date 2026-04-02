@@ -36,6 +36,10 @@ GET {{base}}/dev/jwks
 ### No auth — expect 401
 GET {{base}}/api/v1/users/me
 
+### Staff stats — expect 200
+GET {{base}}/api/v1/stats
+Authorization: Bearer {{staff_token}}
+
 ###############################################################################
 # 1 — Users
 ###############################################################################

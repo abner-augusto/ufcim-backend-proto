@@ -13,6 +13,14 @@ interface CreateBlockingInput {
   blockType: string;
 }
 
+interface ListBlockingsFilters {
+  spaceId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page: number;
+  limit: number;
+}
+
 export class BlockingService {
   private auditLog: AuditLogService;
   private notification: NotificationService;
@@ -133,5 +141,34 @@ export class BlockingService {
       with: { creator: true },
       orderBy: (b, { asc }) => [asc(b.date)],
     });
+  }
+
+  async listActive(filters: ListBlockingsFilters) {
+    const allBlockings = await this.db.query.blockings.findMany({
+      with: { creator: true, space: true },
+      orderBy: (b, { asc }) => [asc(b.date)],
+    });
+
+    const filtered = allBlockings.filter((blocking) => {
+      if (blocking.status !== 'active') return false;
+      if (filters.spaceId && blocking.spaceId !== filters.spaceId) return false;
+      if (filters.dateFrom && blocking.date < filters.dateFrom) return false;
+      if (filters.dateTo && blocking.date > filters.dateTo) return false;
+      return true;
+    });
+
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / filters.limit));
+    const start = (filters.page - 1) * filters.limit;
+
+    return {
+      data: filtered.slice(start, start + filters.limit),
+      pagination: {
+        page: filters.page,
+        limit: filters.limit,
+        total,
+        totalPages,
+      },
+    };
   }
 }
