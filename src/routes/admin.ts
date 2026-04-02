@@ -104,7 +104,7 @@ adminRoutes.post('/actions/spaces', async (c) => {
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
   const space = await service.create(c.get('user').sub, parsed.data);
-  return c.html(await renderSpacesView(c, { message: `Space ${space.number} created`, selectedSpaceId: space.id }));
+  return c.html(await renderSpacesView(c, { message: `Espaço ${space.number} criado`, selectedSpaceId: space.id }));
 });
 
 adminRoutes.put('/actions/spaces/:id', async (c) => {
@@ -115,7 +115,15 @@ adminRoutes.put('/actions/spaces/:id', async (c) => {
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
   const space = await service.update(c.req.param('id'), c.get('user').sub, parsed.data);
-  return c.html(await renderSpacesView(c, { message: `Space ${space.number} updated`, selectedSpaceId: space.id }));
+  return c.html(await renderSpacesView(c, { message: `Espaço ${space.number} atualizado`, selectedSpaceId: space.id }));
+});
+
+adminRoutes.patch('/actions/reservations/series/:id/cancel', async (c) => {
+  const filters = reservationFilterSchema.parse(await formDataToObject(c));
+  const db = createDb(c.env.DB);
+  const service = new ReservationService(db);
+  await service.cancelSeries(c.req.param('id'), c.get('user').sub, 'staff');
+  return c.html(await renderReservationsView(c, { ...filters, message: 'Série recorrente cancelada' }));
 });
 
 adminRoutes.patch('/actions/reservations/:id/cancel', async (c) => {
@@ -123,7 +131,7 @@ adminRoutes.patch('/actions/reservations/:id/cancel', async (c) => {
   const db = createDb(c.env.DB);
   const service = new ReservationService(db);
   await service.cancel(c.req.param('id'), c.get('user').sub, 'staff');
-  return c.html(await renderReservationsView(c, { ...filters, message: 'Reservation canceled' }));
+  return c.html(await renderReservationsView(c, { ...filters, message: 'Reserva cancelada' }));
 });
 
 adminRoutes.post('/actions/blockings', async (c) => {
@@ -134,7 +142,7 @@ adminRoutes.post('/actions/blockings', async (c) => {
   const db = createDb(c.env.DB);
   const service = new BlockingService(db);
   await service.create(c.get('user').sub, parsed.data);
-  return c.html(await renderBlockingsView(c, { message: 'Blocking created' }));
+  return c.html(await renderBlockingsView(c, { message: 'Bloqueio criado' }));
 });
 
 adminRoutes.patch('/actions/blockings/:id/remove', async (c) => {
@@ -142,7 +150,7 @@ adminRoutes.patch('/actions/blockings/:id/remove', async (c) => {
   const db = createDb(c.env.DB);
   const service = new BlockingService(db);
   await service.remove(c.req.param('id'), c.get('user').sub);
-  return c.html(await renderBlockingsView(c, { ...filters, message: 'Blocking removed' }));
+  return c.html(await renderBlockingsView(c, { ...filters, message: 'Bloqueio removido' }));
 });
 
 adminRoutes.patch('/actions/equipment/:id/status', async (c) => {
@@ -157,7 +165,7 @@ adminRoutes.patch('/actions/equipment/:id/status', async (c) => {
     notes: parsed.data.notes,
   });
 
-  return c.html(await renderEquipmentView(c, { message: 'Equipment status updated' }));
+  return c.html(await renderEquipmentView(c, { message: 'Status do equipamento atualizado' }));
 });
 
 adminRoutes.post('/actions/equipment', async (c) => {
@@ -169,7 +177,7 @@ adminRoutes.post('/actions/equipment', async (c) => {
   const service = new EquipmentService(db);
   await service.create(c.get('user').sub, parsed.data);
 
-  return c.html(await renderEquipmentView(c, { message: 'Equipment created' }));
+  return c.html(await renderEquipmentView(c, { message: 'Equipamento cadastrado' }));
 });
 
 async function renderSpacesView(
@@ -181,7 +189,7 @@ async function renderSpacesView(
   const spaces = await spaceService.list({ page: 1, limit: 100 });
   const selectedSpaceId = options?.selectedSpaceId ?? c.req.query('selectedSpaceId');
 
-  let detailHtml = renderEmptyState('Select a space to inspect equipment, availability, and edit its metadata.');
+  let detailHtml = renderEmptyState('Selecione um espaço para inspecionar equipamentos, disponibilidade e editar seus metadados.');
   if (selectedSpaceId) {
     const space = await spaceService.getById(selectedSpaceId);
     const availability = await spaceService.getAvailability(space.id, today());
@@ -267,23 +275,23 @@ function renderSpaceDetail(
       </div>
 
       <dl class="mt-4 grid gap-3 text-sm text-slate-700">
-        <div><strong>Block:</strong> ${escapeHtml(space.block)}</div>
-        <div><strong>Capacity:</strong> ${space.capacity}</div>
-        <div><strong>Closed Hours:</strong> ${escapeHtml(closedHours.closedFrom)}-${escapeHtml(closedHours.closedTo)}</div>
-        <div><strong>Furniture:</strong> ${escapeHtml(space.furniture ?? 'Not informed')}</div>
-        <div><strong>Lighting:</strong> ${escapeHtml(space.lighting ?? 'Not informed')}</div>
-        <div><strong>HVAC:</strong> ${escapeHtml(space.hvac ?? 'Not informed')}</div>
-        <div><strong>Multimedia:</strong> ${escapeHtml(space.multimedia ?? 'Not informed')}</div>
+        <div><strong>Bloco:</strong> ${escapeHtml(space.block)}</div>
+        <div><strong>Capacidade:</strong> ${space.capacity}</div>
+        <div><strong>Horário Fechado:</strong> ${escapeHtml(closedHours.closedFrom)}-${escapeHtml(closedHours.closedTo)}</div>
+        <div><strong>Mobiliário:</strong> ${escapeHtml(space.furniture ?? 'Não informado')}</div>
+        <div><strong>Iluminação:</strong> ${escapeHtml(space.lighting ?? 'Não informado')}</div>
+        <div><strong>HVAC:</strong> ${escapeHtml(space.hvac ?? 'Não informado')}</div>
+        <div><strong>Multimídia:</strong> ${escapeHtml(space.multimedia ?? 'Não informado')}</div>
       </dl>
 
       <div class="mt-6">
-        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Today's Availability</h4>
+        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Disponibilidade de Hoje</h4>
         <div class="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
           ${availability.map((slot) => `
             <div class="rounded-xl border border-slate-200 px-3 py-3">
               <div class="text-sm font-medium">${slot.startTime}-${slot.endTime}</div>
               <div class="mt-1 text-sm ${slot.status === 'available' ? 'text-emerald-600' : slot.status === 'blocked' ? 'text-rose-600' : slot.status === 'closed' ? 'text-slate-500' : 'text-amber-600'}">
-                ${slot.status}
+                ${renderAvailabilityStatus(slot.status)}
               </div>
             </div>
           `).join('')}
@@ -291,7 +299,7 @@ function renderSpaceDetail(
       </div>
 
       <div class="mt-6">
-        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Equipment</h4>
+        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Equipamentos</h4>
         <ul class="mt-3 space-y-2 text-sm text-slate-700">
           ${space.equipment.length > 0
             ? space.equipment.map((item) => `
@@ -300,17 +308,17 @@ function renderSpaceDetail(
                 <div class="text-slate-500">${escapeHtml(item.type)} · ${escapeHtml(item.status)}</div>
               </li>
             `).join('')
-            : '<li class="rounded-xl bg-slate-50 px-3 py-3 text-slate-500">No equipment registered.</li>'}
+            : '<li class="rounded-xl bg-slate-50 px-3 py-3 text-slate-500">Nenhum equipamento cadastrado.</li>'}
         </ul>
       </div>
 
       <div class="mt-6 border-t border-slate-200 pt-6">
-        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Edit Space</h4>
+        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Editar Espaço</h4>
         <form class="mt-4 grid gap-3 sm:grid-cols-2" hx-put="/admin/actions/spaces/${space.id}" hx-target="#admin-content" hx-swap="innerHTML">
           ${renderSpaceFields(space)}
           <input type="hidden" name="selectedSpaceId" value="${space.id}" />
           <div class="sm:col-span-2">
-            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Save Changes</button>
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Salvar Alterações</button>
           </div>
         </form>
       </div>
@@ -340,21 +348,21 @@ async function renderReservationsView(
       ${renderMessage(overrides?.message)}
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div class="mb-4">
-          <h2 class="text-xl font-semibold">Reservations</h2>
-          <p class="text-sm text-slate-600">Filter by date range, space, user, or status. Recurring series are grouped visually.</p>
+          <h2 class="text-xl font-semibold">Reservas</h2>
+          <p class="text-sm text-slate-600">Filtre por intervalo de datas, espaço, usuário ou status. Séries recorrentes exibem dia da semana, horário e ação em lote.</p>
         </div>
         <form class="grid gap-3 md:grid-cols-5" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML">
-          ${renderSelect('spaceId', 'Space', spaces.map((space) => ({ value: space.id, label: space.number })), normalizedFilters.spaceId)}
-          ${renderSelect('userId', 'User', users.map((user) => ({ value: user.id, label: user.name })), normalizedFilters.userId)}
+          ${renderSelect('spaceId', 'Espaço', spaces.map((space) => ({ value: space.id, label: space.number })), normalizedFilters.spaceId)}
+          ${renderSelect('userId', 'Usuário', users.map((user) => ({ value: user.id, label: user.name })), normalizedFilters.userId)}
           ${renderSelect('status', 'Status', [
-            { value: 'confirmed', label: 'Confirmed' },
-            { value: 'canceled', label: 'Canceled' },
-            { value: 'overridden', label: 'Overridden' },
+            { value: 'confirmed', label: 'Confirmada' },
+            { value: 'canceled', label: 'Cancelada' },
+            { value: 'overridden', label: 'Sobrescrita' },
           ], normalizedFilters.status)}
-          ${renderInput('dateFrom', 'Date From', 'date', normalizedFilters.dateFrom)}
-          ${renderInput('dateTo', 'Date To', 'date', normalizedFilters.dateTo)}
+          ${renderInput('dateFrom', 'Data Inicial', 'date', normalizedFilters.dateFrom)}
+          ${renderInput('dateTo', 'Data Final', 'date', normalizedFilters.dateTo)}
           <div class="md:col-span-5">
-            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Apply Filters</button>
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Aplicar Filtros</button>
           </div>
         </form>
       </div>
@@ -364,13 +372,13 @@ async function renderReservationsView(
           <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
               <tr class="text-left text-slate-500">
-                <th class="px-3 py-2 font-medium">Date</th>
-                <th class="px-3 py-2 font-medium">Time</th>
-                <th class="px-3 py-2 font-medium">Space</th>
-                <th class="px-3 py-2 font-medium">User</th>
+                <th class="px-3 py-2 font-medium">Data</th>
+                <th class="px-3 py-2 font-medium">Horário</th>
+                <th class="px-3 py-2 font-medium">Espaço</th>
+                <th class="px-3 py-2 font-medium">Usuário</th>
                 <th class="px-3 py-2 font-medium">Status</th>
-                <th class="px-3 py-2 font-medium">Series</th>
-                <th class="px-3 py-2 font-medium">Action</th>
+                <th class="px-3 py-2 font-medium">Série</th>
+                <th class="px-3 py-2 font-medium">Ação</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -404,31 +412,31 @@ async function renderBlockingsView(
       ${renderMessage(overrides?.message)}
       <div class="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h2 class="text-xl font-semibold">Create Blocking</h2>
-          <p class="mt-1 text-sm text-slate-600">Used for administrative or maintenance overrides.</p>
+          <h2 class="text-xl font-semibold">Criar Bloqueio</h2>
+          <p class="mt-1 text-sm text-slate-600">Use para indisponibilidades administrativas ou de manutenção.</p>
           <form class="mt-4 grid gap-3" hx-post="/admin/actions/blockings" hx-target="#admin-content" hx-swap="innerHTML">
-            ${renderSelect('spaceId', 'Space', spaces.map((space) => ({ value: space.id, label: space.number })))}
-            ${renderInput('date', 'Date', 'date', today())}
-            ${renderSelect('startTime', 'Start Time', HOURLY_OPTIONS, '08:00', true)}
-            ${renderSelect('endTime', 'End Time', HOURLY_BOUNDARY_OPTIONS, '09:00', true)}
-            ${renderSelect('blockType', 'Block Type', [
-              { value: 'maintenance', label: 'Maintenance' },
-              { value: 'administrative', label: 'Administrative' },
+            ${renderSelect('spaceId', 'Espaço', spaces.map((space) => ({ value: space.id, label: space.number })))}
+            ${renderInput('date', 'Data', 'date', today())}
+            ${renderSelect('startTime', 'Hora Inicial', HOURLY_OPTIONS, '08:00', true)}
+            ${renderSelect('endTime', 'Hora Final', HOURLY_BOUNDARY_OPTIONS, '09:00', true)}
+            ${renderSelect('blockType', 'Tipo de Bloqueio', [
+              { value: 'maintenance', label: 'Manutenção' },
+              { value: 'administrative', label: 'Administrativo' },
             ])}
-            ${renderTextarea('reason', 'Reason')}
-            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create Blocking</button>
+            ${renderTextarea('reason', 'Motivo')}
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Criar Bloqueio</button>
           </form>
         </div>
 
         <div class="space-y-6">
           <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h2 class="text-xl font-semibold">Active Blockings</h2>
+            <h2 class="text-xl font-semibold">Bloqueios Ativos</h2>
             <form class="mt-4 grid gap-3 md:grid-cols-4" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML">
-              ${renderSelect('spaceId', 'Space', spaces.map((space) => ({ value: space.id, label: space.number })), normalizedFilters.spaceId)}
-              ${renderInput('dateFrom', 'Date From', 'date', normalizedFilters.dateFrom)}
-              ${renderInput('dateTo', 'Date To', 'date', normalizedFilters.dateTo)}
+              ${renderSelect('spaceId', 'Espaço', spaces.map((space) => ({ value: space.id, label: space.number })), normalizedFilters.spaceId)}
+              ${renderInput('dateFrom', 'Data Inicial', 'date', normalizedFilters.dateFrom)}
+              ${renderInput('dateTo', 'Data Final', 'date', normalizedFilters.dateTo)}
               <div class="flex items-end">
-                <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Filter</button>
+                <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Filtrar</button>
               </div>
             </form>
           </div>
@@ -438,12 +446,12 @@ async function renderBlockingsView(
               <table class="min-w-full divide-y divide-slate-200 text-sm">
                 <thead>
                   <tr class="text-left text-slate-500">
-                    <th class="px-3 py-2 font-medium">Date</th>
-                    <th class="px-3 py-2 font-medium">Slot</th>
-                    <th class="px-3 py-2 font-medium">Space</th>
-                    <th class="px-3 py-2 font-medium">Type</th>
-                    <th class="px-3 py-2 font-medium">Reason</th>
-                    <th class="px-3 py-2 font-medium">Action</th>
+                    <th class="px-3 py-2 font-medium">Data</th>
+                    <th class="px-3 py-2 font-medium">Horário</th>
+                    <th class="px-3 py-2 font-medium">Espaço</th>
+                    <th class="px-3 py-2 font-medium">Tipo</th>
+                    <th class="px-3 py-2 font-medium">Motivo</th>
+                    <th class="px-3 py-2 font-medium">Ação</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -452,12 +460,12 @@ async function renderBlockingsView(
                       <td class="px-3 py-3">${blocking.date}</td>
                       <td class="px-3 py-3">${blocking.startTime}-${blocking.endTime}</td>
                       <td class="px-3 py-3 font-medium">${escapeHtml(blocking.space?.number ?? blocking.spaceId)}</td>
-                      <td class="px-3 py-3 capitalize">${escapeHtml(blocking.blockType)}</td>
+                      <td class="px-3 py-3">${escapeHtml(renderBlockingType(blocking.blockType))}</td>
                       <td class="px-3 py-3">${escapeHtml(blocking.reason)}</td>
                       <td class="px-3 py-3">
                         <form hx-patch="/admin/actions/blockings/${blocking.id}/remove" hx-target="#admin-content" hx-swap="innerHTML">
                           ${renderHiddenInputs(normalizedFilters)}
-                          <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Remove</button>
+                          <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Remover</button>
                         </form>
                       </td>
                     </tr>
@@ -488,28 +496,28 @@ async function renderEquipmentView(
       ${renderMessage(options?.message)}
       <div class="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h2 class="text-xl font-semibold">Create Equipment</h2>
-          <p class="mt-1 text-sm text-slate-600">Register equipment with its official university asset ID.</p>
+          <h2 class="text-xl font-semibold">Cadastrar Equipamento</h2>
+          <p class="mt-1 text-sm text-slate-600">Cadastre o equipamento com seu identificador patrimonial oficial da universidade.</p>
           <form class="mt-4 grid gap-3" hx-post="/admin/actions/equipment" hx-target="#admin-content" hx-swap="innerHTML">
-            ${renderSelect('spaceId', 'Space', spaces.map((space) => ({ value: space.id, label: `${space.number} · ${space.department}` })))}
-            ${renderInput('assetId', 'University Equipment ID', 'text', '', false, '', 'e.g. 2020002658')}
-            ${renderInput('name', 'Equipment Name', 'text')}
-            ${renderInput('type', 'Type', 'text', '', false, '', 'projector, hvac, display, laptop')}
+            ${renderSelect('spaceId', 'Espaço', spaces.map((space) => ({ value: space.id, label: `${space.number} · ${space.department}` })))}
+            ${renderInput('assetId', 'ID do Equipamento', 'text', '', false, '', 'ex.: 2020002658')}
+            ${renderInput('name', 'Nome do Equipamento', 'text')}
+            ${renderInput('type', 'Tipo', 'text', '', false, '', 'projetor, hvac, display, notebook')}
             ${renderSelect('status', 'Status', [
-              { value: 'working', label: 'Working' },
-              { value: 'broken', label: 'Broken' },
-              { value: 'under_repair', label: 'Under Repair' },
-              { value: 'replacement_scheduled', label: 'Replacement Scheduled' },
+              { value: 'working', label: 'Funcionando' },
+              { value: 'broken', label: 'Quebrado' },
+              { value: 'under_repair', label: 'Em Reparo' },
+              { value: 'replacement_scheduled', label: 'Troca Agendada' },
             ], 'working', true)}
-            ${renderInput('notes', 'Notes', 'text')}
-            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create Equipment</button>
+            ${renderInput('notes', 'Observações', 'text')}
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Cadastrar Equipamento</button>
           </form>
         </div>
 
         <div class="space-y-6">
           <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h2 class="text-xl font-semibold">Equipment</h2>
-            <p class="mt-1 text-sm text-slate-600">Grouped by space. Update statuses inline.</p>
+            <h2 class="text-xl font-semibold">Equipamentos</h2>
+            <p class="mt-1 text-sm text-slate-600">Agrupados por espaço. Atualize os status em linha.</p>
           </div>
 
           ${groups.map((space) => `
@@ -530,22 +538,22 @@ async function renderEquipmentView(
                         <div class="text-sm text-slate-500">${escapeHtml(item.type)}</div>
                       </div>
                       <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Asset ID</div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">ID Patrimonial</div>
                         <div class="mt-1 font-mono text-sm text-slate-700">${escapeHtml(item.assetId)}</div>
                       </div>
                       ${renderSelect('status', 'Status', [
-                        { value: 'working', label: 'Working' },
-                        { value: 'broken', label: 'Broken' },
-                        { value: 'under_repair', label: 'Under Repair' },
-                        { value: 'replacement_scheduled', label: 'Replacement Scheduled' },
+                        { value: 'working', label: 'Funcionando' },
+                        { value: 'broken', label: 'Quebrado' },
+                        { value: 'under_repair', label: 'Em Reparo' },
+                        { value: 'replacement_scheduled', label: 'Troca Agendada' },
                       ], item.status, true)}
-                      ${renderInput('notes', 'Notes', 'text', item.notes ?? '', true)}
+                      ${renderInput('notes', 'Observações', 'text', item.notes ?? '', true)}
                       <div class="flex items-end">
-                        <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Save</button>
+                        <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Salvar</button>
                       </div>
                     </form>
                   `).join('')
-                  : '<div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">No equipment registered for this space.</div>'}
+                  : '<div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">Nenhum equipamento cadastrado para este espaço.</div>'}
               </div>
             </div>
           `).join('')}
@@ -566,19 +574,19 @@ async function renderUsersView(
   return `
     <section class="space-y-6">
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-xl font-semibold">Users</h2>
-        <p class="mt-1 text-sm text-slate-600">Read-only view. User records are synced from JWT claims.</p>
+        <h2 class="text-xl font-semibold">Usuários</h2>
+        <p class="mt-1 text-sm text-slate-600">Visualização somente leitura. Os registros de usuários são sincronizados a partir das claims do JWT.</p>
       </div>
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
               <tr class="text-left text-slate-500">
-                <th class="px-3 py-2 font-medium">Name</th>
-                <th class="px-3 py-2 font-medium">Registration</th>
+                <th class="px-3 py-2 font-medium">Nome</th>
+                <th class="px-3 py-2 font-medium">Matrícula</th>
                 <th class="px-3 py-2 font-medium">Email</th>
-                <th class="px-3 py-2 font-medium">Department</th>
-                <th class="px-3 py-2 font-medium">Role</th>
+                <th class="px-3 py-2 font-medium">Departamento</th>
+                <th class="px-3 py-2 font-medium">Papel</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -614,14 +622,14 @@ async function renderLogsView(
   return `
     <section class="space-y-6">
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-xl font-semibold">Audit Logs</h2>
+        <h2 class="text-xl font-semibold">Logs de Auditoria</h2>
         <form class="mt-4 grid gap-3 md:grid-cols-5" hx-get="/admin/partials/logs" hx-target="#admin-content" hx-swap="innerHTML">
-          ${renderSelect('userId', 'User', users.map((user) => ({ value: user.id, label: user.name })), normalizedFilters.userId)}
-          ${renderInput('actionType', 'Action Type', 'text', normalizedFilters.actionType)}
-          ${renderInput('dateFrom', 'Date From', 'date', normalizedFilters.dateFrom)}
-          ${renderInput('dateTo', 'Date To', 'date', normalizedFilters.dateTo)}
+          ${renderSelect('userId', 'Usuário', users.map((user) => ({ value: user.id, label: user.name })), normalizedFilters.userId)}
+          ${renderInput('actionType', 'Tipo de Ação', 'text', normalizedFilters.actionType)}
+          ${renderInput('dateFrom', 'Data Inicial', 'date', normalizedFilters.dateFrom)}
+          ${renderInput('dateTo', 'Data Final', 'date', normalizedFilters.dateTo)}
           <div class="flex items-end">
-            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Filter</button>
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Filtrar</button>
           </div>
         </form>
       </div>
@@ -631,11 +639,11 @@ async function renderLogsView(
           <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
               <tr class="text-left text-slate-500">
-                <th class="px-3 py-2 font-medium">Timestamp</th>
-                <th class="px-3 py-2 font-medium">User</th>
-                <th class="px-3 py-2 font-medium">Action</th>
-                <th class="px-3 py-2 font-medium">Reference</th>
-                <th class="px-3 py-2 font-medium">Details</th>
+                <th class="px-3 py-2 font-medium">Data/Hora</th>
+                <th class="px-3 py-2 font-medium">Usuário</th>
+                <th class="px-3 py-2 font-medium">Ação</th>
+                <th class="px-3 py-2 font-medium">Referência</th>
+                <th class="px-3 py-2 font-medium">Detalhes</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -645,7 +653,7 @@ async function renderLogsView(
                   <td class="px-3 py-3 font-medium">${escapeHtml(log.user?.name ?? log.userId)}</td>
                   <td class="px-3 py-3">${escapeHtml(log.actionType)}</td>
                   <td class="px-3 py-3">${escapeHtml(log.referenceType ?? 'n/a')} · ${escapeHtml(log.referenceId ?? 'n/a')}</td>
-                  <td class="px-3 py-3">${escapeHtml(log.details ?? 'No details')}</td>
+                  <td class="px-3 py-3">${escapeHtml(log.details ?? 'Sem detalhes')}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -661,25 +669,25 @@ function renderDashboard(stats: Awaited<ReturnType<StatsService['getDashboardSta
   return `
     <section class="space-y-6" x-data="dashboardStats()" x-init="stats = ${escapeAttribute(JSON.stringify(stats))}; loading = false;">
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        ${renderStatCard('Total Spaces', 'stats.totalSpaces', 'All registered physical spaces')}
-        ${renderStatCard('Reservations Today', 'stats.activeReservationsToday', 'Confirmed reservations for today')}
-        ${renderStatCard('Active Blockings', 'stats.activeBlockings', 'Currently active overrides')}
-        ${renderStatCard('Total Users', 'stats.totalUsers', 'Users synced from auth claims')}
+        ${renderStatCard('Total de Espaços', 'stats.totalSpaces', 'Todos os espaços físicos registrados')}
+        ${renderStatCard('Reservas Hoje', 'stats.activeReservationsToday', 'Reservas confirmadas para hoje')}
+        ${renderStatCard('Bloqueios Ativos', 'stats.activeBlockings', 'Substituições ativas')}
+        ${renderStatCard('Total de Usuários', 'stats.totalUsers', 'Usuários sincronizados a partir das reivindicações de autenticação')}
       </div>
 
       <div class="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h2 class="text-xl font-semibold">Overview</h2>
+          <h2 class="text-xl font-semibold">Visão Geral</h2>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            This panel is optimized for local development. The same Hono app now serves both the API and a staff-only admin surface, and the dashboard reads summary counts from <code>/api/v1/stats</code>.
+            Este painel está otimizado para desenvolvimento local. O mesmo aplicativo Hono agora atende tanto à API quanto à uma superfície administrativa exclusiva para funcionários, e o painel de controle lê contagens resumidas de <code>/api/v1/stats</code>.
           </p>
         </div>
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <h2 class="text-xl font-semibold">Quick Links</h2>
+          <h2 class="text-xl font-semibold">Links Rápidos</h2>
           <div class="mt-4 grid gap-3">
-            <a href="/admin/spaces" hx-get="/admin/partials/spaces" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/spaces" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Manage spaces and inspect availability</a>
-            <a href="/admin/reservations" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/reservations" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Review reservations and cancel confirmed slots</a>
-            <a href="/admin/blockings" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/blockings" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Create and remove blockings</a>
+            <a href="/admin/spaces" hx-get="/admin/partials/spaces" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/spaces" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Gerenciar espaços e inspecionar disponibilidade</a>
+            <a href="/admin/reservations" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/reservations" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Revisar reservas e cancelar slots confirmados</a>
+            <a href="/admin/blockings" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/blockings" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Criar e remover bloqueios</a>
           </div>
         </div>
       </div>
@@ -707,7 +715,20 @@ function renderReservationRows(
   const groupedRows = [...grouped.entries()].map(([recurrenceId, items]) => `
     <tr class="bg-slate-50">
       <td colspan="7" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Recurring series · ${escapeHtml(items[0].recurrence?.description ?? recurrenceId)}
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div class="space-y-1">
+            <div>Série recorrente · ${escapeHtml(items[0].recurrence?.description ?? recurrenceId)}</div>
+            <div class="normal-case tracking-normal text-slate-600">${escapeHtml(describeRecurringSeries(items))}</div>
+          </div>
+          ${items.some((item) => item.status === 'confirmed')
+            ? `
+              <form hx-patch="/admin/actions/reservations/series/${recurrenceId}/cancel" hx-target="#admin-content" hx-swap="innerHTML">
+                ${renderHiddenInputs(filters)}
+                <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Cancelar série</button>
+              </form>
+            `
+            : '<span class="normal-case tracking-normal text-slate-400">Sem ações em lote</span>'}
+        </div>
       </td>
     </tr>
     ${items.map((reservation) => renderReservationRow(reservation, filters)).join('')}
@@ -727,16 +748,16 @@ function renderReservationRow(
       <td class="px-3 py-3 font-medium">${escapeHtml(reservation.space?.number ?? reservation.spaceId)}</td>
       <td class="px-3 py-3">${escapeHtml(reservation.user?.name ?? reservation.userId)}</td>
       <td class="px-3 py-3">${renderStatusPill(reservation.status)}</td>
-      <td class="px-3 py-3">${reservation.recurrenceId ? 'Recurring' : 'Single'}</td>
+      <td class="px-3 py-3">${reservation.recurrenceId ? 'Recorrente' : 'Simples'}</td>
       <td class="px-3 py-3">
         ${reservation.status === 'confirmed'
           ? `
             <form hx-patch="/admin/actions/reservations/${reservation.id}/cancel" hx-target="#admin-content" hx-swap="innerHTML">
               ${renderHiddenInputs(filters)}
-              <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Cancel</button>
+              <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Cancelar</button>
             </form>
           `
-          : '<span class="text-slate-400">No action</span>'}
+          : '<span class="text-slate-400">Nenhuma ação</span>'}
       </td>
     </tr>
   `;
@@ -746,23 +767,23 @@ function renderSpaceFields(space?: Record<string, unknown>) {
   const closedHours = normalizeClosedHours(stringValue(space?.closedFrom), stringValue(space?.closedTo));
 
   return `
-    ${renderInput('number', 'Number', 'text', stringValue(space?.number))}
-    ${renderSelect('type', 'Type', [
-      { value: 'classroom', label: 'Classroom' },
-      { value: 'study_room', label: 'Study Room' },
-      { value: 'meeting_room', label: 'Meeting Room' },
-      { value: 'hall', label: 'Hall' },
+    ${renderInput('number', 'Número', 'text', stringValue(space?.number))}
+    ${renderSelect('type', 'Tipo', [
+      { value: 'classroom', label: 'Sala de aula' },
+      { value: 'study_room', label: 'Sala de estudo' },
+      { value: 'meeting_room', label: 'Sala de reunião' },
+      { value: 'hall', label: 'Auditório' },
     ], stringValue(space?.type))}
-    ${renderInput('block', 'Block', 'text', stringValue(space?.block))}
+    ${renderInput('block', 'Bloco', 'text', stringValue(space?.block))}
     ${renderInput('campus', 'Campus', 'text', stringValue(space?.campus))}
-    ${renderInput('department', 'Department', 'text', stringValue(space?.department))}
-    ${renderInput('capacity', 'Capacity', 'number', stringValue(space?.capacity))}
-    ${renderInput('furniture', 'Furniture', 'text', stringValue(space?.furniture), false, 'sm:col-span-2')}
-    ${renderInput('lighting', 'Lighting', 'text', stringValue(space?.lighting))}
-    ${renderInput('hvac', 'HVAC', 'text', stringValue(space?.hvac))}
-    ${renderInput('multimedia', 'Multimedia', 'text', stringValue(space?.multimedia), false, 'sm:col-span-2')}
-    ${renderSelect('closedFrom', 'Closed From', HOURLY_OPTIONS, closedHours.closedFrom || DEFAULT_CLOSED_FROM, true)}
-    ${renderSelect('closedTo', 'Closed To', HOURLY_BOUNDARY_OPTIONS, closedHours.closedTo || DEFAULT_CLOSED_TO, true)}
+    ${renderInput('department', 'Departamento', 'text', stringValue(space?.department))}
+    ${renderInput('capacity', 'Capacidade', 'number', stringValue(space?.capacity))}
+    ${renderInput('furniture', 'Mobiliário', 'text', stringValue(space?.furniture), false, 'sm:col-span-2')}
+    ${renderInput('lighting', 'Iluminação', 'text', stringValue(space?.lighting))}
+    ${renderInput('hvac', 'Controle de temperatura e umidade (HVAC)', 'text', stringValue(space?.hvac))}
+    ${renderInput('multimedia', 'Multimídia', 'text', stringValue(space?.multimedia), false, 'sm:col-span-2')}
+    ${renderSelect('closedFrom', 'Fechado a partir de', HOURLY_OPTIONS, closedHours.closedFrom || DEFAULT_CLOSED_FROM, true)}
+    ${renderSelect('closedTo', 'Fechado até', HOURLY_BOUNDARY_OPTIONS, closedHours.closedTo || DEFAULT_CLOSED_TO, true)}
   `;
 }
 
@@ -816,7 +837,7 @@ function renderSelect(
         class="rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none ring-0 focus:border-slate-900"
         name="${name}"
       >
-        ${compact ? '' : '<option value="">All</option>'}
+        ${compact ? '' : '<option value="">Todos</option>'}
         ${options.map((option) => `
           <option value="${escapeAttribute(option.value)}" ${option.value === selectedValue ? 'selected' : ''}>
             ${escapeHtml(option.label)}
@@ -832,7 +853,7 @@ function renderPagination(basePath: string, pagination: { page: number; totalPag
 
   return `
     <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4 text-sm">
-      <span class="text-slate-600">Page ${pagination.page} of ${pagination.totalPages}</span>
+      <span class="text-slate-600">Página ${pagination.page} de ${pagination.totalPages}</span>
       <div class="flex gap-2">
         ${pagination.page > 1 ? `
           <button
@@ -841,7 +862,7 @@ function renderPagination(basePath: string, pagination: { page: number; totalPag
             hx-swap="innerHTML"
             class="rounded-lg border border-slate-300 px-3 py-2"
           >
-            Previous
+            Anterior
           </button>
         ` : ''}
         ${pagination.page < pagination.totalPages ? `
@@ -851,7 +872,7 @@ function renderPagination(basePath: string, pagination: { page: number; totalPag
             hx-swap="innerHTML"
             class="rounded-lg border border-slate-300 px-3 py-2"
           >
-            Next
+            Próxima
           </button>
         ` : ''}
       </div>
@@ -879,7 +900,7 @@ function renderMessage(message?: string) {
 function renderValidationErrors(issues: Array<{ path: PropertyKey[]; message: string }>) {
   return `
     <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-      <div class="font-medium">Validation failed</div>
+      <div class="font-medium">Validação falhou</div>
       <ul class="mt-2 list-disc pl-5">
         ${issues.map((issue) => `<li>${escapeHtml(issue.path.join('.') || 'form')}: ${escapeHtml(issue.message)}</li>`).join('')}
       </ul>
@@ -896,7 +917,58 @@ function renderStatusPill(status: string) {
     removed: 'bg-slate-100 text-slate-600',
   };
 
-  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${classMap[status] ?? 'bg-slate-100 text-slate-600'}">${escapeHtml(status)}</span>`;
+  const labelMap: Record<string, string> = {
+    confirmed: 'Confirmada',
+    canceled: 'Cancelada',
+    overridden: 'Sobrescrita',
+    active: 'Ativo',
+    removed: 'Removido',
+  };
+
+  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${classMap[status] ?? 'bg-slate-100 text-slate-600'}">${escapeHtml(labelMap[status] ?? status)}</span>`;
+}
+
+function renderAvailabilityStatus(status: string) {
+  const labels: Record<string, string> = {
+    available: 'Disponivel',
+    blocked: 'Bloqueado',
+    reserved: 'Reservado',
+    closed: 'Fechado',
+  };
+
+  return escapeHtml(labels[status] ?? status);
+}
+
+function renderBlockingType(blockType: string) {
+  const labels: Record<string, string> = {
+    maintenance: 'Manutenção',
+    administrative: 'Administrativo',
+  };
+
+  return labels[blockType] ?? blockType;
+}
+
+function describeRecurringSeries(
+  items: Awaited<ReturnType<ReservationService['listForAdmin']>>['data']
+) {
+  const sorted = [...items].sort((left, right) => left.date.localeCompare(right.date));
+  const first = sorted[0];
+  if (!first) return '';
+
+  const confirmedCount = sorted.filter((item) => item.status === 'confirmed').length;
+  const totalCount = sorted.length;
+  const weekday = formatWeekday(first.date);
+  const space = first.space?.number ?? first.spaceId;
+  const nextDate = sorted.find((item) => item.status === 'confirmed')?.date;
+  const nextLabel = nextDate ? `Próxima: ${nextDate}` : 'Sem próximas reservas ativas';
+
+  return `${weekday} · ${first.startTime}-${first.endTime} · Espaço ${space} · ${confirmedCount}/${totalCount} ativas · ${nextLabel}`;
+}
+
+function formatWeekday(date: string) {
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const labels = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  return labels[weekday] ?? date;
 }
 
 function renderRoleBadge(role: string) {
@@ -927,7 +999,6 @@ function renderEmptyState(message: string) {
     </div>
   `;
 }
-
 async function formDataToObject(c: AdminContext) {
   const formData = await c.req.formData();
   return Object.fromEntries(formData.entries());

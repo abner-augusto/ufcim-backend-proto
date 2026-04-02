@@ -201,6 +201,58 @@ export class ReservationService {
     return updated;
   }
 
+  async cancelSeries(recurrenceId: string, userId: string, userRole: string) {
+    if (userRole === 'student') {
+      throw new ForbiddenError('Students cannot cancel recurring reservation series');
+    }
+
+    if (userRole === 'maintenance') {
+      throw new ForbiddenError('Maintenance personnel cannot manage reservations');
+    }
+
+    const seriesReservations = await this.db.query.reservations.findMany({
+      where: eq(reservations.recurrenceId, recurrenceId),
+      with: { space: true, recurrence: true },
+    });
+
+    if (seriesReservations.length === 0) {
+      throw new NotFoundError('Recurring reservation series');
+    }
+
+    const activeReservations = seriesReservations.filter((reservation) => reservation.status === 'confirmed');
+    if (activeReservations.length === 0) {
+      throw new AppError(400, 'Recurring reservation series is already canceled', 'ALREADY_CANCELED');
+    }
+
+    const now = new Date().toISOString();
+    const updatedReservations = await this.db
+      .update(reservations)
+      .set({ status: 'canceled', updatedAt: now })
+      .where(eq(reservations.recurrenceId, recurrenceId))
+      .returning();
+
+    await this.auditLog.log(
+      userId,
+      'cancel_recurring_reservation',
+      recurrenceId,
+      'reservation',
+      `Canceled recurring series ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${activeReservations.length} reservations)`
+    );
+
+    for (const reservation of activeReservations) {
+      if (reservation.userId === userId) continue;
+
+      await this.notification.create(
+        reservation.userId,
+        'Recurring reservation series canceled',
+        `Your recurring reservation on ${reservation.date} (${reservation.startTime}-${reservation.endTime}) was canceled.`,
+        'canceled'
+      );
+    }
+
+    return updatedReservations;
+  }
+
   async listBySpace(spaceId: string, date?: string) {
     return this.db.query.reservations.findMany({
       where: and(

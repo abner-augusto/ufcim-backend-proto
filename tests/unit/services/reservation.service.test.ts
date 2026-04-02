@@ -269,3 +269,36 @@ describe('ReservationService.createRecurring', () => {
     expect(result.skipped[0].reason).toBe('Time range unavailable');
   });
 });
+
+describe('ReservationService.cancelSeries', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db._insert.returning.mockResolvedValue([{}]);
+    db._update.returning.mockResolvedValue([
+      { ...SEED.reservation, recurrenceId: 'series-1', status: 'canceled' },
+      { ...SEED.reservation, id: 'r-2', date: '2099-06-22', recurrenceId: 'series-1', status: 'canceled' },
+    ]);
+  });
+
+  it('throws NotFoundError when the series does not exist', async () => {
+    db.query.reservations.findMany.mockResolvedValue([]);
+
+    await expect(service.cancelSeries('missing-series', OTHER_USER_ID, 'staff')).rejects.toThrow(NotFoundError);
+  });
+
+  it('cancels all confirmed reservations in a recurring series', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula semanal' }, space: SEED.space },
+      { ...SEED.reservation, id: 'r-2', date: '2099-06-22', recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula semanal' }, space: SEED.space },
+    ]);
+
+    const result = await service.cancelSeries('series-1', OTHER_USER_ID, 'staff');
+
+    expect(result).toHaveLength(2);
+    expect(db._update.fn).toHaveBeenCalled();
+  });
+});
