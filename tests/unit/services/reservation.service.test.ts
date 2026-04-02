@@ -1,0 +1,259 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { ReservationService } from '@/services/reservation.service';
+import {
+  NotFoundError,
+  ConflictError,
+  ForbiddenError,
+  AppError,
+} from '@/middleware/error-handler';
+import { createMockDb, SEED } from '../helpers/mock-db';
+
+const USER_ID = SEED.reservation.userId;
+const OTHER_USER_ID = '00000000-0000-0000-0000-000000000002';
+const SPACE_ID = SEED.space.id;
+const DATE = SEED.reservation.date;
+const TIME_SLOT = 'morning' as const;
+
+describe('ReservationService.create', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    // Default: insert operations succeed
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+  });
+
+  it('throws NotFoundError when space does not exist', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(undefined);
+
+    await expect(
+      service.create(USER_ID, 'professor', 'Any Dept', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws ForbiddenError when student tries to reserve outside their department', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space); // dept: Ciência da Computação
+
+    await expect(
+      service.create(USER_ID, 'student', 'Administração', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('throws ConflictError when slot is already confirmed', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // slot taken
+
+    await expect(
+      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('throws ConflictError when slot is actively blocked', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findFirst.mockResolvedValue(undefined); // no reservation
+    db.query.blockings.findFirst.mockResolvedValue(SEED.blocking);  // but blocked
+
+    await expect(
+      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('throws STUDENT_LIMIT error when student already has an active reservation', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    // checkSlotAvailability: reservations.findFirst (no conflict), blockings.findFirst (not blocked)
+    // enforceStudentLimit: reservations.findFirst (student has one active)
+    db.query.reservations.findFirst
+      .mockResolvedValueOnce(undefined)        // slot availability: no confirmed reservation
+      .mockResolvedValueOnce(SEED.reservation); // enforceStudentLimit: has active reservation
+    db.query.blockings.findFirst.mockResolvedValue(undefined);
+
+    const err = await service
+      .create(USER_ID, 'student', SEED.space.department, { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('STUDENT_LIMIT');
+  });
+
+  it('creates and returns a reservation for a professor with no conflicts', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findFirst.mockResolvedValue(undefined);
+    db.query.blockings.findFirst.mockResolvedValue(undefined);
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+
+    const result = await service.create(
+      OTHER_USER_ID,
+      'professor',
+      'Ciência da Computação',
+      { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT }
+    );
+
+    expect(result).toMatchObject({ id: SEED.reservation.id });
+  });
+});
+
+describe('ReservationService.cancel', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db._update.returning.mockResolvedValue([{ ...SEED.reservation, status: 'canceled' }]);
+    db._insert.returning.mockResolvedValue([{}]); // for audit log / notification inserts
+  });
+
+  it('throws NotFoundError when reservation does not exist', async () => {
+    db.query.reservations.findFirst.mockResolvedValue(undefined);
+
+    await expect(service.cancel('no-such-id', USER_ID, 'professor')).rejects.toThrow(NotFoundError);
+  });
+
+  it('throws AppError(ALREADY_CANCELED) when reservation is already canceled', async () => {
+    db.query.reservations.findFirst.mockResolvedValue({ ...SEED.reservation, status: 'canceled' });
+
+    const err = await service.cancel(SEED.reservation.id, USER_ID, 'professor').catch((e) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('ALREADY_CANCELED');
+  });
+
+  it("throws ForbiddenError when student tries to cancel another user's reservation", async () => {
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // owned by USER_ID
+
+    await expect(
+      service.cancel(SEED.reservation.id, OTHER_USER_ID, 'student')
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('throws ForbiddenError when maintenance role tries to cancel', async () => {
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation);
+
+    await expect(
+      service.cancel(SEED.reservation.id, USER_ID, 'maintenance')
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('allows a student to cancel their own reservation', async () => {
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // owned by USER_ID
+
+    const result = await service.cancel(SEED.reservation.id, USER_ID, 'student');
+    expect(result).toMatchObject({ status: 'canceled' });
+  });
+
+  it("sends a notification when a professor cancels someone else's reservation", async () => {
+    // Reservation owned by USER_ID, canceled by OTHER_USER_ID (professor)
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation);
+    db._insert.returning.mockResolvedValue([{}]);
+
+    await service.cancel(SEED.reservation.id, OTHER_USER_ID, 'professor');
+
+    // insert called at least for notification (and audit log)
+    expect(db._insert.fn).toHaveBeenCalled();
+  });
+
+  it('does NOT send a notification when a user cancels their own reservation', async () => {
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // userId === USER_ID
+    db._insert.returning.mockResolvedValue([{}]);
+
+    await service.cancel(SEED.reservation.id, USER_ID, 'student');
+
+    // insert is called once for the audit log only, not twice (audit + notification)
+    const callCount = db._insert.fn.mock.calls.length;
+    expect(callCount).toBe(1); // audit log only
+  });
+});
+
+describe('ReservationService.createRecurring', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+  });
+
+  it('throws ForbiddenError for student role', async () => {
+    await expect(
+      service.createRecurring(USER_ID, 'student', {
+        spaceId: SPACE_ID,
+        startDate: '2099-06-02',
+        endDate: '2099-06-30',
+        dayOfWeek: 1,
+        timeSlot: 'morning',
+        description: 'Weekly',
+      })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('throws ForbiddenError for maintenance role', async () => {
+    await expect(
+      service.createRecurring(USER_ID, 'maintenance', {
+        spaceId: SPACE_ID,
+        startDate: '2099-06-02',
+        endDate: '2099-06-30',
+        dayOfWeek: 1,
+        timeSlot: 'morning',
+        description: 'Weekly',
+      })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('throws NotFoundError when space does not exist', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(undefined);
+
+    await expect(
+      service.createRecurring(OTHER_USER_ID, 'professor', {
+        spaceId: SPACE_ID,
+        startDate: '2099-06-02',
+        endDate: '2099-06-30',
+        dayOfWeek: 1,
+        timeSlot: 'morning',
+        description: 'Weekly',
+      })
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it('skips conflicting dates and returns created + skipped lists', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    // All slots available → no skips
+    db.query.reservations.findFirst.mockResolvedValue(undefined);
+    db.query.blockings.findFirst.mockResolvedValue(undefined);
+
+    const result = await service.createRecurring(OTHER_USER_ID, 'professor', {
+      spaceId: SPACE_ID,
+      startDate: '2099-06-02', // Monday
+      endDate: '2099-06-16',   // 3 Mondays: 2, 9, 16
+      dayOfWeek: 1,
+      timeSlot: 'morning',
+      description: 'Weekly lecture',
+    });
+
+    expect(result.skipped).toHaveLength(0);
+    expect(result.created.length).toBeGreaterThan(0);
+    expect(result.recurrenceId).toBeTruthy();
+  });
+
+  it('skips a date when its slot is already confirmed', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    // First occurrence: slot taken → skipped; subsequent: available
+    db.query.reservations.findFirst
+      .mockResolvedValueOnce(SEED.reservation) // 1st date: slot taken
+      .mockResolvedValue(undefined);            // rest: available
+    db.query.blockings.findFirst.mockResolvedValue(undefined);
+
+    const result = await service.createRecurring(OTHER_USER_ID, 'professor', {
+      spaceId: SPACE_ID,
+      startDate: '2099-06-02',
+      endDate: '2099-06-16',
+      dayOfWeek: 1,
+      timeSlot: 'morning',
+      description: 'Weekly lecture',
+    });
+
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0].reason).toBe('Slot unavailable');
+  });
+});
