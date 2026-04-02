@@ -1264,7 +1264,118 @@ Use deterministic UUIDs (e.g., `00000000-0000-0000-0000-000000000001`) for easy 
 
 ---
 
-## 9. Deployment
+## 9. Unit Tests (Vitest)
+
+Install Vitest and add the test scripts to `package.json`:
+
+```bash
+npm install --save-dev vitest
+```
+
+```json
+"scripts": {
+  "test": "vitest run",
+  "test:watch": "vitest"
+}
+```
+
+Create `vitest.config.ts` to resolve the `@/` path alias:
+
+```typescript
+import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    include: ['tests/unit/**/*.test.ts'],
+  },
+  resolve: {
+    alias: { '@': resolve(__dirname, './src') },
+  },
+});
+```
+
+### 9.1 Mock DB Helper
+
+Create `tests/unit/helpers/mock-db.ts`. Services receive a `Database` instance, so tests mock it with `vi.fn()` stubs wired to match Drizzle's query/mutation chains:
+
+```typescript
+import { vi } from 'vitest';
+import type { Database } from '@/db/client';
+
+export function createMockDb() {
+  const insertReturning = vi.fn().mockResolvedValue([{}]);
+  const insertValues    = vi.fn().mockReturnValue({ returning: insertReturning });
+  const insertFn        = vi.fn().mockReturnValue({ values: insertValues });
+
+  const updateReturning = vi.fn().mockResolvedValue([{}]);
+  const updateWhere     = vi.fn().mockReturnValue({ returning: updateReturning });
+  const updateSet       = vi.fn().mockReturnValue({ where: updateWhere });
+  const updateFn        = vi.fn().mockReturnValue({ set: updateSet });
+
+  return {
+    query: {
+      spaces:        { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      reservations:  { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      blockings:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      // ... repeat for every table
+    },
+    insert: insertFn,
+    update: updateFn,
+    _insert: { fn: insertFn, values: insertValues, returning: insertReturning },
+    _update: { fn: updateFn, set: updateSet, where: updateWhere, returning: updateReturning },
+  } as unknown as Database & { _insert: ...; _update: ... };
+}
+```
+
+Override per-test:
+
+```typescript
+db.query.spaces.findFirst.mockResolvedValue(mySpace);
+db._insert.returning.mockResolvedValue([myReservation]);
+```
+
+### 9.2 Test Structure
+
+```text
+tests/unit/
+  helpers/mock-db.ts               ← shared mock factory
+  middleware/
+    rbac.test.ts                   ← extractRole mapping
+    error-handler.test.ts          ← AppError subclasses
+  validators/
+    common.schema.test.ts          ← dates, pagination, enums
+    reservation.schema.test.ts     ← cross-field rules
+  services/
+    space.service.test.ts          ← availability logic
+    reservation.service.test.ts    ← RBAC guards, conflicts, limits
+    blocking.service.test.ts       ← override flow, soft-delete
+```
+
+### 9.3 Adding Tests for New Features
+
+Every new feature **must** include unit tests:
+
+- **New Zod schema** → add acceptance/rejection cases to `tests/unit/validators/`.
+- **New service method or business rule** → add cases to the matching `tests/unit/services/*.service.test.ts`. Cover: happy path, not-found, forbidden, conflict.
+- **New error class** → add a case to `tests/unit/middleware/error-handler.test.ts`.
+
+Run the suite before committing:
+
+```bash
+npm test
+```
+
+### Acceptance Criteria
+
+- [ ] `npm test` exits 0
+- [ ] Every new service method has at least one test for each distinct error path
+- [ ] Every new Zod schema has at least one valid and one invalid case
+
+---
+
+## 10. Deployment
 
 ### 9.1 Cloudflare Workers (Prototype)
 

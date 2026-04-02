@@ -69,13 +69,38 @@ npx wrangler d1 execute ufcim-db --remote --file=migrations/<file>.sql  # Apply 
 
 # Type checking
 npx tsc --noEmit                              # Type check without emitting
+
+# Unit tests
+npm test                                      # Run full test suite (vitest)
+npm run test:watch                            # Watch mode
 ```
 
 ## Testing Approach
 
+### Unit tests (Vitest)
+
+The project has an 89-test unit suite under `tests/unit/`. Run with `npm test`.
+
+| Layer | Location | What is covered |
+| --- | --- | --- |
+| Middleware | `tests/unit/middleware/` | `extractRole` role mapping, all `AppError` subclasses |
+| Validators | `tests/unit/validators/` | Zod schema acceptance/rejection, cross-field rules |
+| Services | `tests/unit/services/` | Business logic: RBAC guards, slot conflicts, notification triggers, soft-deletes |
+
+**Mock helper:** `tests/unit/helpers/mock-db.ts` — `createMockDb()` returns a fully-wired `vi.fn()` mock of the Drizzle `Database` type, with per-test overridable stubs for every query and mutation chain.
+
+**Rule: every new feature must ship with tests.**
+
+- New validator schema → add cases to the matching `*.schema.test.ts` (or create one).
+- New service method or business rule → add cases to the matching `*.service.test.ts`.
+- New error class → add a case to `error-handler.test.ts`.
+
+### Integration / smoke testing
+
 - Use `wrangler dev` for local integration testing
 - Test with curl or httpie against `http://localhost:8787`
-- For JWT testing, generate tokens with a test JWKS keypair
+- For JWT testing, generate tokens with `node scripts/generate-test-token.mjs [role]`
+- All 23 endpoints are documented in `tests/endpoints.http` (VS Code REST Client)
 - Seed data uses deterministic UUIDs (`00000000-0000-0000-0000-00000000000X`)
 
 ## Guardrails

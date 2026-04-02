@@ -338,6 +338,7 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 | 6.2 | Seed data applied and verified | ✅ Done | scripts/seed.sql applied to local D1 |
 | 6.3 | All endpoints tested with sample JWT | ✅ Done | tests/endpoints.http covers all 23 endpoints |
 | 6.4 | Role/permission matrix fully enforced | ✅ Done | rbac() middleware on every protected route |
+| 6.4b | Unit test suite (Vitest) | ✅ Done | 89 tests: middleware, validators, services — run with `npm test`. Every new feature must include tests. |
 | 6.5 | Deploy to Cloudflare Workers | ⬜ Not Started | Run: npx wrangler deploy |
 | 6.6 | Remote D1 migration applied | ⬜ Not Started | Run: npx wrangler d1 execute ufcim-db --remote --file=migrations/0000_lazy_wallow.sql |
 | 6.7 | End-to-end smoke test on Workers | ⬜ Not Started | Update JWKS_URL in wrangler.toml to real Keycloak before deploy |
