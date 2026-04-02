@@ -5,6 +5,16 @@ import type { JwtPayload } from '@/types/auth';
 import { extractRole } from '@/middleware/rbac';
 import { NotFoundError } from '@/middleware/error-handler';
 
+interface PaginatedUsers {
+  data: Awaited<ReturnType<Database['query']['users']['findMany']>>;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export class UserService {
   constructor(private db: Database) {}
 
@@ -57,5 +67,25 @@ export class UserService {
       offset: (page - 1) * limit,
     });
     return data;
+  }
+
+  async listForAdmin(page: number, limit: number): Promise<PaginatedUsers> {
+    const allUsers = await this.db.query.users.findMany({
+      orderBy: (u, { asc }) => [asc(u.name)],
+    });
+
+    const total = allUsers.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const start = (page - 1) * limit;
+
+    return {
+      data: allUsers.slice(start, start + limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   }
 }

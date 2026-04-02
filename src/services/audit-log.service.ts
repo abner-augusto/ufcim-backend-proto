@@ -7,6 +7,8 @@ interface ListAuditLogsFilters {
   userId?: string;
   actionType?: string;
   referenceType?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page: number;
   limit: number;
 }
@@ -34,19 +36,30 @@ export class AuditLogService {
   }
 
   async list(filters: ListAuditLogsFilters) {
-    const data = await this.db.query.auditLogs.findMany({
-      where: and(
-        filters.userId ? eq(auditLogs.userId, filters.userId) : undefined,
-        filters.actionType ? eq(auditLogs.actionType, filters.actionType) : undefined,
-        filters.referenceType ? eq(auditLogs.referenceType, filters.referenceType) : undefined
-      ),
+    const allLogs = await this.db.query.auditLogs.findMany({
       with: { user: true },
       orderBy: (l, { desc: d }) => [d(l.timestamp)],
-      limit: filters.limit,
-      offset: (filters.page - 1) * filters.limit,
     });
 
-    return data;
+    const filtered = allLogs.filter((log) => {
+      if (filters.userId && log.userId !== filters.userId) return false;
+      if (filters.actionType && log.actionType !== filters.actionType) return false;
+      if (filters.referenceType && log.referenceType !== filters.referenceType) return false;
+      if (filters.dateFrom && log.timestamp.slice(0, 10) < filters.dateFrom) return false;
+      if (filters.dateTo && log.timestamp.slice(0, 10) > filters.dateTo) return false;
+      return true;
+    });
+
+    const start = (filters.page - 1) * filters.limit;
+    return {
+      data: filtered.slice(start, start + filters.limit),
+      pagination: {
+        page: filters.page,
+        limit: filters.limit,
+        total: filtered.length,
+        totalPages: Math.max(1, Math.ceil(filtered.length / filters.limit)),
+      },
+    };
   }
 
   async getById(id: string) {

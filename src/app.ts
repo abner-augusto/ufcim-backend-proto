@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env, AppVariables } from '@/types/env';
@@ -14,6 +15,9 @@ import { reservationRoutes } from '@/routes/reservations';
 import { blockingRoutes } from '@/routes/blockings';
 import { notificationRoutes } from '@/routes/notifications';
 import { logRoutes } from '@/routes/logs';
+import { statsRoutes } from '@/routes/stats';
+import { adminRoutes } from '@/routes/admin';
+import { rbac } from '@/middleware/rbac';
 
 type AppEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -33,17 +37,20 @@ app.get('/dev/jwks', (c) => c.json(DEV_JWKS));
 
 // ── Authenticated API routes ─────────────────────────────────────────────────
 const api = new Hono<AppEnv>();
+const admin = new Hono<AppEnv>();
 
-// 1. Verify JWT and set c.get('user')
-api.use('*', authMiddleware);
-
-// 2. Upsert user from JWT claims on every request (idempotent, keeps DB in sync)
-api.use('*', async (c, next) => {
+const syncUserMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const db = createDb(c.env.DB);
   const userService = new UserService(db);
   await userService.syncFromToken(c.get('user'));
   await next();
 });
+
+// 1. Verify JWT and set c.get('user')
+api.use('*', authMiddleware);
+
+// 2. Upsert user from JWT claims on every request (idempotent, keeps DB in sync)
+api.use('*', syncUserMiddleware);
 
 api.route('/users', userRoutes);
 api.route('/spaces', spaceRoutes);
@@ -52,7 +59,15 @@ api.route('/reservations', reservationRoutes);
 api.route('/blockings', blockingRoutes);
 api.route('/notifications', notificationRoutes);
 api.route('/logs', logRoutes);
+api.route('/stats', statsRoutes);
 
 app.route('/api/v1', api);
+
+admin.use('*', authMiddleware);
+admin.use('*', syncUserMiddleware);
+admin.use('*', rbac(['staff']));
+admin.route('/', adminRoutes);
+
+app.route('/admin', admin);
 
 export { app };
