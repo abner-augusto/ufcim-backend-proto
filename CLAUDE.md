@@ -97,4 +97,4 @@ npx tsc --noEmit                              # Type check without emitting
 
 ## Current Phase
 
-Phase 6: Testing & Deployment (local dev, seed data, endpoint testing, deploy to Workers)
+Phase 6: Testing & Deployment — local infrastructure ready. Remaining: deploy (6.5), remote migration (6.6), smoke test (6.7).

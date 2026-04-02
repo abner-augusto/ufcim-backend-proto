@@ -1,0 +1,319 @@
+# UFCIM API — endpoint tests (VS Code REST Client / IntelliJ HTTP Client)
+#
+# Setup:
+#   1. Copy .dev.vars.example → .dev.vars
+#   2. Apply migration: npx wrangler d1 execute ufcim-db --local --file=migrations/0000_lazy_wallow.sql
+#   3. Apply seed:      npx wrangler d1 execute ufcim-db --local --file=scripts/seed.sql
+#   4. Start worker:    npx wrangler dev
+#   5. Refresh tokens below if expired: node scripts/generate-test-token.mjs [role]
+#
+# Seed UUIDs:
+#   student     00000000-0000-0000-0000-000000000001
+#   professor   00000000-0000-0000-0000-000000000002
+#   staff       00000000-0000-0000-0000-000000000003
+#   maintenance 00000000-0000-0000-0000-000000000004
+#   space A101  00000000-0000-0000-0000-000000000011
+#   space B205  00000000-0000-0000-0000-000000000012
+#   space C301  00000000-0000-0000-0000-000000000013
+#   projector   00000000-0000-0000-0000-000000000021
+
+@base = http://localhost:8787
+@student_token     = eyJhbGciOiJSUzI1NiIsImtpZCI6InVmY2ltLWRldi1rZXktMSJ9.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJuYW1lIjoiSm_Do28gU2lsdmEiLCJlbWFpbCI6ImpvYW8uc2lsdmFAYWx1LnVmYy5iciIsInByZWZlcnJlZF91c2VybmFtZSI6IjIwMjMwMDEwMDEiLCJyZWdpc3RyYXRpb24iOiIyMDIzMDAxMDAxIiwiZGVwYXJ0bWVudCI6IkNpw6puY2lhIGRhIENvbXB1dGHDp8OjbyIsInJlYWxtX2FjY2VzcyI6eyJyb2xlcyI6WyJ1ZmNpbS1zdHVkZW50Il19LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0Ojg3ODciLCJpYXQiOjE3NzUxMjM1MTIsImV4cCI6MTc3NTIwOTkxMn0.lTXZ7Bf4wOVOsqnirnSrmcuYE_dvMBA-RXd-KtKUzWR8Sr5O36VVQYNj9Mi78BCS8SFpjV5se1S4dknaYY7FTPMb71dPz1JVQIpJQJruiq5tnSogPoR9zBS0hy2NJl2pGIEvuPMgItsFzCsRzYeSMedXs4rlO-TvBa_KeefzihJGW8m0Sy5N1HCqi2f5VCnjpZtcV3mHazVHbQ5WR_u5R_nBYDsEmCG8p5mlzcavRLocbnGMJm23g8apzCHcFyA1FEN_aDYnIZmFcra9RGOR5uCtbkzNDVu8ZKLUxAJRRO58aSTK24xXuKlRkCdKs9-Qyuv1zxr0DdB1DhZwuLJJIA
+@professor_token   = eyJhbGciOiJSUzI1NiIsImtpZCI6InVmY2ltLWRldi1rZXktMSJ9.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDIiLCJuYW1lIjoiRHJhLiBNYXJpYSBDb3N0YSIsImVtYWlsIjoibWFyaWEuY29zdGFAdWZjLmJyIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiMTk5ODAxMDAwMSIsInJlZ2lzdHJhdGlvbiI6IjE5OTgwMTAwMDEiLCJkZXBhcnRtZW50IjoiQ2nDqm5jaWEgZGEgQ29tcHV0YcOnw6NvIiwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbInVmY2ltLXByb2Zlc3NvciJdfSwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4Nzg3IiwiaWF0IjoxNzc1MTIzNTEyLCJleHAiOjE3NzUyMDk5MTJ9.X2KCBMNebi4WufCO1uFuscz6K5HFTvGLg-R-qhlZb9NcSvTJXvoRxYfwXbS9SbHeZDXTQiWR7fYSU0NIPzbqAwEP4b17dAloTYPQ5SNHFvZbYkfYpNPKKmRNgNdZGI3psceBWvgX5cvVZp3Aatn5BQtoo_e_0FqHEm5DoFyNXFGzyfdIR8ji2L8LPggvG_mxttmz3hXfWs868eGLN28QftkoXHyJvkTQx24bHi6jvHPSyEcn-qmp_2digBEqYxQERyqA25AzwI7UbGXyiTSGsBsaGAKVrdA7aW3Zyc_oZpA2OBAMFtLeiL7qnDmxlnFcpDhVZzw5frXnS_XEGHYryw
+@staff_token       = eyJhbGciOiJSUzI1NiIsImtpZCI6InVmY2ltLWRldi1rZXktMSJ9.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDMiLCJuYW1lIjoiQ2FybG9zIE9saXZlaXJhIiwiZW1haWwiOiJjYXJsb3Mub2xpdmVpcmFAdWZjLmJyIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiMjAxMDAwNTAwMSIsInJlZ2lzdHJhdGlvbiI6IjIwMTAwMDUwMDEiLCJkZXBhcnRtZW50IjoiQWRtaW5pc3RyYcOnw6NvIiwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbInVmY2ltLXN0YWZmIl19LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0Ojg3ODciLCJpYXQiOjE3NzUxMjM1MTIsImV4cCI6MTc3NTIwOTkxMn0.URliYbd1gcgd17ibo79gPZkWeuLaoGctdtvDw3ZfHXKJN0aI_mhLoZOzrnyai0IDWGZx0hPBZZyAfttmieHRdRWOFraaZuJfeQ4w3SbD39SK4oH5p1dFEYoa8gzVEbObVrkwJjF0lFqh_q4PVZaXksQAdDSNTZSCpBXbcNlwtkPQMO7OnPBnbiGji_nb8Q32ZWh3KACF79VeFaWZntk0mU8rLKwdhEM8OH7G3J3_iti_ZZxPxewHpben6xUYuapRLxOfe42GbOSACXxKFAintDks-pw50WATmkti4D4GxrUzVZ3m2RvDuzRNFQ0yJyGFF6_CfG-BQcJWS09N1R5Reg
+@maintenance_token = eyJhbGciOiJSUzI1NiIsImtpZCI6InVmY2ltLWRldi1rZXktMSJ9.eyJzdWIiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDQiLCJuYW1lIjoiUGVkcm8gU2FudG9zIiwiZW1haWwiOiJwZWRyby5zYW50b3NAdWZjLmJyIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiMjAxNTAwMjAwMSIsInJlZ2lzdHJhdGlvbiI6IjIwMTUwMDIwMDEiLCJkZXBhcnRtZW50IjoiTWFudXRlbsOnw6NvIiwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbInVmY2ltLW1haW50ZW5hbmNlIl19LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0Ojg3ODciLCJpYXQiOjE3NzUxMjM1MTMsImV4cCI6MTc3NTIwOTkxM30.ZguZuxQV3BUc12l2CC9p67om775XYKqslp5l1xV6DnSUtgPGxpCeStNj5nsObhS_aMkqIzwkS0SxWsk2xM4K1gA82p3zbYNYJJStyfRhslFS52_K0TzMBWDY6Pr1XC6P-Fl2CJhGOgx2lfxhgoky4wqk2gvxLh-2RCFYg-w8QU03m0P3KiIibvNPXqv7cikczhDSobyg64XITHNK07M1uyEXUpoz8N29nXDIrYpU49WYmWZF4NiGo5cElyjFCwZLbhbht51fk3HdrdugkRbhEcUDPLY-6D4hVu1urig6FrOpbbuZr7rvp7Er8Yq2t7b_saTD6tzShbUiieuRFSeSVQ
+
+###############################################################################
+# 0 — Unauthenticated / setup
+###############################################################################
+
+### Health check — expect 200
+GET {{base}}/health
+
+### Dev JWKS — expect 200 with RSA public key
+GET {{base}}/dev/jwks
+
+### No auth — expect 401
+GET {{base}}/api/v1/users/me
+
+###############################################################################
+# 1 — Users
+###############################################################################
+
+### GET /users/me (student)
+GET {{base}}/api/v1/users/me
+Authorization: Bearer {{student_token}}
+
+### GET /users (staff only) — expect 200
+GET {{base}}/api/v1/users
+Authorization: Bearer {{staff_token}}
+
+### GET /users (student) — expect 403
+GET {{base}}/api/v1/users
+Authorization: Bearer {{student_token}}
+
+###############################################################################
+# 2 — Spaces
+###############################################################################
+
+### POST /spaces (staff) — expect 201
+POST {{base}}/api/v1/spaces
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "number": "D402",
+  "type": "classroom",
+  "block": "D",
+  "campus": "Pici",
+  "department": "Ciência da Computação",
+  "capacity": 30
+}
+
+### POST /spaces (student) — expect 403
+POST {{base}}/api/v1/spaces
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "number": "X999",
+  "type": "classroom",
+  "block": "X",
+  "campus": "Pici",
+  "department": "Ciência da Computação",
+  "capacity": 10
+}
+
+### GET /spaces — expect list
+GET {{base}}/api/v1/spaces
+Authorization: Bearer {{student_token}}
+
+### GET /spaces filtered by department
+GET {{base}}/api/v1/spaces?department=Ciência da Computação&page=1&limit=10
+Authorization: Bearer {{student_token}}
+
+### GET /spaces/:id — expect space + equipment
+GET {{base}}/api/v1/spaces/00000000-0000-0000-0000-000000000011
+Authorization: Bearer {{student_token}}
+
+### GET /spaces/:id/availability — expect morning/afternoon/evening
+GET {{base}}/api/v1/spaces/00000000-0000-0000-0000-000000000011/availability?date=2026-06-10
+Authorization: Bearer {{student_token}}
+
+### GET /spaces/:id/availability — missing date — expect 400
+GET {{base}}/api/v1/spaces/00000000-0000-0000-0000-000000000011/availability
+Authorization: Bearer {{student_token}}
+
+### PUT /spaces/:id (staff) — expect 200
+PUT {{base}}/api/v1/spaces/00000000-0000-0000-0000-000000000011
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "capacity": 45
+}
+
+###############################################################################
+# 3 — Equipment
+###############################################################################
+
+### POST /equipment (staff) — expect 201
+POST {{base}}/api/v1/equipment
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000011",
+  "name": "Quadro Interativo SMART",
+  "type": "display",
+  "status": "working"
+}
+
+### PATCH /equipment/:id/status (maintenance) — expect 200
+PATCH {{base}}/api/v1/equipment/00000000-0000-0000-0000-000000000021/status
+Authorization: Bearer {{maintenance_token}}
+Content-Type: application/json
+
+{
+  "status": "broken",
+  "notes": "Lâmpada queimada, aguardando reposição"
+}
+
+### PATCH /equipment/:id/status (student) — expect 403
+PATCH {{base}}/api/v1/equipment/00000000-0000-0000-0000-000000000021/status
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{ "status": "working" }
+
+### GET /equipment/space/:spaceId
+GET {{base}}/api/v1/equipment/space/00000000-0000-0000-0000-000000000011
+Authorization: Bearer {{student_token}}
+
+###############################################################################
+# 4 — Reservations
+###############################################################################
+
+### POST /reservations (student) — expect 201
+POST {{base}}/api/v1/reservations
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000012",
+  "date": "2026-06-10",
+  "timeSlot": "morning"
+}
+
+### POST /reservations (student) — duplicate — expect 409
+POST {{base}}/api/v1/reservations
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000012",
+  "date": "2026-06-10",
+  "timeSlot": "morning"
+}
+
+### POST /reservations (maintenance) — expect 403
+POST {{base}}/api/v1/reservations
+Authorization: Bearer {{maintenance_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000011",
+  "date": "2026-06-11",
+  "timeSlot": "afternoon"
+}
+
+### POST /reservations/recurring (professor) — expect 201
+POST {{base}}/api/v1/reservations/recurring
+Authorization: Bearer {{professor_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000011",
+  "startDate": "2026-06-02",
+  "endDate": "2026-07-28",
+  "dayOfWeek": 2,
+  "timeSlot": "afternoon",
+  "description": "Aula de Programação Orientada a Objetos — turma 2026.1"
+}
+
+### POST /reservations/recurring (student) — expect 403
+POST {{base}}/api/v1/reservations/recurring
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000011",
+  "startDate": "2026-06-02",
+  "endDate": "2026-06-30",
+  "dayOfWeek": 3,
+  "timeSlot": "morning",
+  "description": "não autorizado"
+}
+
+### GET /reservations/mine (student)
+GET {{base}}/api/v1/reservations/mine
+Authorization: Bearer {{student_token}}
+
+### GET /reservations/space/:spaceId
+GET {{base}}/api/v1/reservations/space/00000000-0000-0000-0000-000000000012
+Authorization: Bearer {{student_token}}
+
+### GET /reservations/space/:spaceId filtered by date
+GET {{base}}/api/v1/reservations/space/00000000-0000-0000-0000-000000000012?date=2026-06-10
+Authorization: Bearer {{student_token}}
+
+### PATCH /reservations/:id/cancel — replace :id with a real reservation UUID from above
+# PATCH {{base}}/api/v1/reservations/<id>/cancel
+# Authorization: Bearer {{student_token}}
+
+###############################################################################
+# 5 — Blockings
+###############################################################################
+
+### POST /blockings (staff) — expect 201
+POST {{base}}/api/v1/blockings
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000013",
+  "date": "2026-06-15",
+  "timeSlot": "morning",
+  "reason": "Reunião do Conselho Departamental",
+  "blockType": "administrative"
+}
+
+### POST /blockings (maintenance) — maintenance type — expect 201
+POST {{base}}/api/v1/blockings
+Authorization: Bearer {{maintenance_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000012",
+  "date": "2026-06-20",
+  "timeSlot": "afternoon",
+  "reason": "Instalação de novo ar condicionado",
+  "blockType": "maintenance"
+}
+
+### POST /blockings (student) — expect 403
+POST {{base}}/api/v1/blockings
+Authorization: Bearer {{student_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000011",
+  "date": "2026-06-16",
+  "timeSlot": "evening",
+  "reason": "não autorizado",
+  "blockType": "administrative"
+}
+
+### GET /blockings/space/:spaceId
+GET {{base}}/api/v1/blockings/space/00000000-0000-0000-0000-000000000013
+Authorization: Bearer {{student_token}}
+
+### PATCH /blockings/:id/remove — replace :id with a real blocking UUID from above
+# PATCH {{base}}/api/v1/blockings/<id>/remove
+# Authorization: Bearer {{staff_token}}
+
+###############################################################################
+# 6 — Notifications
+###############################################################################
+
+### GET /notifications (student)
+GET {{base}}/api/v1/notifications
+Authorization: Bearer {{student_token}}
+
+### GET /notifications?unread=true
+GET {{base}}/api/v1/notifications?unread=true
+Authorization: Bearer {{student_token}}
+
+### PATCH /notifications/read-all
+PATCH {{base}}/api/v1/notifications/read-all
+Authorization: Bearer {{student_token}}
+
+### PATCH /notifications/:id/read — replace :id with a real notification UUID
+# PATCH {{base}}/api/v1/notifications/<id>/read
+# Authorization: Bearer {{student_token}}
+
+###############################################################################
+# 7 — Audit Logs
+###############################################################################
+
+### GET /logs (staff only) — expect 200
+GET {{base}}/api/v1/logs
+Authorization: Bearer {{staff_token}}
+
+### GET /logs filtered
+GET {{base}}/api/v1/logs?actionType=create_reservation&page=1&limit=10
+Authorization: Bearer {{staff_token}}
+
+### GET /logs (student) — expect 403
+GET {{base}}/api/v1/logs
+Authorization: Bearer {{student_token}}

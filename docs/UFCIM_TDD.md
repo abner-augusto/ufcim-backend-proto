@@ -3,7 +3,7 @@
 > **Project:** UFCIM — Federal University of Ceará Infrastructure Manager
 > **Author:** Abner Augusto
 > **Status:** In Progress
-> **Last Updated:** 2026-04-01 (Phase 5)
+> **Last Updated:** 2026-04-02 (Phase 6)
 > **Version:** 1.0
 
 ---
@@ -334,13 +334,13 @@ All endpoints except `GET /health` require `Authorization: Bearer <jwt>`.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 6.1 | Local dev testing with `wrangler dev` | ⬜ Not Started | |
-| 6.2 | Seed data applied and verified | ⬜ Not Started | |
-| 6.3 | All endpoints tested with sample JWT | ⬜ Not Started | |
-| 6.4 | Role/permission matrix fully enforced | ⬜ Not Started | |
-| 6.5 | Deploy to Cloudflare Workers | ⬜ Not Started | |
-| 6.6 | Remote D1 migration applied | ⬜ Not Started | |
-| 6.7 | End-to-end smoke test on Workers | ⬜ Not Started | |
+| 6.1 | Local dev testing with `wrangler dev` | ✅ Done | .dev.vars + GET /dev/jwks serves test JWKS |
+| 6.2 | Seed data applied and verified | ✅ Done | scripts/seed.sql applied to local D1 |
+| 6.3 | All endpoints tested with sample JWT | ✅ Done | tests/endpoints.http covers all 23 endpoints |
+| 6.4 | Role/permission matrix fully enforced | ✅ Done | rbac() middleware on every protected route |
+| 6.5 | Deploy to Cloudflare Workers | ⬜ Not Started | Run: npx wrangler deploy |
+| 6.6 | Remote D1 migration applied | ⬜ Not Started | Run: npx wrangler d1 execute ufcim-db --remote --file=migrations/0000_lazy_wallow.sql |
+| 6.7 | End-to-end smoke test on Workers | ⬜ Not Started | Update JWKS_URL in wrangler.toml to real Keycloak before deploy |
 
 ### Phase 7: Production Migration (Future)
 
