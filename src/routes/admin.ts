@@ -17,22 +17,24 @@ import { paginationSchema } from '@/validators/common.schema';
 import { renderAdminShell } from '@/admin/admin-shell';
 import { DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO, normalizeClosedHours } from '@/lib/schedule';
 
+// Filter schemas use z.string() (not .uuid()) because Zod v4 enforces strict
+// RFC 4122 compliance, which rejects the deterministic seed UUIDs used in dev.
 const reservationFilterSchema = paginationSchema.extend({
-  spaceId: z.string().uuid().optional().or(z.literal('')),
-  userId: z.string().uuid().optional().or(z.literal('')),
+  spaceId: z.string().optional(),
+  userId: z.string().optional(),
   status: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
 });
 
 const blockingFilterSchema = paginationSchema.extend({
-  spaceId: z.string().uuid().optional().or(z.literal('')),
+  spaceId: z.string().optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
 });
 
 const logFilterSchema = paginationSchema.extend({
-  userId: z.string().uuid().optional().or(z.literal('')),
+  userId: z.string().optional(),
   actionType: z.string().optional(),
   referenceType: z.string().optional(),
   dateFrom: z.string().optional(),
@@ -203,20 +205,20 @@ async function renderSpacesView(
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div class="mb-4 flex items-center justify-between">
             <div>
-              <h2 class="text-xl font-semibold">Spaces</h2>
-              <p class="text-sm text-slate-600">Core inventory of reservable spaces.</p>
+              <h2 class="text-xl font-semibold">Espaços</h2>
+              <p class="text-sm text-slate-600">Inventário de espaços reserváveis.</p>
             </div>
-            <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${spaces.length} spaces</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${spaces.length} espaços</span>
           </div>
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200 text-sm">
               <thead>
                 <tr class="text-left text-slate-500">
-                  <th class="px-3 py-2 font-medium">Number</th>
-                  <th class="px-3 py-2 font-medium">Type</th>
-                  <th class="px-3 py-2 font-medium">Block</th>
+                  <th class="px-3 py-2 font-medium">Número</th>
+                  <th class="px-3 py-2 font-medium">Tipo</th>
+                  <th class="px-3 py-2 font-medium">Bloco</th>
                   <th class="px-3 py-2 font-medium">Campus</th>
-                  <th class="px-3 py-2 font-medium">Capacity</th>
+                  <th class="px-3 py-2 font-medium">Capacidade</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -241,8 +243,8 @@ async function renderSpacesView(
 
         <div class="space-y-6">
           <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h2 class="text-xl font-semibold">Create Space</h2>
-            <p class="mt-1 text-sm text-slate-600">Use the same service layer as the public API.</p>
+            <h2 class="text-xl font-semibold">Criar Espaço</h2>
+            <p class="mt-1 text-sm text-slate-600">Utiliza a mesma camada de serviço da API pública.</p>
             <form class="mt-4 grid gap-3 sm:grid-cols-2" hx-post="/admin/actions/spaces" hx-target="#admin-content" hx-swap="innerHTML">
               ${renderSpaceFields()}
               <div class="sm:col-span-2">
@@ -351,7 +353,7 @@ async function renderReservationsView(
           <h2 class="text-xl font-semibold">Reservas</h2>
           <p class="text-sm text-slate-600">Filtre por intervalo de datas, espaço, usuário ou status. Séries recorrentes exibem dia da semana, horário e ação em lote.</p>
         </div>
-        <form class="grid gap-3 md:grid-cols-5" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML">
+        <form class="grid gap-3 md:grid-cols-5" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true" hx-disabled-elt="find button[type='submit']">
           ${renderSelect('spaceId', 'Espaço', spaces.map((space) => ({ value: space.id, label: space.number })), normalizedFilters.spaceId)}
           ${renderSelect('userId', 'Usuário', users.map((user) => ({ value: user.id, label: user.name })), normalizedFilters.userId)}
           ${renderSelect('status', 'Status', [
@@ -361,8 +363,11 @@ async function renderReservationsView(
           ], normalizedFilters.status)}
           ${renderInput('dateFrom', 'Data Inicial', 'date', normalizedFilters.dateFrom)}
           ${renderInput('dateTo', 'Data Final', 'date', normalizedFilters.dateTo)}
-          <div class="md:col-span-5">
-            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Aplicar Filtros</button>
+          <div class="md:col-span-5 flex items-center gap-3">
+            <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Aplicar Filtros</button>
+            ${normalizedFilters.spaceId || normalizedFilters.userId || normalizedFilters.status || normalizedFilters.dateFrom || normalizedFilters.dateTo
+              ? `<a href="/admin/reservations" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/reservations" class="text-sm text-slate-500 hover:text-slate-800">Limpar filtros ×</a>`
+              : ''}
           </div>
         </form>
       </div>
@@ -382,7 +387,9 @@ async function renderReservationsView(
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              ${renderReservationRows(reservations.data, normalizedFilters)}
+              ${reservations.data.length === 0
+                ? `<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">Nenhuma reserva encontrada com os filtros atuais.</td></tr>`
+                : renderReservationRows(reservations.data, normalizedFilters)}
             </tbody>
           </table>
         </div>
@@ -430,13 +437,18 @@ async function renderBlockingsView(
 
         <div class="space-y-6">
           <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <h2 class="text-xl font-semibold">Bloqueios Ativos</h2>
-            <form class="mt-4 grid gap-3 md:grid-cols-4" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-semibold">Bloqueios Ativos</h2>
+              ${normalizedFilters.spaceId || normalizedFilters.dateFrom || normalizedFilters.dateTo
+                ? `<a href="/admin/blockings" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/blockings" class="text-sm text-slate-500 hover:text-slate-800">Limpar filtros ×</a>`
+                : ''}
+            </div>
+            <form class="mt-4 grid gap-3 md:grid-cols-4" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true" hx-disabled-elt="find button[type='submit']">
               ${renderSelect('spaceId', 'Espaço', spaces.map((space) => ({ value: space.id, label: space.number })), normalizedFilters.spaceId)}
               ${renderInput('dateFrom', 'Data Inicial', 'date', normalizedFilters.dateFrom)}
               ${renderInput('dateTo', 'Data Final', 'date', normalizedFilters.dateTo)}
               <div class="flex items-end">
-                <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Filtrar</button>
+                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Filtrar</button>
               </div>
             </form>
           </div>
@@ -455,21 +467,23 @@ async function renderBlockingsView(
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                  ${result.data.map((blocking) => `
-                    <tr>
-                      <td class="px-3 py-3">${blocking.date}</td>
-                      <td class="px-3 py-3">${blocking.startTime}-${blocking.endTime}</td>
-                      <td class="px-3 py-3 font-medium">${escapeHtml(blocking.space?.number ?? blocking.spaceId)}</td>
-                      <td class="px-3 py-3">${escapeHtml(renderBlockingType(blocking.blockType))}</td>
-                      <td class="px-3 py-3">${escapeHtml(blocking.reason)}</td>
-                      <td class="px-3 py-3">
-                        <form hx-patch="/admin/actions/blockings/${blocking.id}/remove" hx-target="#admin-content" hx-swap="innerHTML">
-                          ${renderHiddenInputs(normalizedFilters)}
-                          <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Remover</button>
-                        </form>
-                      </td>
-                    </tr>
-                  `).join('')}
+                  ${result.data.length === 0
+                    ? `<tr><td colspan="6" class="px-3 py-6 text-center text-slate-400">Nenhum bloqueio ativo encontrado.</td></tr>`
+                    : result.data.map((blocking) => `
+                      <tr class="hover:bg-slate-50">
+                        <td class="px-3 py-3">${blocking.date}</td>
+                        <td class="px-3 py-3 tabular-nums">${blocking.startTime}–${blocking.endTime}</td>
+                        <td class="px-3 py-3 font-medium">${escapeHtml(blocking.space?.number ?? blocking.spaceId)}</td>
+                        <td class="px-3 py-3">${escapeHtml(renderBlockingType(blocking.blockType))}</td>
+                        <td class="px-3 py-3 max-w-xs truncate" title="${escapeAttribute(blocking.reason)}">${escapeHtml(blocking.reason)}</td>
+                        <td class="px-3 py-3">
+                          <form hx-patch="/admin/actions/blockings/${blocking.id}/remove" hx-target="#admin-content" hx-swap="innerHTML" hx-confirm="Remover bloqueio de ${escapeAttribute(blocking.date)} (${escapeAttribute(blocking.startTime)}–${escapeAttribute(blocking.endTime)})? Esta ação não pode ser desfeita.">
+                            ${renderHiddenInputs(normalizedFilters)}
+                            <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50">Remover</button>
+                          </form>
+                        </td>
+                      </tr>
+                    `).join('')}
                 </tbody>
               </table>
             </div>
@@ -722,9 +736,9 @@ function renderReservationRows(
           </div>
           ${items.some((item) => item.status === 'confirmed')
             ? `
-              <form hx-patch="/admin/actions/reservations/series/${recurrenceId}/cancel" hx-target="#admin-content" hx-swap="innerHTML">
+              <form hx-patch="/admin/actions/reservations/series/${recurrenceId}/cancel" hx-target="#admin-content" hx-swap="innerHTML" hx-confirm="Cancelar todas as reservas confirmadas desta série? Esta ação não pode ser desfeita.">
                 ${renderHiddenInputs(filters)}
-                <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Cancelar série</button>
+                <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700 hover:bg-rose-50">Cancelar série</button>
               </form>
             `
             : '<span class="normal-case tracking-normal text-slate-400">Sem ações em lote</span>'}
@@ -742,9 +756,9 @@ function renderReservationRow(
   filters: Record<string, unknown>
 ) {
   return `
-    <tr>
+    <tr class="hover:bg-slate-50">
       <td class="px-3 py-3">${reservation.date}</td>
-      <td class="px-3 py-3">${reservation.startTime}-${reservation.endTime}</td>
+      <td class="px-3 py-3 tabular-nums">${reservation.startTime}–${reservation.endTime}</td>
       <td class="px-3 py-3 font-medium">${escapeHtml(reservation.space?.number ?? reservation.spaceId)}</td>
       <td class="px-3 py-3">${escapeHtml(reservation.user?.name ?? reservation.userId)}</td>
       <td class="px-3 py-3">${renderStatusPill(reservation.status)}</td>
@@ -752,12 +766,12 @@ function renderReservationRow(
       <td class="px-3 py-3">
         ${reservation.status === 'confirmed'
           ? `
-            <form hx-patch="/admin/actions/reservations/${reservation.id}/cancel" hx-target="#admin-content" hx-swap="innerHTML">
+            <form hx-patch="/admin/actions/reservations/${reservation.id}/cancel" hx-target="#admin-content" hx-swap="innerHTML" hx-confirm="Cancelar esta reserva de ${escapeAttribute(reservation.date)}? Esta ação não pode ser desfeita.">
               ${renderHiddenInputs(filters)}
-              <button class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700">Cancelar</button>
+              <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50">Cancelar</button>
             </form>
           `
-          : '<span class="text-slate-400">Nenhuma ação</span>'}
+          : '<span class="text-slate-400 text-sm">—</span>'}
       </td>
     </tr>
   `;
