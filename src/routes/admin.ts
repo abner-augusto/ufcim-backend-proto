@@ -12,9 +12,10 @@ import { AuditLogService } from '@/services/audit-log.service';
 import { StatsService } from '@/services/stats.service';
 import { createSpaceSchema, updateSpaceSchema } from '@/validators/space.schema';
 import { createBlockingSchema } from '@/validators/blocking.schema';
-import { updateEquipmentStatusSchema } from '@/validators/equipment.schema';
+import { createEquipmentSchema, updateEquipmentStatusSchema } from '@/validators/equipment.schema';
 import { paginationSchema } from '@/validators/common.schema';
 import { renderAdminShell } from '@/admin/admin-shell';
+import { DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO, normalizeClosedHours } from '@/lib/schedule';
 
 const reservationFilterSchema = paginationSchema.extend({
   spaceId: z.string().uuid().optional().or(z.literal('')),
@@ -41,6 +42,8 @@ const logFilterSchema = paginationSchema.extend({
 const equipmentFormSchema = updateEquipmentStatusSchema.extend({
   page: z.coerce.number().int().positive().default(1).optional(),
 });
+
+const createEquipmentFormSchema = createEquipmentSchema;
 
 export const adminRoutes = new Hono<AppEnv>();
 type AdminContext = Context<AppEnv>;
@@ -157,6 +160,18 @@ adminRoutes.patch('/actions/equipment/:id/status', async (c) => {
   return c.html(await renderEquipmentView(c, { message: 'Equipment status updated' }));
 });
 
+adminRoutes.post('/actions/equipment', async (c) => {
+  const body = await formDataToObject(c);
+  const parsed = createEquipmentFormSchema.safeParse(body);
+  if (!parsed.success) return c.html(renderValidationErrors(parsed.error.issues));
+
+  const db = createDb(c.env.DB);
+  const service = new EquipmentService(db);
+  await service.create(c.get('user').sub, parsed.data);
+
+  return c.html(await renderEquipmentView(c, { message: 'Equipment created' }));
+});
+
 async function renderSpacesView(
   c: AdminContext,
   options?: { message?: string; selectedSpaceId?: string }
@@ -239,6 +254,8 @@ function renderSpaceDetail(
   space: Awaited<ReturnType<SpaceService['getById']>>,
   availability: Awaited<ReturnType<SpaceService['getAvailability']>>
 ) {
+  const closedHours = normalizeClosedHours(space.closedFrom, space.closedTo);
+
   return `
     <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-start justify-between gap-4">
@@ -252,6 +269,7 @@ function renderSpaceDetail(
       <dl class="mt-4 grid gap-3 text-sm text-slate-700">
         <div><strong>Block:</strong> ${escapeHtml(space.block)}</div>
         <div><strong>Capacity:</strong> ${space.capacity}</div>
+        <div><strong>Closed Hours:</strong> ${escapeHtml(closedHours.closedFrom)}-${escapeHtml(closedHours.closedTo)}</div>
         <div><strong>Furniture:</strong> ${escapeHtml(space.furniture ?? 'Not informed')}</div>
         <div><strong>Lighting:</strong> ${escapeHtml(space.lighting ?? 'Not informed')}</div>
         <div><strong>HVAC:</strong> ${escapeHtml(space.hvac ?? 'Not informed')}</div>
@@ -260,11 +278,11 @@ function renderSpaceDetail(
 
       <div class="mt-6">
         <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Today's Availability</h4>
-        <div class="mt-3 grid gap-2 sm:grid-cols-3">
+        <div class="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
           ${availability.map((slot) => `
             <div class="rounded-xl border border-slate-200 px-3 py-3">
-              <div class="text-sm font-medium capitalize">${slot.timeSlot}</div>
-              <div class="mt-1 text-sm ${slot.status === 'available' ? 'text-emerald-600' : slot.status === 'blocked' ? 'text-rose-600' : 'text-amber-600'}">
+              <div class="text-sm font-medium">${slot.startTime}-${slot.endTime}</div>
+              <div class="mt-1 text-sm ${slot.status === 'available' ? 'text-emerald-600' : slot.status === 'blocked' ? 'text-rose-600' : slot.status === 'closed' ? 'text-slate-500' : 'text-amber-600'}">
                 ${slot.status}
               </div>
             </div>
@@ -347,7 +365,7 @@ async function renderReservationsView(
             <thead>
               <tr class="text-left text-slate-500">
                 <th class="px-3 py-2 font-medium">Date</th>
-                <th class="px-3 py-2 font-medium">Slot</th>
+                <th class="px-3 py-2 font-medium">Time</th>
                 <th class="px-3 py-2 font-medium">Space</th>
                 <th class="px-3 py-2 font-medium">User</th>
                 <th class="px-3 py-2 font-medium">Status</th>
@@ -391,11 +409,8 @@ async function renderBlockingsView(
           <form class="mt-4 grid gap-3" hx-post="/admin/actions/blockings" hx-target="#admin-content" hx-swap="innerHTML">
             ${renderSelect('spaceId', 'Space', spaces.map((space) => ({ value: space.id, label: space.number })))}
             ${renderInput('date', 'Date', 'date', today())}
-            ${renderSelect('timeSlot', 'Time Slot', [
-              { value: 'morning', label: 'Morning' },
-              { value: 'afternoon', label: 'Afternoon' },
-              { value: 'evening', label: 'Evening' },
-            ])}
+            ${renderSelect('startTime', 'Start Time', HOURLY_OPTIONS, '08:00', true)}
+            ${renderSelect('endTime', 'End Time', HOURLY_BOUNDARY_OPTIONS, '09:00', true)}
             ${renderSelect('blockType', 'Block Type', [
               { value: 'maintenance', label: 'Maintenance' },
               { value: 'administrative', label: 'Administrative' },
@@ -435,7 +450,7 @@ async function renderBlockingsView(
                   ${result.data.map((blocking) => `
                     <tr>
                       <td class="px-3 py-3">${blocking.date}</td>
-                      <td class="px-3 py-3 capitalize">${blocking.timeSlot}</td>
+                      <td class="px-3 py-3">${blocking.startTime}-${blocking.endTime}</td>
                       <td class="px-3 py-3 font-medium">${escapeHtml(blocking.space?.number ?? blocking.spaceId)}</td>
                       <td class="px-3 py-3 capitalize">${escapeHtml(blocking.blockType)}</td>
                       <td class="px-3 py-3">${escapeHtml(blocking.reason)}</td>
@@ -464,49 +479,78 @@ async function renderEquipmentView(
 ) {
   const db = createDb(c.env.DB);
   const equipmentService = new EquipmentService(db);
+  const spaceService = new SpaceService(db);
   const groups = await equipmentService.listGroupedBySpace();
+  const spaces = await spaceService.list({ page: 1, limit: 100 });
 
   return `
     <section class="space-y-6">
       ${renderMessage(options?.message)}
-      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-xl font-semibold">Equipment</h2>
-        <p class="mt-1 text-sm text-slate-600">Grouped by space. Update statuses inline.</p>
-      </div>
-
-      ${groups.map((space) => `
+      <div class="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div class="mb-4 flex items-center justify-between">
-            <div>
-              <h3 class="text-lg font-semibold">${escapeHtml(space.number)}</h3>
-              <p class="text-sm text-slate-600">${escapeHtml(space.type)} · ${escapeHtml(space.department)}</p>
-            </div>
-            <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${space.equipment.length} items</span>
-          </div>
-          <div class="space-y-3">
-            ${space.equipment.length > 0
-              ? space.equipment.map((item) => `
-                <form class="grid gap-3 rounded-xl border border-slate-200 p-4 md:grid-cols-[1.2fr_0.8fr_1fr_auto]" hx-patch="/admin/actions/equipment/${item.id}/status" hx-target="#admin-content" hx-swap="innerHTML">
-                  <div>
-                    <div class="font-medium">${escapeHtml(item.name)}</div>
-                    <div class="text-sm text-slate-500">${escapeHtml(item.type)}</div>
-                  </div>
-                  ${renderSelect('status', 'Status', [
-                    { value: 'working', label: 'Working' },
-                    { value: 'broken', label: 'Broken' },
-                    { value: 'under_repair', label: 'Under Repair' },
-                    { value: 'replacement_scheduled', label: 'Replacement Scheduled' },
-                  ], item.status, true)}
-                  ${renderInput('notes', 'Notes', 'text', item.notes ?? '', true)}
-                  <div class="flex items-end">
-                    <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Save</button>
-                  </div>
-                </form>
-              `).join('')
-              : '<div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">No equipment registered for this space.</div>'}
-          </div>
+          <h2 class="text-xl font-semibold">Create Equipment</h2>
+          <p class="mt-1 text-sm text-slate-600">Register equipment with its official university asset ID.</p>
+          <form class="mt-4 grid gap-3" hx-post="/admin/actions/equipment" hx-target="#admin-content" hx-swap="innerHTML">
+            ${renderSelect('spaceId', 'Space', spaces.map((space) => ({ value: space.id, label: `${space.number} · ${space.department}` })))}
+            ${renderInput('assetId', 'University Equipment ID', 'text', '', false, '', 'e.g. 2020002658')}
+            ${renderInput('name', 'Equipment Name', 'text')}
+            ${renderInput('type', 'Type', 'text', '', false, '', 'projector, hvac, display, laptop')}
+            ${renderSelect('status', 'Status', [
+              { value: 'working', label: 'Working' },
+              { value: 'broken', label: 'Broken' },
+              { value: 'under_repair', label: 'Under Repair' },
+              { value: 'replacement_scheduled', label: 'Replacement Scheduled' },
+            ], 'working', true)}
+            ${renderInput('notes', 'Notes', 'text')}
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create Equipment</button>
+          </form>
         </div>
-      `).join('')}
+
+        <div class="space-y-6">
+          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <h2 class="text-xl font-semibold">Equipment</h2>
+            <p class="mt-1 text-sm text-slate-600">Grouped by space. Update statuses inline.</p>
+          </div>
+
+          ${groups.map((space) => `
+            <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div class="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 class="text-lg font-semibold">${escapeHtml(space.number)}</h3>
+                  <p class="text-sm text-slate-600">${escapeHtml(space.type)} · ${escapeHtml(space.department)}</p>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${space.equipment.length} items</span>
+              </div>
+              <div class="space-y-3">
+                ${space.equipment.length > 0
+                  ? space.equipment.map((item) => `
+                    <form class="grid gap-3 rounded-xl border border-slate-200 p-4 md:grid-cols-[1.1fr_0.9fr_0.8fr_1fr_auto]" hx-patch="/admin/actions/equipment/${item.id}/status" hx-target="#admin-content" hx-swap="innerHTML">
+                      <div>
+                        <div class="font-medium">${escapeHtml(item.name)}</div>
+                        <div class="text-sm text-slate-500">${escapeHtml(item.type)}</div>
+                      </div>
+                      <div>
+                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Asset ID</div>
+                        <div class="mt-1 font-mono text-sm text-slate-700">${escapeHtml(item.assetId)}</div>
+                      </div>
+                      ${renderSelect('status', 'Status', [
+                        { value: 'working', label: 'Working' },
+                        { value: 'broken', label: 'Broken' },
+                        { value: 'under_repair', label: 'Under Repair' },
+                        { value: 'replacement_scheduled', label: 'Replacement Scheduled' },
+                      ], item.status, true)}
+                      ${renderInput('notes', 'Notes', 'text', item.notes ?? '', true)}
+                      <div class="flex items-end">
+                        <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Save</button>
+                      </div>
+                    </form>
+                  `).join('')
+                  : '<div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">No equipment registered for this space.</div>'}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
     </section>
   `;
 }
@@ -633,9 +677,9 @@ function renderDashboard(stats: Awaited<ReturnType<StatsService['getDashboardSta
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <h2 class="text-xl font-semibold">Quick Links</h2>
           <div class="mt-4 grid gap-3">
-            <a href="/admin/spaces" hx-get="/admin/partials/spaces" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Manage spaces and inspect availability</a>
-            <a href="/admin/reservations" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Review reservations and cancel confirmed slots</a>
-            <a href="/admin/blockings" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Create and remove blockings</a>
+            <a href="/admin/spaces" hx-get="/admin/partials/spaces" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/spaces" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Manage spaces and inspect availability</a>
+            <a href="/admin/reservations" hx-get="/admin/partials/reservations" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/reservations" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Review reservations and cancel confirmed slots</a>
+            <a href="/admin/blockings" hx-get="/admin/partials/blockings" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="/admin/blockings" class="rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50">Create and remove blockings</a>
           </div>
         </div>
       </div>
@@ -679,7 +723,7 @@ function renderReservationRow(
   return `
     <tr>
       <td class="px-3 py-3">${reservation.date}</td>
-      <td class="px-3 py-3 capitalize">${reservation.timeSlot}</td>
+      <td class="px-3 py-3">${reservation.startTime}-${reservation.endTime}</td>
       <td class="px-3 py-3 font-medium">${escapeHtml(reservation.space?.number ?? reservation.spaceId)}</td>
       <td class="px-3 py-3">${escapeHtml(reservation.user?.name ?? reservation.userId)}</td>
       <td class="px-3 py-3">${renderStatusPill(reservation.status)}</td>
@@ -699,6 +743,8 @@ function renderReservationRow(
 }
 
 function renderSpaceFields(space?: Record<string, unknown>) {
+  const closedHours = normalizeClosedHours(stringValue(space?.closedFrom), stringValue(space?.closedTo));
+
   return `
     ${renderInput('number', 'Number', 'text', stringValue(space?.number))}
     ${renderSelect('type', 'Type', [
@@ -715,6 +761,8 @@ function renderSpaceFields(space?: Record<string, unknown>) {
     ${renderInput('lighting', 'Lighting', 'text', stringValue(space?.lighting))}
     ${renderInput('hvac', 'HVAC', 'text', stringValue(space?.hvac))}
     ${renderInput('multimedia', 'Multimedia', 'text', stringValue(space?.multimedia), false, 'sm:col-span-2')}
+    ${renderSelect('closedFrom', 'Closed From', HOURLY_OPTIONS, closedHours.closedFrom || DEFAULT_CLOSED_FROM, true)}
+    ${renderSelect('closedTo', 'Closed To', HOURLY_BOUNDARY_OPTIONS, closedHours.closedTo || DEFAULT_CLOSED_TO, true)}
   `;
 }
 
@@ -724,7 +772,8 @@ function renderInput(
   type: string,
   value = '',
   compact = false,
-  wrapperClass = ''
+  wrapperClass = '',
+  placeholder = ''
 ) {
   const containerClass = compact ? '' : ` ${wrapperClass}`.trim();
   return `
@@ -735,6 +784,7 @@ function renderInput(
         type="${type}"
         name="${name}"
         value="${escapeAttribute(value)}"
+        placeholder="${escapeAttribute(placeholder)}"
       />
     </label>
   `;
@@ -895,6 +945,8 @@ function parseSpaceForm(values: Record<string, unknown>) {
     lighting: blankToUndefined(values.lighting),
     hvac: blankToUndefined(values.hvac),
     multimedia: blankToUndefined(values.multimedia),
+    closedFrom: stringValue(values.closedFrom) || DEFAULT_CLOSED_FROM,
+    closedTo: stringValue(values.closedTo) || DEFAULT_CLOSED_TO,
   };
 }
 
@@ -941,3 +993,10 @@ function stringValue(value: unknown) {
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
+
+const HOURLY_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
+  const value = `${hour.toString().padStart(2, '0')}:00`;
+  return { value, label: value };
+});
+
+const HOURLY_BOUNDARY_OPTIONS = [...HOURLY_OPTIONS, { value: '24:00', label: '24:00' }];

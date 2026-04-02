@@ -4,11 +4,13 @@ import type { Database } from '@/db/client';
 import { ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
+import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
 
 interface CreateBlockingInput {
   spaceId: string;
   date: string;
-  timeSlot: string;
+  startTime: string;
+  endTime: string;
   reason: string;
   blockType: string;
 }
@@ -34,16 +36,20 @@ export class BlockingService {
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
 
-    // Prevent duplicate active blocking on the same slot
-    const duplicate = await this.db.query.blockings.findFirst({
+    if (overlapsClosedHours(input.startTime, input.endTime, space.closedFrom, space.closedTo)) {
+      throw new ConflictError('This blocking falls within the room closed hours');
+    }
+
+    const existingBlockings = await this.db.query.blockings.findMany({
       where: and(
         eq(blockings.spaceId, input.spaceId),
         eq(blockings.date, input.date),
-        eq(blockings.timeSlot, input.timeSlot),
         eq(blockings.status, 'active')
       ),
     });
-    if (duplicate) throw new ConflictError('An active blocking already exists for this slot');
+    if (existingBlockings.some((blocking) => intervalsOverlap(input.startTime, input.endTime, blocking.startTime, blocking.endTime))) {
+      throw new ConflictError('An active blocking already exists for this time range');
+    }
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -55,7 +61,9 @@ export class BlockingService {
         spaceId: input.spaceId,
         createdBy: userId,
         date: input.date,
-        timeSlot: input.timeSlot,
+        timeSlot: deriveLegacyTimeSlot(input.startTime),
+        startTime: input.startTime,
+        endTime: input.endTime,
         reason: input.reason,
         blockType: input.blockType,
         status: 'active',
@@ -64,17 +72,19 @@ export class BlockingService {
       })
       .returning();
 
-    // Cancel any confirmed reservation on the same slot and notify the affected user
-    const conflicting = await this.db.query.reservations.findFirst({
+    const conflictingReservations = await this.db.query.reservations.findMany({
       where: and(
         eq(reservations.spaceId, input.spaceId),
         eq(reservations.date, input.date),
-        eq(reservations.timeSlot, input.timeSlot),
         eq(reservations.status, 'confirmed')
       ),
     });
 
-    if (conflicting) {
+    const overlappingReservations = conflictingReservations.filter((reservation) =>
+      intervalsOverlap(input.startTime, input.endTime, reservation.startTime, reservation.endTime)
+    );
+
+    for (const conflicting of overlappingReservations) {
       await this.db
         .update(reservations)
         .set({ status: 'overridden', changeOrigin: 'blocking', updatedAt: now })
@@ -83,7 +93,7 @@ export class BlockingService {
       await this.notification.create(
         conflicting.userId,
         'Reservation overridden',
-        `Your reservation for space ${space.number} on ${input.date} (${input.timeSlot}) was overridden due to a ${input.blockType} blocking: ${input.reason}`,
+        `Your reservation for space ${space.number} on ${input.date} (${conflicting.startTime}-${conflicting.endTime}) was overridden due to a ${input.blockType} blocking: ${input.reason}`,
         'overridden'
       );
 
@@ -101,7 +111,7 @@ export class BlockingService {
       'create_blocking',
       id,
       'blocking',
-      `Blocked space ${space.number} on ${input.date} (${input.timeSlot}): ${input.reason}`
+      `Blocked space ${space.number} on ${input.date} (${input.startTime}-${input.endTime}): ${input.reason}`
     );
 
     return blocking;
@@ -125,7 +135,7 @@ export class BlockingService {
       'remove_blocking',
       blockingId,
       'blocking',
-      `Removed blocking for space ${blocking.spaceId} on ${blocking.date} (${blocking.timeSlot})`
+      `Removed blocking for space ${blocking.spaceId} on ${blocking.date} (${blocking.startTime}-${blocking.endTime})`
     );
 
     return updated;

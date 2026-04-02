@@ -26,6 +26,8 @@ export const spaces = sqliteTable('spaces', {
   lighting: text('lighting'),
   hvac: text('hvac'),
   multimedia: text('multimedia'),
+  closedFrom: text('closed_from').notNull().default('22:00'),
+  closedTo: text('closed_to').notNull().default('07:00'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -33,6 +35,7 @@ export const spaces = sqliteTable('spaces', {
 // ─── Equipment (equipamentos) ───────────────────────────────────────────────
 export const equipment = sqliteTable('equipment', {
   id: text('id').primaryKey(),
+  assetId: text('asset_id').notNull().unique(),
   spaceId: text('space_id').notNull().references(() => spaces.id),
   name: text('name').notNull(),
   type: text('type').notNull(),
@@ -57,6 +60,8 @@ export const reservations = sqliteTable('reservations', {
   userId: text('user_id').notNull().references(() => users.id),
   date: text('date').notNull(), // ISO date: YYYY-MM-DD
   timeSlot: text('time_slot').notNull(), // 'morning' | 'afternoon' | 'evening'
+  startTime: text('start_time').notNull(),
+  endTime: text('end_time').notNull(),
   status: text('status').notNull(), // 'confirmed' | 'canceled' | 'modified' | 'overridden'
   recurrenceId: text('recurrence_id').references(() => recurrences.id),
   changeOrigin: text('change_origin'),
@@ -71,6 +76,8 @@ export const blockings = sqliteTable('blockings', {
   createdBy: text('created_by').notNull().references(() => users.id),
   date: text('date').notNull(),
   timeSlot: text('time_slot').notNull(),
+  startTime: text('start_time').notNull(),
+  endTime: text('end_time').notNull(),
   reason: text('reason').notNull(),
   blockType: text('block_type').notNull(), // 'maintenance' | 'administrative'
   status: text('status').notNull().default('active'), // 'active' | 'removed'

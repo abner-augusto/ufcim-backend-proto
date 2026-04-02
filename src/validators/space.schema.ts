@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { boundaryTimeSchema } from './common.schema';
+import { DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 
 export const spaceTypeSchema = z.enum(['classroom', 'study_room', 'meeting_room', 'hall']);
 
@@ -13,6 +15,8 @@ export const createSpaceSchema = z.object({
   lighting: z.string().optional(),
   hvac: z.string().optional(),
   multimedia: z.string().optional(),
+  closedFrom: boundaryTimeSchema.default(DEFAULT_CLOSED_FROM),
+  closedTo: boundaryTimeSchema.default(DEFAULT_CLOSED_TO),
 });
 
 export const updateSpaceSchema = createSpaceSchema.partial();

@@ -1,17 +1,20 @@
 function navLink(currentPath: string, href: string, label: string) {
   const isActive = currentPath === href;
   const classes = isActive
-    ? 'bg-slate-900 text-white'
+    ? 'bg-slate-900 text-white shadow-sm'
     : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900';
 
   return `
     <a
       href="${href}"
+      data-admin-nav-link="true"
+      data-admin-nav-href="${href}"
       hx-get="/admin/partials${href === '/admin' ? '/dashboard' : href.slice('/admin'.length)}"
       hx-target="#admin-content"
       hx-swap="innerHTML"
-      hx-push-url="true"
+      hx-push-url="${href}"
       class="rounded-lg px-3 py-2 text-sm font-medium transition ${classes}"
+      aria-current="${isActive ? 'page' : 'false'}"
     >
       ${label}
     </a>
@@ -70,6 +73,28 @@ export function renderAdminShell(currentPath: string) {
     </div>
 
     <script>
+      window.applyAdminNavState = function applyAdminNavState(activePath) {
+        const navLinks = document.querySelectorAll('[data-admin-nav-link="true"]');
+
+        for (const link of navLinks) {
+          const href = link.getAttribute('data-admin-nav-href');
+          const isActive = href === activePath;
+
+          link.classList.toggle('bg-slate-900', isActive);
+          link.classList.toggle('text-white', isActive);
+          link.classList.toggle('shadow-sm', isActive);
+          link.classList.toggle('text-slate-600', !isActive);
+          link.classList.toggle('hover:bg-slate-200', !isActive);
+          link.classList.toggle('hover:text-slate-900', !isActive);
+          link.setAttribute('aria-current', isActive ? 'page' : 'false');
+        }
+      };
+
+      window.syncAdminNav = function syncAdminNav() {
+        const currentPath = window.location.pathname === '/admin/' ? '/admin' : window.location.pathname;
+        window.applyAdminNavState(currentPath);
+      };
+
       window.dashboardStats = function dashboardStats() {
         return {
           loading: true,
@@ -99,6 +124,14 @@ export function renderAdminShell(currentPath: string) {
           },
         };
       };
+
+      window.syncAdminNav();
+      document.body.addEventListener('htmx:afterSwap', function (event) {
+        if (event.target && event.target.id === 'admin-content') {
+          window.syncAdminNav();
+        }
+      });
+      window.addEventListener('popstate', window.syncAdminNav);
     </script>
   </body>
 </html>`;

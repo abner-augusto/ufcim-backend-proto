@@ -1,10 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { equipment, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
-import { NotFoundError } from '@/middleware/error-handler';
+import { ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 
 interface CreateEquipmentInput {
+  assetId: string;
   spaceId: string;
   name: string;
   type: string;
@@ -28,6 +29,11 @@ export class EquipmentService {
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
 
+    const existingAsset = await this.db.query.equipment.findFirst({
+      where: eq(equipment.assetId, input.assetId),
+    });
+    if (existingAsset) throw new ConflictError('Equipment asset ID already exists');
+
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
@@ -41,7 +47,7 @@ export class EquipmentService {
       'create_equipment',
       id,
       'equipment',
-      `Added equipment "${input.name}" to space ${space.number}`
+      `Added equipment "${input.name}" (${input.assetId}) to space ${space.number}`
     );
 
     return item;
@@ -79,7 +85,7 @@ export class EquipmentService {
 
     return this.db.query.equipment.findMany({
       where: eq(equipment.spaceId, spaceId),
-      orderBy: (e, { asc }) => [asc(e.name)],
+      orderBy: (e, { asc }) => [asc(e.assetId)],
     });
   }
 
@@ -91,7 +97,7 @@ export class EquipmentService {
 
     return allSpaces.map((space) => ({
       ...space,
-      equipment: [...space.equipment].sort((a, b) => a.name.localeCompare(b.name)),
+      equipment: [...space.equipment].sort((a, b) => a.assetId.localeCompare(b.assetId)),
     }));
   }
 }

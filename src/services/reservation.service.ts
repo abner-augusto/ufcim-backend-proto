@@ -4,11 +4,13 @@ import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
+import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
 
 interface CreateReservationInput {
   spaceId: string;
   date: string;
-  timeSlot: 'morning' | 'afternoon' | 'evening';
+  startTime: string;
+  endTime: string;
 }
 
 interface CreateRecurringInput {
@@ -16,7 +18,8 @@ interface CreateRecurringInput {
   startDate: string;
   endDate: string;
   dayOfWeek: number;
-  timeSlot: 'morning' | 'afternoon' | 'evening';
+  startTime: string;
+  endTime: string;
   description: string;
 }
 
@@ -47,7 +50,13 @@ export class ReservationService {
       throw new ForbiddenError('Students can only reserve spaces in their own department');
     }
 
-    await this.checkSlotAvailability(input.spaceId, input.date, input.timeSlot);
+    await this.checkSlotAvailability(
+      space,
+      input.spaceId,
+      input.date,
+      input.startTime,
+      input.endTime
+    );
 
     if (userRole === 'student') {
       await this.enforceStudentLimit(userId);
@@ -63,7 +72,9 @@ export class ReservationService {
         spaceId: input.spaceId,
         userId,
         date: input.date,
-        timeSlot: input.timeSlot,
+        timeSlot: deriveLegacyTimeSlot(input.startTime),
+        startTime: input.startTime,
+        endTime: input.endTime,
         status: 'confirmed',
         createdAt: now,
         updatedAt: now,
@@ -75,13 +86,13 @@ export class ReservationService {
       'create_reservation',
       id,
       'reservation',
-      `Reserved space ${space.number} on ${input.date} (${input.timeSlot})`
+      `Reserved space ${space.number} on ${input.date} (${input.startTime}-${input.endTime})`
     );
 
     await this.notification.create(
       userId,
       'Reservation confirmed',
-      `Your reservation for space ${space.number} on ${input.date} (${input.timeSlot}) is confirmed.`,
+      `Your reservation for space ${space.number} on ${input.date} (${input.startTime}-${input.endTime}) is confirmed.`,
       'confirmed'
     );
 
@@ -113,7 +124,7 @@ export class ReservationService {
 
     for (const date of dates) {
       try {
-        await this.checkSlotAvailability(input.spaceId, date, input.timeSlot);
+        await this.checkSlotAvailability(space, input.spaceId, date, input.startTime, input.endTime);
         const id = crypto.randomUUID();
         const [reservation] = await this.db
           .insert(reservations)
@@ -122,7 +133,9 @@ export class ReservationService {
             spaceId: input.spaceId,
             userId,
             date,
-            timeSlot: input.timeSlot,
+            timeSlot: deriveLegacyTimeSlot(input.startTime),
+            startTime: input.startTime,
+            endTime: input.endTime,
             status: 'confirmed',
             recurrenceId,
             createdAt: now,
@@ -131,7 +144,7 @@ export class ReservationService {
           .returning();
         created.push(reservation);
       } catch {
-        skipped.push({ date, timeSlot: input.timeSlot, reason: 'Slot unavailable' });
+        skipped.push({ date, startTime: input.startTime, endTime: input.endTime, reason: 'Time range unavailable' });
       }
     }
 
@@ -140,7 +153,7 @@ export class ReservationService {
       'create_recurring_reservation',
       recurrenceId,
       'reservation',
-      `Created ${created.length} reservations for space ${space.number} (${skipped.length} skipped)`
+      `Created ${created.length} reservations for space ${space.number} (${input.startTime}-${input.endTime}, ${skipped.length} skipped)`
     );
 
     return { recurrenceId, created, skipped };
@@ -173,14 +186,14 @@ export class ReservationService {
       'cancel_reservation',
       reservationId,
       'reservation',
-      `Canceled reservation for space ${reservation.spaceId} on ${reservation.date} (${reservation.timeSlot})`
+      `Canceled reservation for space ${reservation.spaceId} on ${reservation.date} (${reservation.startTime}-${reservation.endTime})`
     );
 
     if (reservation.userId !== userId) {
       await this.notification.create(
         reservation.userId,
         'Reservation canceled',
-        `Your reservation on ${reservation.date} (${reservation.timeSlot}) was canceled.`,
+        `Your reservation on ${reservation.date} (${reservation.startTime}-${reservation.endTime}) was canceled.`,
         'canceled'
       );
     }
@@ -242,26 +255,38 @@ export class ReservationService {
 
   // ─── Private helpers ────────────────────────────────────────────────────────
 
-  private async checkSlotAvailability(spaceId: string, date: string, timeSlot: string) {
-    const existing = await this.db.query.reservations.findFirst({
+  private async checkSlotAvailability(
+    space: { closedFrom: string; closedTo: string },
+    spaceId: string,
+    date: string,
+    startTime: string,
+    endTime: string
+  ) {
+    if (overlapsClosedHours(startTime, endTime, space.closedFrom, space.closedTo)) {
+      throw new ConflictError('This time range falls within the room closed hours');
+    }
+
+    const existingReservations = await this.db.query.reservations.findMany({
       where: and(
         eq(reservations.spaceId, spaceId),
         eq(reservations.date, date),
-        eq(reservations.timeSlot, timeSlot),
         eq(reservations.status, 'confirmed')
       ),
     });
-    if (existing) throw new ConflictError('This time slot is already reserved');
+    if (existingReservations.some((existing) => intervalsOverlap(startTime, endTime, existing.startTime, existing.endTime))) {
+      throw new ConflictError('This time range overlaps an existing reservation');
+    }
 
-    const blocked = await this.db.query.blockings.findFirst({
+    const activeBlockings = await this.db.query.blockings.findMany({
       where: and(
         eq(blockings.spaceId, spaceId),
         eq(blockings.date, date),
-        eq(blockings.timeSlot, timeSlot),
         eq(blockings.status, 'active')
       ),
     });
-    if (blocked) throw new ConflictError('This space is blocked for the requested time slot');
+    if (activeBlockings.some((blocking) => intervalsOverlap(startTime, endTime, blocking.startTime, blocking.endTime))) {
+      throw new ConflictError('This space is blocked for the requested time range');
+    }
   }
 
   private async enforceStudentLimit(userId: string) {

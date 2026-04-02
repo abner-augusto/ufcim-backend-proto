@@ -8,7 +8,8 @@ const STAFF_ID = SEED.blocking.createdBy;
 const CREATE_INPUT = {
   spaceId: SEED.space.id,
   date: SEED.blocking.date,
-  timeSlot: SEED.blocking.timeSlot,
+  startTime: SEED.blocking.startTime,
+  endTime: SEED.blocking.endTime,
   reason: SEED.blocking.reason,
   blockType: SEED.blocking.blockType,
 };
@@ -29,17 +30,17 @@ describe('BlockingService.create', () => {
     await expect(service.create(STAFF_ID, CREATE_INPUT)).rejects.toThrow(NotFoundError);
   });
 
-  it('throws ConflictError when an active blocking already exists for the slot', async () => {
+  it('throws ConflictError when an active blocking already overlaps the requested time range', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    db.query.blockings.findFirst.mockResolvedValue(SEED.blocking); // duplicate
+    db.query.blockings.findMany.mockResolvedValue([SEED.blocking]);
 
     await expect(service.create(STAFF_ID, CREATE_INPUT)).rejects.toThrow(ConflictError);
   });
 
-  it('creates a blocking when the slot is free', async () => {
+  it('creates a blocking when the time range is free', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    db.query.blockings.findFirst.mockResolvedValue(undefined);  // no duplicate
-    db.query.reservations.findFirst.mockResolvedValue(undefined); // no conflicting reservation
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([]);
 
     const result = await service.create(STAFF_ID, CREATE_INPUT);
 
@@ -49,11 +50,11 @@ describe('BlockingService.create', () => {
 
   it('overrides a confirmed reservation on the same slot', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    db.query.blockings.findFirst.mockResolvedValue(undefined);
-    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // conflicting
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([SEED.reservation]);
     db._update.returning.mockResolvedValue([{ ...SEED.reservation, status: 'overridden' }]);
 
-    await service.create(STAFF_ID, CREATE_INPUT);
+    await service.create(STAFF_ID, { ...CREATE_INPUT, startTime: '09:00', endTime: '10:00' });
 
     // update called to override the reservation
     expect(db._update.fn).toHaveBeenCalled();
@@ -63,12 +64,12 @@ describe('BlockingService.create', () => {
 
   it('sends a notification when a confirmed reservation is overridden', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    db.query.blockings.findFirst.mockResolvedValue(undefined);
-    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([SEED.reservation]);
     db._update.returning.mockResolvedValue([{ ...SEED.reservation, status: 'overridden' }]);
     db._insert.returning.mockResolvedValue([{}]);
 
-    await service.create(STAFF_ID, CREATE_INPUT);
+    await service.create(STAFF_ID, { ...CREATE_INPUT, startTime: '09:00', endTime: '10:00' });
 
     // insert is called for: notification, override audit log, create_blocking audit log
     expect(db._insert.fn.mock.calls.length).toBeGreaterThanOrEqual(3);
