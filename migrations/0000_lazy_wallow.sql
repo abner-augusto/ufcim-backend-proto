@@ -15,6 +15,8 @@ CREATE TABLE `blockings` (
 	`created_by` text NOT NULL,
 	`date` text NOT NULL,
 	`time_slot` text NOT NULL,
+	`start_time` text NOT NULL,
+	`end_time` text NOT NULL,
 	`reason` text NOT NULL,
 	`block_type` text NOT NULL,
 	`status` text DEFAULT 'active' NOT NULL,
@@ -26,6 +28,7 @@ CREATE TABLE `blockings` (
 --> statement-breakpoint
 CREATE TABLE `equipment` (
 	`id` text PRIMARY KEY NOT NULL,
+	`asset_id` text NOT NULL,
 	`space_id` text NOT NULL,
 	`name` text NOT NULL,
 	`type` text NOT NULL,
@@ -37,6 +40,7 @@ CREATE TABLE `equipment` (
 	FOREIGN KEY (`updated_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `equipment_asset_id_unique` ON `equipment` (`asset_id`);--> statement-breakpoint
 CREATE TABLE `notifications` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -62,6 +66,8 @@ CREATE TABLE `reservations` (
 	`user_id` text NOT NULL,
 	`date` text NOT NULL,
 	`time_slot` text NOT NULL,
+	`start_time` text NOT NULL,
+	`end_time` text NOT NULL,
 	`status` text NOT NULL,
 	`recurrence_id` text,
 	`change_origin` text,
@@ -84,6 +90,8 @@ CREATE TABLE `spaces` (
 	`lighting` text,
 	`hvac` text,
 	`multimedia` text,
+	`closed_from` text DEFAULT '22:00' NOT NULL,
+	`closed_to` text DEFAULT '07:00' NOT NULL,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );

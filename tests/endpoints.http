@@ -4,7 +4,7 @@
 #   1. Copy .dev.vars.example → .dev.vars
 #   2. Apply migration: npx wrangler d1 execute ufcim-db --local --file=migrations/0000_lazy_wallow.sql
 #   3. Apply seed:      npx wrangler d1 execute ufcim-db --local --file=scripts/seed.sql
-#   4. Start worker:    npx wrangler dev
+#   4. Start worker:    npx wrangler dev --env dev
 #   5. Refresh tokens below if expired: node scripts/generate-test-token.mjs [role]
 #
 # Seed UUIDs:
@@ -71,7 +71,9 @@ Content-Type: application/json
   "block": "D",
   "campus": "Pici",
   "department": "Ciência da Computação",
-  "capacity": 30
+  "capacity": 30,
+  "closedFrom": "22:00",
+  "closedTo": "07:00"
 }
 
 ### POST /spaces (student) — expect 403
@@ -127,6 +129,7 @@ Authorization: Bearer {{staff_token}}
 Content-Type: application/json
 
 {
+  "assetId": "2020002660",
   "spaceId": "00000000-0000-0000-0000-000000000011",
   "name": "Quadro Interativo SMART",
   "type": "display",
@@ -166,7 +169,8 @@ Content-Type: application/json
 {
   "spaceId": "00000000-0000-0000-0000-000000000012",
   "date": "2026-06-10",
-  "timeSlot": "morning"
+  "startTime": "09:00",
+  "endTime": "10:00"
 }
 
 ### POST /reservations (student) — duplicate — expect 409
@@ -177,7 +181,8 @@ Content-Type: application/json
 {
   "spaceId": "00000000-0000-0000-0000-000000000012",
   "date": "2026-06-10",
-  "timeSlot": "morning"
+  "startTime": "09:00",
+  "endTime": "10:00"
 }
 
 ### POST /reservations (maintenance) — expect 403
@@ -188,7 +193,8 @@ Content-Type: application/json
 {
   "spaceId": "00000000-0000-0000-0000-000000000011",
   "date": "2026-06-11",
-  "timeSlot": "afternoon"
+  "startTime": "14:00",
+  "endTime": "15:00"
 }
 
 ### POST /reservations/recurring (professor) — expect 201
@@ -201,7 +207,8 @@ Content-Type: application/json
   "startDate": "2026-06-02",
   "endDate": "2026-07-28",
   "dayOfWeek": 2,
-  "timeSlot": "afternoon",
+  "startTime": "14:00",
+  "endTime": "15:00",
   "description": "Aula de Programação Orientada a Objetos — turma 2026.1"
 }
 
@@ -215,7 +222,8 @@ Content-Type: application/json
   "startDate": "2026-06-02",
   "endDate": "2026-06-30",
   "dayOfWeek": 3,
-  "timeSlot": "morning",
+  "startTime": "09:00",
+  "endTime": "10:00",
   "description": "não autorizado"
 }
 
@@ -247,7 +255,8 @@ Content-Type: application/json
 {
   "spaceId": "00000000-0000-0000-0000-000000000013",
   "date": "2026-06-15",
-  "timeSlot": "morning",
+  "startTime": "10:00",
+  "endTime": "12:00",
   "reason": "Reunião do Conselho Departamental",
   "blockType": "administrative"
 }
@@ -260,7 +269,8 @@ Content-Type: application/json
 {
   "spaceId": "00000000-0000-0000-0000-000000000012",
   "date": "2026-06-20",
-  "timeSlot": "afternoon",
+  "startTime": "14:00",
+  "endTime": "16:00",
   "reason": "Instalação de novo ar condicionado",
   "blockType": "maintenance"
 }
@@ -273,7 +283,8 @@ Content-Type: application/json
 {
   "spaceId": "00000000-0000-0000-0000-000000000011",
   "date": "2026-06-16",
-  "timeSlot": "evening",
+  "startTime": "19:00",
+  "endTime": "20:00",
   "reason": "não autorizado",
   "blockType": "administrative"
 }

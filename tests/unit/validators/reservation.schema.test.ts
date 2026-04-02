@@ -14,7 +14,8 @@ describe('createReservationSchema', () => {
     const result = createReservationSchema.safeParse({
       spaceId: VALID_UUID,
       date: FUTURE_DATE,
-      timeSlot: 'morning',
+      startTime: '09:00',
+      endTime: '10:00',
     });
     expect(result.success).toBe(true);
   });
@@ -22,16 +23,28 @@ describe('createReservationSchema', () => {
   it('rejects missing spaceId', () => {
     const result = createReservationSchema.safeParse({
       date: FUTURE_DATE,
-      timeSlot: 'morning',
+      startTime: '09:00',
+      endTime: '10:00',
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid timeSlot', () => {
+  it('rejects invalid startTime', () => {
     const result = createReservationSchema.safeParse({
       spaceId: VALID_UUID,
       date: FUTURE_DATE,
-      timeSlot: 'night',
+      startTime: '09:30',
+      endTime: '10:00',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects endTime earlier than startTime', () => {
+    const result = createReservationSchema.safeParse({
+      spaceId: VALID_UUID,
+      date: FUTURE_DATE,
+      startTime: '10:00',
+      endTime: '09:00',
     });
     expect(result.success).toBe(false);
   });
@@ -40,7 +53,8 @@ describe('createReservationSchema', () => {
     const result = createReservationSchema.safeParse({
       spaceId: VALID_UUID,
       date: '2020-01-01',
-      timeSlot: 'afternoon',
+      startTime: '14:00',
+      endTime: '15:00',
     });
     expect(result.success).toBe(false);
   });
@@ -52,7 +66,8 @@ describe('createRecurringReservationSchema', () => {
     startDate: FUTURE_DATE,
     endDate: FUTURE_DATE_LATER,
     dayOfWeek: 1,
-    timeSlot: 'afternoon',
+    startTime: '14:00',
+    endTime: '15:00',
     description: 'Weekly lecture',
   };
 
@@ -105,6 +120,10 @@ describe('updateReservationSchema', () => {
     for (const status of ['confirmed', 'canceled', 'modified']) {
       expect(updateReservationSchema.safeParse({ status }).success).toBe(true);
     }
+  });
+
+  it('accepts valid hourly update values', () => {
+    expect(updateReservationSchema.safeParse({ startTime: '08:00', endTime: '09:00' }).success).toBe(true);
   });
 
   it('rejects invalid status', () => {

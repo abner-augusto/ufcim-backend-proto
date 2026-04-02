@@ -12,7 +12,8 @@ const USER_ID = SEED.reservation.userId;
 const OTHER_USER_ID = '00000000-0000-0000-0000-000000000002';
 const SPACE_ID = SEED.space.id;
 const DATE = SEED.reservation.date;
-const TIME_SLOT = 'morning' as const;
+const START_TIME = '09:00';
+const END_TIME = '10:00';
 
 describe('ReservationService.create', () => {
   let db: ReturnType<typeof createMockDb>;
@@ -29,7 +30,7 @@ describe('ReservationService.create', () => {
     db.query.spaces.findFirst.mockResolvedValue(undefined);
 
     await expect(
-      service.create(USER_ID, 'professor', 'Any Dept', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+      service.create(USER_ID, 'professor', 'Any Dept', { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
     ).rejects.toThrow(NotFoundError);
   });
 
@@ -37,40 +38,46 @@ describe('ReservationService.create', () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space); // dept: Ciência da Computação
 
     await expect(
-      service.create(USER_ID, 'student', 'Administração', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+      service.create(USER_ID, 'student', 'Administração', { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
     ).rejects.toThrow(ForbiddenError);
   });
 
-  it('throws ConflictError when slot is already confirmed', async () => {
+  it('throws ConflictError when a reservation overlaps the requested time range', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // slot taken
+    db.query.reservations.findMany.mockResolvedValue([SEED.reservation]);
+    db.query.blockings.findMany.mockResolvedValue([]);
 
     await expect(
-      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
     ).rejects.toThrow(ConflictError);
   });
 
-  it('throws ConflictError when slot is actively blocked', async () => {
+  it('throws ConflictError when the room is blocked for the requested time range', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    db.query.reservations.findFirst.mockResolvedValue(undefined); // no reservation
-    db.query.blockings.findFirst.mockResolvedValue(SEED.blocking);  // but blocked
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([SEED.blocking]);
 
     await expect(
-      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, startTime: '08:00', endTime: '09:00' })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('throws ConflictError when the reservation falls within closed hours', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+
+    await expect(
+      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, startTime: '23:00', endTime: '24:00' })
     ).rejects.toThrow(ConflictError);
   });
 
   it('throws STUDENT_LIMIT error when student already has an active reservation', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    // checkSlotAvailability: reservations.findFirst (no conflict), blockings.findFirst (not blocked)
-    // enforceStudentLimit: reservations.findFirst (student has one active)
-    db.query.reservations.findFirst
-      .mockResolvedValueOnce(undefined)        // slot availability: no confirmed reservation
-      .mockResolvedValueOnce(SEED.reservation); // enforceStudentLimit: has active reservation
-    db.query.blockings.findFirst.mockResolvedValue(undefined);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findFirst.mockResolvedValueOnce(SEED.reservation);
 
     const err = await service
-      .create(USER_ID, 'student', SEED.space.department, { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT })
+      .create(USER_ID, 'student', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
       .catch((e) => e);
 
     expect(err).toBeInstanceOf(AppError);
@@ -79,15 +86,15 @@ describe('ReservationService.create', () => {
 
   it('creates and returns a reservation for a professor with no conflicts', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    db.query.reservations.findFirst.mockResolvedValue(undefined);
-    db.query.blockings.findFirst.mockResolvedValue(undefined);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
     db._insert.returning.mockResolvedValue([SEED.reservation]);
 
     const result = await service.create(
       OTHER_USER_ID,
       'professor',
       'Ciência da Computação',
-      { spaceId: SPACE_ID, date: DATE, timeSlot: TIME_SLOT }
+      { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME }
     );
 
     expect(result).toMatchObject({ id: SEED.reservation.id });
@@ -182,7 +189,8 @@ describe('ReservationService.createRecurring', () => {
         startDate: '2099-06-02',
         endDate: '2099-06-30',
         dayOfWeek: 1,
-        timeSlot: 'morning',
+        startTime: START_TIME,
+        endTime: END_TIME,
         description: 'Weekly',
       })
     ).rejects.toThrow(ForbiddenError);
@@ -195,7 +203,8 @@ describe('ReservationService.createRecurring', () => {
         startDate: '2099-06-02',
         endDate: '2099-06-30',
         dayOfWeek: 1,
-        timeSlot: 'morning',
+        startTime: START_TIME,
+        endTime: END_TIME,
         description: 'Weekly',
       })
     ).rejects.toThrow(ForbiddenError);
@@ -210,7 +219,8 @@ describe('ReservationService.createRecurring', () => {
         startDate: '2099-06-02',
         endDate: '2099-06-30',
         dayOfWeek: 1,
-        timeSlot: 'morning',
+        startTime: START_TIME,
+        endTime: END_TIME,
         description: 'Weekly',
       })
     ).rejects.toThrow(NotFoundError);
@@ -219,15 +229,16 @@ describe('ReservationService.createRecurring', () => {
   it('skips conflicting dates and returns created + skipped lists', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     // All slots available → no skips
-    db.query.reservations.findFirst.mockResolvedValue(undefined);
-    db.query.blockings.findFirst.mockResolvedValue(undefined);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
 
     const result = await service.createRecurring(OTHER_USER_ID, 'professor', {
       spaceId: SPACE_ID,
       startDate: '2099-06-02', // Monday
       endDate: '2099-06-16',   // 3 Mondays: 2, 9, 16
       dayOfWeek: 1,
-      timeSlot: 'morning',
+      startTime: START_TIME,
+      endTime: END_TIME,
       description: 'Weekly lecture',
     });
 
@@ -239,21 +250,22 @@ describe('ReservationService.createRecurring', () => {
   it('skips a date when its slot is already confirmed', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     // First occurrence: slot taken → skipped; subsequent: available
-    db.query.reservations.findFirst
-      .mockResolvedValueOnce(SEED.reservation) // 1st date: slot taken
-      .mockResolvedValue(undefined);            // rest: available
-    db.query.blockings.findFirst.mockResolvedValue(undefined);
+    db.query.reservations.findMany
+      .mockResolvedValueOnce([SEED.reservation])
+      .mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
 
     const result = await service.createRecurring(OTHER_USER_ID, 'professor', {
       spaceId: SPACE_ID,
       startDate: '2099-06-02',
       endDate: '2099-06-16',
       dayOfWeek: 1,
-      timeSlot: 'morning',
+      startTime: START_TIME,
+      endTime: END_TIME,
       description: 'Weekly lecture',
     });
 
     expect(result.skipped).toHaveLength(1);
-    expect(result.skipped[0].reason).toBe('Slot unavailable');
+    expect(result.skipped[0].reason).toBe('Time range unavailable');
   });
 });

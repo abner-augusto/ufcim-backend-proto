@@ -8,7 +8,12 @@ export const equipmentStatusSchema = z.enum([
   'replacement_scheduled',
 ]);
 
+export const equipmentAssetIdSchema = z
+  .string()
+  .regex(/^\d{10}$/, 'Equipment asset ID must be exactly 10 digits');
+
 export const createEquipmentSchema = z.object({
+  assetId: equipmentAssetIdSchema,
   spaceId: uuidSchema,
   name: z.string().min(1).max(200),
   type: z.string().min(1).max(100),

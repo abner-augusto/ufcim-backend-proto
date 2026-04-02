@@ -19,59 +19,60 @@ describe('SpaceService.getAvailability', () => {
     await expect(service.getAvailability('no-such-id', '2099-06-15')).rejects.toThrow(NotFoundError);
   });
 
-  it('returns all three slots as available when no reservations or blockings exist', async () => {
+  it('returns hourly availability and marks open hours as available when no reservations or blockings exist', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
 
     const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
 
-    expect(slots).toHaveLength(3);
-    expect(slots.every((s) => s.status === 'available')).toBe(true);
+    expect(slots).toHaveLength(24);
+    expect(slots.find((s) => s.startTime === '09:00')?.status).toBe('available');
+    expect(slots.find((s) => s.startTime === '23:00')?.status).toBe('closed');
   });
 
-  it('marks a slot as reserved when a confirmed reservation exists', async () => {
+  it('marks an hourly interval as reserved when a confirmed reservation exists', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([SEED.reservation]); // morning confirmed
     db.query.blockings.findMany.mockResolvedValue([]);
 
     const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
-    const morning = slots.find((s) => s.timeSlot === 'morning');
-    const afternoon = slots.find((s) => s.timeSlot === 'afternoon');
+    const reservedHour = slots.find((s) => s.startTime === '09:00');
+    const openHour = slots.find((s) => s.startTime === '11:00');
 
-    expect(morning?.status).toBe('reserved');
-    expect(afternoon?.status).toBe('available');
+    expect(reservedHour?.status).toBe('reserved');
+    expect(openHour?.status).toBe('available');
   });
 
-  it('marks a slot as blocked when an active blocking exists', async () => {
+  it('marks an hourly interval as blocked when an active blocking exists', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([SEED.blocking]); // morning blocked
 
     const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
-    const morning = slots.find((s) => s.timeSlot === 'morning');
+    const morning = slots.find((s) => s.startTime === '08:00');
 
     expect(morning?.status).toBe('blocked');
   });
 
-  it('blocked takes priority over reserved on the same slot', async () => {
+  it('blocked takes priority over reserved on overlapping hourly intervals', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
-    // Same slot is both reserved and blocked (edge case — e.g., reservation not yet overridden)
-    db.query.reservations.findMany.mockResolvedValue([SEED.reservation]); // morning
-    db.query.blockings.findMany.mockResolvedValue([SEED.blocking]);       // morning
+    db.query.reservations.findMany.mockResolvedValue([SEED.reservation]);
+    db.query.blockings.findMany.mockResolvedValue([{ ...SEED.blocking, startTime: '09:00', endTime: '10:00' }]);
 
     const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
-    const morning = slots.find((s) => s.timeSlot === 'morning');
+    const morning = slots.find((s) => s.startTime === '09:00');
 
     expect(morning?.status).toBe('blocked');
   });
 
-  it('returns slots for all three time slots in order', async () => {
+  it('returns hourly slots in order', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
 
     const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
 
-    expect(slots.map((s) => s.timeSlot)).toEqual(['morning', 'afternoon', 'evening']);
+    expect(slots[0]?.startTime).toBe('00:00');
+    expect(slots[23]?.startTime).toBe('23:00');
   });
 });
 

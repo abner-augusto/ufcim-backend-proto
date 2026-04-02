@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   uuidSchema,
   paginationSchema,
-  timeSlotSchema,
+  hourlyTimeSchema,
+  boundaryTimeSchema,
   userRoleSchema,
   dateSchema,
   futureDateSchema,
@@ -73,13 +74,19 @@ describe('futureDateSchema', () => {
   });
 });
 
-describe('timeSlotSchema', () => {
-  it.each(['morning', 'afternoon', 'evening'])('accepts %s', (slot) => {
-    expect(timeSlotSchema.safeParse(slot).success).toBe(true);
+describe('hourlyTimeSchema', () => {
+  it.each(['00:00', '09:00', '23:00'])('accepts %s', (time) => {
+    expect(hourlyTimeSchema.safeParse(time).success).toBe(true);
   });
 
-  it('rejects an invalid slot', () => {
-    expect(timeSlotSchema.safeParse('night').success).toBe(false);
+  it('rejects non-hourly values', () => {
+    expect(hourlyTimeSchema.safeParse('09:30').success).toBe(false);
+  });
+});
+
+describe('boundaryTimeSchema', () => {
+  it('accepts 24:00 as an end boundary', () => {
+    expect(boundaryTimeSchema.safeParse('24:00').success).toBe(true);
   });
 });
 

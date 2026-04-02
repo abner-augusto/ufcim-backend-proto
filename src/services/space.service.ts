@@ -3,6 +3,7 @@ import { spaces, reservations, blockings } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
+import { buildHourlyAvailability, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 
 interface CreateSpaceInput {
   number: string;
@@ -15,6 +16,8 @@ interface CreateSpaceInput {
   lighting?: string;
   hvac?: string;
   multimedia?: string;
+  closedFrom: string;
+  closedTo: string;
 }
 
 interface ListSpacesFilters {
@@ -25,8 +28,6 @@ interface ListSpacesFilters {
   page: number;
   limit: number;
 }
-
-const TIME_SLOTS = ['morning', 'afternoon', 'evening'] as const;
 
 export class SpaceService {
   private auditLog: AuditLogService;
@@ -41,7 +42,14 @@ export class SpaceService {
 
     const [space] = await this.db
       .insert(spaces)
-      .values({ id, ...input, createdAt: now, updatedAt: now })
+      .values({
+        id,
+        ...input,
+        closedFrom: input.closedFrom ?? DEFAULT_CLOSED_FROM,
+        closedTo: input.closedTo ?? DEFAULT_CLOSED_TO,
+        createdAt: now,
+        updatedAt: now,
+      })
       .returning();
 
     await this.auditLog.log(userId, 'create_space', id, 'space', `Created space ${input.number}`);
@@ -111,13 +119,17 @@ export class SpaceService {
       }),
     ]);
 
-    return TIME_SLOTS.map((slot) => ({
-      timeSlot: slot,
-      status: activeBlockings.some((b) => b.timeSlot === slot)
-        ? 'blocked'
-        : confirmedReservations.some((r) => r.timeSlot === slot)
-          ? 'reserved'
-          : 'available',
-    }));
+    return buildHourlyAvailability(
+      space.closedFrom ?? DEFAULT_CLOSED_FROM,
+      space.closedTo ?? DEFAULT_CLOSED_TO,
+      confirmedReservations.map((reservation) => ({
+        startTime: reservation.startTime,
+        endTime: reservation.endTime,
+      })),
+      activeBlockings.map((blocking) => ({
+        startTime: blocking.startTime,
+        endTime: blocking.endTime,
+      }))
+    );
   }
 }

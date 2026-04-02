@@ -13,32 +13,32 @@ INSERT OR IGNORE INTO users (id, name, registration, role, department, email, cr
   ('00000000-0000-0000-0000-000000000004', 'Pedro Santos',     '2015002001', 'maintenance', 'Manutenção',            'pedro.santos@ufc.br',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 -- ── Spaces ───────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO spaces (id, number, type, block, campus, department, capacity, furniture, lighting, hvac, multimedia, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000011', 'A101', 'classroom',    'A', 'Pici', 'Ciência da Computação', 40, 'Mesas e cadeiras para 40 pessoas',  'Fluorescente',   'Ar condicionado split 18000 BTU', 'Projetor + tela retrátil',   '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000012', 'B205', 'study_room',   'B', 'Pici', 'Ciência da Computação', 10, 'Mesa de reunião redonda, 10 cadeiras', 'LED',          'Ar condicionado split 9000 BTU',  NULL,                         '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000013', 'C301', 'meeting_room', 'C', 'Pici', 'Administração',         20, 'Mesa de conferência, 20 cadeiras',  'LED regulável',  'Ar condicionado split 12000 BTU', 'TV 65" + videoconferência', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+INSERT OR IGNORE INTO spaces (id, number, type, block, campus, department, capacity, furniture, lighting, hvac, multimedia, closed_from, closed_to, created_at, updated_at) VALUES
+  ('00000000-0000-0000-0000-000000000011', 'A101', 'classroom',    'A', 'Pici', 'Ciência da Computação', 40, 'Mesas e cadeiras para 40 pessoas',  'Fluorescente',   'Ar condicionado split 18000 BTU', 'Projetor + tela retrátil', '22:00', '07:00', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000012', 'B205', 'study_room',   'B', 'Pici', 'Ciência da Computação', 10, 'Mesa de reunião redonda, 10 cadeiras', 'LED',          'Ar condicionado split 9000 BTU',  NULL,                       '22:00', '07:00', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000013', 'C301', 'meeting_room', 'C', 'Pici', 'Administração',         20, 'Mesa de conferência, 20 cadeiras',  'LED regulável',  'Ar condicionado split 12000 BTU', 'TV 65" + videoconferência', '22:00', '07:00', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 -- ── Equipment ─────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO equipment (id, space_id, name, type, status, notes, updated_by, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000011', 'Projetor Epson PowerLite',      'projector', 'working', NULL, '00000000-0000-0000-0000-000000000003', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000022', '00000000-0000-0000-0000-000000000012', 'Ar Condicionado Midea 9000 BTU','hvac',      'working', NULL, '00000000-0000-0000-0000-000000000004', '2026-01-01T00:00:00.000Z');
+INSERT OR IGNORE INTO equipment (id, asset_id, space_id, name, type, status, notes, updated_by, updated_at) VALUES
+  ('00000000-0000-0000-0000-000000000021', '2020002658', '00000000-0000-0000-0000-000000000011', 'Projetor Epson PowerLite',      'projector', 'working', NULL, '00000000-0000-0000-0000-000000000003', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000022', '2020002659', '00000000-0000-0000-0000-000000000012', 'Ar Condicionado Midea 9000 BTU','hvac',      'working', NULL, '00000000-0000-0000-0000-000000000004', '2026-01-01T00:00:00.000Z');
 
 -- ── Recurrences ───────────────────────────────────────────────────────────────
 INSERT OR IGNORE INTO recurrences (id, description, created_by, created_at) VALUES
   ('00000000-0000-0000-0000-000000000051', 'Aula semanal de Engenharia de Software', '00000000-0000-0000-0000-000000000002', '2026-01-01T00:00:00.000Z');
 
 -- ── Reservations ──────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO reservations (id, space_id, user_id, date, time_slot, status, recurrence_id, change_origin, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000061', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-02', 'morning',   'confirmed',  NULL,                                   NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000062', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-09', 'afternoon', 'confirmed',  '00000000-0000-0000-0000-000000000051', NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000063', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-16', 'afternoon', 'confirmed',  '00000000-0000-0000-0000-000000000051', NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000064', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '2026-04-03', 'evening',   'canceled',   NULL,                                   NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+INSERT OR IGNORE INTO reservations (id, space_id, user_id, date, time_slot, start_time, end_time, status, recurrence_id, change_origin, created_at, updated_at) VALUES
+  ('00000000-0000-0000-0000-000000000061', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-02', 'morning',   '09:00', '10:00', 'confirmed',  NULL,                                   NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000062', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-09', 'afternoon', '14:00', '15:00', 'confirmed',  '00000000-0000-0000-0000-000000000051', NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000063', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-16', 'afternoon', '14:00', '15:00', 'confirmed',  '00000000-0000-0000-0000-000000000051', NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000064', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '2026-04-03', 'evening',   '19:00', '20:00', 'canceled',   NULL,                                   NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 -- ── Blockings ─────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO blockings (id, space_id, created_by, date, time_slot, reason, block_type, status, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000071', '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000003', '2026-04-02', 'afternoon', 'Reunião do conselho departamental', 'administrative', 'active',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000072', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000004', '2026-04-05', 'morning',   'Troca de unidade de ar condicionado', 'maintenance',   'active',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000073', '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000003', '2026-03-29', 'morning',   'Bloqueio removido de teste',          'administrative', 'removed', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+INSERT OR IGNORE INTO blockings (id, space_id, created_by, date, time_slot, start_time, end_time, reason, block_type, status, created_at, updated_at) VALUES
+  ('00000000-0000-0000-0000-000000000071', '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000003', '2026-04-02', 'afternoon', '15:00', '17:00', 'Reunião do conselho departamental', 'administrative', 'active',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000072', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000004', '2026-04-05', 'morning',   '08:00', '10:00', 'Troca de unidade de ar condicionado', 'maintenance',   'active',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000073', '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000003', '2026-03-29', 'morning',   '08:00', '09:00', 'Bloqueio removido de teste',          'administrative', 'removed', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 -- ── Notifications ─────────────────────────────────────────────────────────────
 INSERT OR IGNORE INTO notifications (id, user_id, title, message, type, read, sent_at) VALUES
