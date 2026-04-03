@@ -120,6 +120,17 @@ adminRoutes.put('/actions/spaces/:id', async (c) => {
   return c.html(await renderSpacesView(c, { message: `Espaço ${space.number} atualizado`, selectedSpaceId: space.id }));
 });
 
+adminRoutes.delete('/actions/spaces/:id', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new SpaceService(db);
+  try {
+    await service.delete(c.req.param('id'), c.get('user').sub);
+    return c.html(await renderSpacesView(c, { message: 'Espaço removido com sucesso' }));
+  } catch (err) {
+    return c.html(await renderSpacesView(c, { message: err instanceof Error ? err.message : 'Erro ao remover espaço' }));
+  }
+});
+
 adminRoutes.patch('/actions/reservations/series/:id/cancel', async (c) => {
   const filters = reservationFilterSchema.parse(await formDataToObject(c));
   const db = createDb(c.env.DB);
@@ -219,6 +230,7 @@ async function renderSpacesView(
                   <th class="px-3 py-2 font-medium">Bloco</th>
                   <th class="px-3 py-2 font-medium">Campus</th>
                   <th class="px-3 py-2 font-medium">Capacidade</th>
+                  <th class="px-3 py-2 font-medium">Model ID</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -234,6 +246,7 @@ async function renderSpacesView(
                     <td class="px-3 py-3">${escapeHtml(space.block)}</td>
                     <td class="px-3 py-3">${escapeHtml(space.campus)}</td>
                     <td class="px-3 py-3">${space.capacity}</td>
+                    <td class="px-3 py-3 max-w-[160px] truncate text-slate-400" title="${escapeAttribute(space.modelId ?? '')}">${escapeHtml(space.modelId ?? '—')}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -279,6 +292,7 @@ function renderSpaceDetail(
       <dl class="mt-4 grid gap-3 text-sm text-slate-700">
         <div><strong>Bloco:</strong> ${escapeHtml(space.block)}</div>
         <div><strong>Capacidade:</strong> ${space.capacity}</div>
+        <div><strong>Model ID:</strong> <span class="font-mono text-xs text-slate-500">${escapeHtml(space.modelId ?? '—')}</span></div>
         <div><strong>Horário Fechado:</strong> ${escapeHtml(closedHours.closedFrom)}-${escapeHtml(closedHours.closedTo)}</div>
         <div><strong>Mobiliário:</strong> ${escapeHtml(space.furniture ?? 'Não informado')}</div>
         <div><strong>Iluminação:</strong> ${escapeHtml(space.lighting ?? 'Não informado')}</div>
@@ -319,8 +333,16 @@ function renderSpaceDetail(
         <form class="mt-4 grid gap-3 sm:grid-cols-2" hx-put="/admin/actions/spaces/${space.id}" hx-target="#admin-content" hx-swap="innerHTML">
           ${renderSpaceFields(space)}
           <input type="hidden" name="selectedSpaceId" value="${space.id}" />
-          <div class="sm:col-span-2">
+          <div class="sm:col-span-2 flex items-center gap-3">
             <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Salvar Alterações</button>
+            <button
+              type="button"
+              class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
+              hx-delete="/admin/actions/spaces/${space.id}"
+              hx-target="#admin-content"
+              hx-swap="innerHTML"
+              hx-confirm="Remover espaço '${escapeAttribute(space.number)}'? Isso também remove todos os equipamentos vinculados. Reservas e bloqueios ativos impedem a remoção."
+            >Remover Espaço</button>
           </div>
         </form>
       </div>

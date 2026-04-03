@@ -1,5 +1,5 @@
-import { eq, and } from 'drizzle-orm';
-import { spaces, reservations, blockings } from '@/db/schema';
+import { eq, and, count } from 'drizzle-orm';
+import { spaces, reservations, blockings, equipment } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
@@ -57,6 +57,34 @@ export class SpaceService {
     await this.auditLog.log(userId, 'create_space', id, 'space', `Created space ${input.number}`);
 
     return space;
+  }
+
+  async delete(id: string, userId: string) {
+    const existing = await this.db.query.spaces.findFirst({ where: eq(spaces.id, id) });
+    if (!existing) throw new NotFoundError('Space');
+
+    const [{ reservationCount }] = await this.db
+      .select({ reservationCount: count() })
+      .from(reservations)
+      .where(and(eq(reservations.spaceId, id), eq(reservations.status, 'confirmed')));
+
+    if (reservationCount > 0) {
+      throw new Error(`Não é possível remover: o espaço possui ${reservationCount} reserva(s) confirmada(s).`);
+    }
+
+    const [{ blockingCount }] = await this.db
+      .select({ blockingCount: count() })
+      .from(blockings)
+      .where(and(eq(blockings.spaceId, id), eq(blockings.status, 'active')));
+
+    if (blockingCount > 0) {
+      throw new Error(`Não é possível remover: o espaço possui ${blockingCount} bloqueio(s) ativo(s).`);
+    }
+
+    await this.db.delete(equipment).where(eq(equipment.spaceId, id));
+    await this.db.delete(spaces).where(eq(spaces.id, id));
+
+    await this.auditLog.log(userId, 'delete_space', id, 'space', `Deleted space ${existing.number}`);
   }
 
   async update(id: string, userId: string, input: Partial<CreateSpaceInput>) {
