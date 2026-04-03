@@ -16,6 +16,7 @@ interface CreateSpaceInput {
   lighting?: string;
   hvac?: string;
   multimedia?: string;
+  modelId?: string;
   closedFrom: string;
   closedTo: string;
 }
@@ -25,6 +26,7 @@ interface ListSpacesFilters {
   block?: string;
   department?: string;
   type?: string;
+  modelId?: string;
   page: number;
   limit: number;
 }
@@ -87,7 +89,8 @@ export class SpaceService {
         filters.campus ? eq(spaces.campus, filters.campus) : undefined,
         filters.block ? eq(spaces.block, filters.block) : undefined,
         filters.department ? eq(spaces.department, filters.department) : undefined,
-        filters.type ? eq(spaces.type, filters.type) : undefined
+        filters.type ? eq(spaces.type, filters.type) : undefined,
+        filters.modelId ? eq(spaces.modelId, filters.modelId) : undefined
       ),
       limit: filters.limit,
       offset: (filters.page - 1) * filters.limit,

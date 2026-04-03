@@ -26,6 +26,7 @@ export const spaces = sqliteTable('spaces', {
   lighting: text('lighting'),
   hvac: text('hvac'),
   multimedia: text('multimedia'),
+  modelId: text('model_id').unique(), // GLB pin name (e.g. "Auditório" from Pin_Auditório)
   closedFrom: text('closed_from').notNull().default('22:00'),
   closedTo: text('closed_to').notNull().default('07:00'),
   createdAt: text('created_at').notNull(),
