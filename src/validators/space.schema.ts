@@ -15,6 +15,7 @@ export const createSpaceSchema = z.object({
   lighting: z.string().optional(),
   hvac: z.string().optional(),
   multimedia: z.string().optional(),
+  modelId: z.string().optional(),
   closedFrom: boundaryTimeSchema.default(DEFAULT_CLOSED_FROM),
   closedTo: boundaryTimeSchema.default(DEFAULT_CLOSED_TO),
 });
@@ -26,6 +27,7 @@ export const spaceQuerySchema = z.object({
   block: z.string().optional(),
   department: z.string().optional(),
   type: spaceTypeSchema.optional(),
+  modelId: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
