@@ -48,8 +48,16 @@ export function renderAdminShell(currentPath: string) {
               Painel interno de operações servido a partir do mesmo aplicativo Hono e backado por um D1 local durante o desenvolvimento.
             </p>
           </div>
-          <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-            No ambiente local, a autenticação ignora as restrições de cargo de equipe (staff-role) de forma protegida, mas apenas se o ambiente estiver configurado como <code>ENVIRONMENT=development</code>.
+          <div class="flex flex-col items-end gap-3">
+            <div
+              id="user-switcher"
+              hx-get="/admin/partials/user-switcher"
+              hx-trigger="load"
+              hx-swap="outerHTML"
+            ></div>
+            <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
+              No ambiente local, a autenticação ignora as restrições de cargo de equipe (staff-role) de forma protegida, mas apenas se o ambiente estiver configurado como <code>ENVIRONMENT=development</code>.
+            </div>
           </div>
         </div>
         <nav class="mt-6 flex flex-wrap gap-2">

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -27,6 +27,7 @@ export const spaces = sqliteTable('spaces', {
   hvac: text('hvac'),
   multimedia: text('multimedia'),
   modelId: text('model_id').unique(), // GLB pin name (e.g. "Auditório" from Pin_Auditório)
+  reservable: integer('reservable', { mode: 'boolean' }).notNull().default(true),
   closedFrom: text('closed_from').notNull().default('22:00'),
   closedTo: text('closed_to').notNull().default('07:00'),
   createdAt: text('created_at').notNull(),
@@ -108,18 +109,37 @@ export const auditLogs = sqliteTable('audit_logs', {
   details: text('details'),
 });
 
+// ─── Space Managers (gestores de espaços) ───────────────────────────────────
+export const spaceManagers = sqliteTable(
+  'space_managers',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('space_id').notNull().references(() => spaces.id),
+    userId: text('user_id').notNull().references(() => users.id),
+    role: text('role').notNull(), // 'coordinator' | 'maintainer'
+    assignedBy: text('assigned_by').notNull().references(() => users.id),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => ({
+    spaceUserUnique: uniqueIndex('space_managers_space_user_unq').on(t.spaceId, t.userId),
+  })
+);
+
 // ─── Relations ──────────────────────────────────────────────────────────────
 export const usersRelations = relations(users, ({ many }) => ({
   reservations: many(reservations),
   blockings: many(blockings),
   notifications: many(notifications),
   auditLogs: many(auditLogs),
+  managedSpaces: many(spaceManagers, { relationName: 'manager' }),
+  assignedManagers: many(spaceManagers, { relationName: 'assigner' }),
 }));
 
 export const spacesRelations = relations(spaces, ({ many }) => ({
   equipment: many(equipment),
   reservations: many(reservations),
   blockings: many(blockings),
+  managers: many(spaceManagers),
 }));
 
 export const recurrencesRelations = relations(recurrences, ({ one, many }) => ({
@@ -149,4 +169,10 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 
 export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
+}));
+
+export const spaceManagersRelations = relations(spaceManagers, ({ one }) => ({
+  space: one(spaces, { fields: [spaceManagers.spaceId], references: [spaces.id] }),
+  user: one(users, { fields: [spaceManagers.userId], references: [users.id], relationName: 'manager' }),
+  assigner: one(users, { fields: [spaceManagers.assignedBy], references: [users.id], relationName: 'assigner' }),
 }));

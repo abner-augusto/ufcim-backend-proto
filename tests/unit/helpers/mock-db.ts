@@ -23,6 +23,10 @@ export function createMockDb() {
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
   const updateFn = vi.fn().mockReturnValue({ set: updateSet });
 
+  // Delete chain: delete(table).where(...)
+  const deleteWhere = vi.fn().mockResolvedValue(undefined);
+  const deleteFn = vi.fn().mockReturnValue({ where: deleteWhere });
+
   const db = {
     query: {
       spaces:        { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
@@ -33,23 +37,45 @@ export function createMockDb() {
       auditLogs:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       equipment:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       recurrences:   { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      spaceManagers: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
     },
     insert: insertFn,
     update: updateFn,
+    delete: deleteFn,
     // Exposed for assertions and per-test overrides
     _insert: { fn: insertFn, values: insertValues, returning: insertReturning },
     _update: { fn: updateFn, set: updateSet, where: updateWhere, returning: updateReturning },
+    _delete: { fn: deleteFn, where: deleteWhere },
   };
 
   return db as unknown as Database & {
     query: typeof db.query;
     _insert: typeof db._insert;
     _update: typeof db._update;
+    _delete: typeof db._delete;
   };
 }
 
 /** Seed objects used across service tests */
 export const SEED = {
+  spaceManager: {
+    id: '00000000-0000-0000-0000-100000000001',
+    spaceId: '00000000-0000-0000-0000-000000000011',
+    userId: '00000000-0000-0000-0000-000000000003',
+    role: 'coordinator',
+    assignedBy: '00000000-0000-0000-0000-000000000003',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+  user: {
+    id: '00000000-0000-0000-0000-000000000003',
+    name: 'Carlos Oliveira',
+    registration: '2010005001',
+    role: 'staff',
+    department: 'Administração',
+    email: 'carlos.oliveira@ufc.br',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  },
   space: {
     id: '00000000-0000-0000-0000-000000000011',
     number: 'A101',
@@ -62,6 +88,7 @@ export const SEED = {
     lighting: null,
     hvac: null,
     multimedia: null,
+    reservable: true,
     closedFrom: '22:00',
     closedTo: '07:00',
     createdAt: '2026-01-01T00:00:00.000Z',
