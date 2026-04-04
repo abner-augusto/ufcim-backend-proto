@@ -1,5 +1,5 @@
 import { eq, and, count } from 'drizzle-orm';
-import { spaces, reservations, blockings, equipment } from '@/db/schema';
+import { spaces, reservations, blockings, equipment, spaceManagers } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
@@ -82,6 +82,7 @@ export class SpaceService {
     }
 
     await this.db.delete(equipment).where(eq(equipment.spaceId, id));
+    await this.db.delete(spaceManagers).where(eq(spaceManagers.spaceId, id));
     await this.db.delete(spaces).where(eq(spaces.id, id));
 
     await this.auditLog.log(userId, 'delete_space', id, 'space', `Deleted space ${existing.number}`);
@@ -105,7 +106,7 @@ export class SpaceService {
   async getById(id: string) {
     const space = await this.db.query.spaces.findFirst({
       where: eq(spaces.id, id),
-      with: { equipment: true },
+      with: { equipment: true, managers: { with: { user: true } } },
     });
     if (!space) throw new NotFoundError('Space');
     return space;
@@ -150,7 +151,7 @@ export class SpaceService {
       }),
     ]);
 
-    return buildHourlyAvailability(
+    const slots = buildHourlyAvailability(
       space.closedFrom ?? DEFAULT_CLOSED_FROM,
       space.closedTo ?? DEFAULT_CLOSED_TO,
       confirmedReservations.map((reservation) => ({
@@ -162,5 +163,13 @@ export class SpaceService {
         endTime: blocking.endTime,
       }))
     );
+
+    if (!space.reservable) {
+      return slots.map((slot) =>
+        slot.status === 'closed' ? slot : { ...slot, status: 'not_reservable' as const }
+      );
+    }
+
+    return slots;
   }
 }

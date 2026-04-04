@@ -16,6 +16,7 @@ export const createSpaceSchema = z.object({
   hvac: z.string().optional(),
   multimedia: z.string().optional(),
   modelId: z.string().optional(),
+  reservable: z.boolean().default(true),
   closedFrom: boundaryTimeSchema.default(DEFAULT_CLOSED_FROM),
   closedTo: boundaryTimeSchema.default(DEFAULT_CLOSED_TO),
 });

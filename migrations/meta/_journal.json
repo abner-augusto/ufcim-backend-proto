@@ -15,6 +15,20 @@
       "when": 1775187973461,
       "tag": "0001_flimsy_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775297195181,
+      "tag": "0002_adorable_puppet_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1775297913145,
+      "tag": "0003_high_tattoo",
+      "breakpoints": true
     }
   ]
 }

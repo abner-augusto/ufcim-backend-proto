@@ -18,6 +18,15 @@ const SEED = {
     projector1: '00000000-0000-0000-0000-000000000021',
     ac1: '00000000-0000-0000-0000-000000000022',
   },
+  spaceManagers: {
+    staffCoordinator1: '00000000-0000-0000-0000-100000000001',
+    staffCoordinator2: '00000000-0000-0000-0000-100000000002',
+    staffCoordinator3: '00000000-0000-0000-0000-100000000003',
+    maintenanceMaintainer1: '00000000-0000-0000-0000-100000000004',
+    maintenanceMaintainer2: '00000000-0000-0000-0000-100000000005',
+    maintenanceMaintainer3: '00000000-0000-0000-0000-100000000006',
+    professorCoordinator1: '00000000-0000-0000-0000-100000000007',
+  },
   recurrences: {
     weeklyClass: '00000000-0000-0000-0000-000000000051',
   },
@@ -162,6 +171,69 @@ export async function seed(db: ReturnType<typeof createDb>) {
       notes: null,
       updatedBy: SEED.users.maintenance1,
       updatedAt: now,
+    },
+  ]).onConflictDoNothing();
+
+  // ── Space Managers ─────────────────────────────────────────────────────────
+  await db.insert(schema.spaceManagers).values([
+    // Carlos Oliveira (staff) as coordinator for all IAUD spaces
+    {
+      id: SEED.spaceManagers.staffCoordinator1,
+      spaceId: SEED.spaces.classroom1,
+      userId: SEED.users.staff1,
+      role: 'coordinator',
+      assignedBy: SEED.users.staff1,
+      createdAt: now,
+    },
+    {
+      id: SEED.spaceManagers.staffCoordinator2,
+      spaceId: SEED.spaces.studyRoom1,
+      userId: SEED.users.staff1,
+      role: 'coordinator',
+      assignedBy: SEED.users.staff1,
+      createdAt: now,
+    },
+    {
+      id: SEED.spaceManagers.staffCoordinator3,
+      spaceId: SEED.spaces.meetingRoom1,
+      userId: SEED.users.staff1,
+      role: 'coordinator',
+      assignedBy: SEED.users.staff1,
+      createdAt: now,
+    },
+    // Pedro Santos (maintenance) as maintainer for all IAUD spaces
+    {
+      id: SEED.spaceManagers.maintenanceMaintainer1,
+      spaceId: SEED.spaces.classroom1,
+      userId: SEED.users.maintenance1,
+      role: 'maintainer',
+      assignedBy: SEED.users.staff1,
+      createdAt: now,
+    },
+    {
+      id: SEED.spaceManagers.maintenanceMaintainer2,
+      spaceId: SEED.spaces.studyRoom1,
+      userId: SEED.users.maintenance1,
+      role: 'maintainer',
+      assignedBy: SEED.users.staff1,
+      createdAt: now,
+    },
+    {
+      id: SEED.spaceManagers.maintenanceMaintainer3,
+      spaceId: SEED.spaces.meetingRoom1,
+      userId: SEED.users.maintenance1,
+      role: 'maintainer',
+      assignedBy: SEED.users.staff1,
+      createdAt: now,
+    },
+    // Dra. Maria Costa (professor) as coordinator for the meeting room (auditório equivalent)
+    {
+      id: SEED.spaceManagers.professorCoordinator1,
+      spaceId: SEED.spaces.meetingRoom1,
+      userId: SEED.users.professor1,
+      role: 'coordinator',
+      assignedBy: SEED.users.staff1,
+      createdAt: now,
     },
   ]).onConflictDoNothing();
 

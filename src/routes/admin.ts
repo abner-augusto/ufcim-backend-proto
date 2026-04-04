@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
 import { SpaceService } from '@/services/space.service';
+import { SpaceManagerService } from '@/services/space-manager.service';
 import { ReservationService } from '@/services/reservation.service';
 import { BlockingService } from '@/services/blocking.service';
 import { EquipmentService } from '@/services/equipment.service';
@@ -50,6 +52,10 @@ const createEquipmentFormSchema = createEquipmentSchema;
 export const adminRoutes = new Hono<AppEnv>();
 type AdminContext = Context<AppEnv>;
 
+function getActingUserId(c: AdminContext): string {
+  return getCookie(c, 'admin_acting_as') ?? c.get('user').sub;
+}
+
 adminRoutes.get('/', (c) => c.html(renderAdminShell('/admin')));
 adminRoutes.get('/spaces', (c) => c.html(renderAdminShell('/admin/spaces')));
 adminRoutes.get('/reservations', (c) => c.html(renderAdminShell('/admin/reservations')));
@@ -72,10 +78,14 @@ adminRoutes.get('/partials/spaces', async (c) => {
 adminRoutes.get('/partials/spaces/:id', async (c) => {
   const db = createDb(c.env.DB);
   const spaceService = new SpaceService(db);
+  const userService = new UserService(db);
   const space = await spaceService.getById(c.req.param('id'));
-  const availability = await spaceService.getAvailability(space.id, today());
+  const [availability, allUsers] = await Promise.all([
+    spaceService.getAvailability(space.id, today()),
+    userService.list(1, 200),
+  ]);
 
-  return c.html(renderSpaceDetail(space, availability));
+  return c.html(renderSpaceDetail(space, availability, allUsers));
 });
 
 adminRoutes.get('/partials/reservations', async (c) => {
@@ -98,6 +108,24 @@ adminRoutes.get('/partials/logs', async (c) => {
   return c.html(await renderLogsView(c));
 });
 
+adminRoutes.get('/partials/user-switcher', async (c) => {
+  const db = createDb(c.env.DB);
+  const userService = new UserService(db);
+  const users = await userService.list(1, 100);
+  const actingAs = getActingUserId(c);
+  return c.html(renderUserSwitcher(users, actingAs));
+});
+
+adminRoutes.post('/actions/acting-as', async (c) => {
+  const body = await formDataToObject(c);
+  const userId = String(body.userId ?? '');
+  setCookie(c, 'admin_acting_as', userId, { path: '/' });
+  const db = createDb(c.env.DB);
+  const userService = new UserService(db);
+  const users = await userService.list(1, 100);
+  return c.html(renderUserSwitcher(users, userId));
+});
+
 adminRoutes.post('/actions/spaces', async (c) => {
   const body = await formDataToObject(c);
   const parsed = createSpaceSchema.safeParse(parseSpaceForm(body));
@@ -105,7 +133,7 @@ adminRoutes.post('/actions/spaces', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
-  const space = await service.create(c.get('user').sub, parsed.data);
+  const space = await service.create(getActingUserId(c), parsed.data);
   return c.html(await renderSpacesView(c, { message: `Espaço ${space.number} criado`, selectedSpaceId: space.id }));
 });
 
@@ -116,7 +144,7 @@ adminRoutes.put('/actions/spaces/:id', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
-  const space = await service.update(c.req.param('id'), c.get('user').sub, parsed.data);
+  const space = await service.update(c.req.param('id'), getActingUserId(c), parsed.data);
   return c.html(await renderSpacesView(c, { message: `Espaço ${space.number} atualizado`, selectedSpaceId: space.id }));
 });
 
@@ -124,7 +152,7 @@ adminRoutes.delete('/actions/spaces/:id', async (c) => {
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
   try {
-    await service.delete(c.req.param('id'), c.get('user').sub);
+    await service.delete(c.req.param('id'), getActingUserId(c));
     return c.html(await renderSpacesView(c, { message: 'Espaço removido com sucesso' }));
   } catch (err) {
     return c.html(await renderSpacesView(c, { message: err instanceof Error ? err.message : 'Erro ao remover espaço' }));
@@ -135,7 +163,7 @@ adminRoutes.patch('/actions/reservations/series/:id/cancel', async (c) => {
   const filters = reservationFilterSchema.parse(await formDataToObject(c));
   const db = createDb(c.env.DB);
   const service = new ReservationService(db);
-  await service.cancelSeries(c.req.param('id'), c.get('user').sub, 'staff');
+  await service.cancelSeries(c.req.param('id'), getActingUserId(c), 'staff');
   return c.html(await renderReservationsView(c, { ...filters, message: 'Série recorrente cancelada' }));
 });
 
@@ -143,7 +171,7 @@ adminRoutes.patch('/actions/reservations/:id/cancel', async (c) => {
   const filters = reservationFilterSchema.parse(await formDataToObject(c));
   const db = createDb(c.env.DB);
   const service = new ReservationService(db);
-  await service.cancel(c.req.param('id'), c.get('user').sub, 'staff');
+  await service.cancel(c.req.param('id'), getActingUserId(c), 'staff');
   return c.html(await renderReservationsView(c, { ...filters, message: 'Reserva cancelada' }));
 });
 
@@ -154,7 +182,7 @@ adminRoutes.post('/actions/blockings', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new BlockingService(db);
-  await service.create(c.get('user').sub, parsed.data);
+  await service.create(getActingUserId(c), parsed.data);
   return c.html(await renderBlockingsView(c, { message: 'Bloqueio criado' }));
 });
 
@@ -162,7 +190,7 @@ adminRoutes.patch('/actions/blockings/:id/remove', async (c) => {
   const filters = blockingFilterSchema.parse(await formDataToObject(c));
   const db = createDb(c.env.DB);
   const service = new BlockingService(db);
-  await service.remove(c.req.param('id'), c.get('user').sub);
+  await service.remove(c.req.param('id'), getActingUserId(c));
   return c.html(await renderBlockingsView(c, { ...filters, message: 'Bloqueio removido' }));
 });
 
@@ -173,7 +201,7 @@ adminRoutes.patch('/actions/equipment/:id/status', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new EquipmentService(db);
-  await service.updateStatus(c.req.param('id'), c.get('user').sub, {
+  await service.updateStatus(c.req.param('id'), getActingUserId(c), {
     status: parsed.data.status,
     notes: parsed.data.notes,
   });
@@ -188,9 +216,38 @@ adminRoutes.post('/actions/equipment', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new EquipmentService(db);
-  await service.create(c.get('user').sub, parsed.data);
+  await service.create(getActingUserId(c), parsed.data);
 
   return c.html(await renderEquipmentView(c, { message: 'Equipamento cadastrado' }));
+});
+
+adminRoutes.post('/actions/spaces/:spaceId/managers', async (c) => {
+  const body = await formDataToObject(c);
+  const spaceId = c.req.param('spaceId');
+  const parsed = z.object({ userId: z.string(), role: z.string() }).safeParse(body);
+  if (!parsed.success) return c.html(renderValidationErrors(parsed.error.issues));
+
+  const db = createDb(c.env.DB);
+  const service = new SpaceManagerService(db);
+  try {
+    await service.assign(getActingUserId(c), { spaceId, userId: parsed.data.userId, role: parsed.data.role });
+    return c.html(await renderSpacesView(c, { message: 'Gestor atribuído com sucesso', selectedSpaceId: spaceId }));
+  } catch (err) {
+    return c.html(await renderSpacesView(c, { message: err instanceof Error ? err.message : 'Erro ao atribuir gestor', selectedSpaceId: spaceId }));
+  }
+});
+
+adminRoutes.delete('/actions/spaces/:spaceId/managers/:userId', async (c) => {
+  const spaceId = c.req.param('spaceId');
+  const userId = c.req.param('userId');
+  const db = createDb(c.env.DB);
+  const service = new SpaceManagerService(db);
+  try {
+    await service.remove(getActingUserId(c), spaceId, userId);
+    return c.html(await renderSpacesView(c, { message: 'Gestor removido com sucesso', selectedSpaceId: spaceId }));
+  } catch (err) {
+    return c.html(await renderSpacesView(c, { message: err instanceof Error ? err.message : 'Erro ao remover gestor', selectedSpaceId: spaceId }));
+  }
 });
 
 async function renderSpacesView(
@@ -199,14 +256,16 @@ async function renderSpacesView(
 ) {
   const db = createDb(c.env.DB);
   const spaceService = new SpaceService(db);
+  const userService = new UserService(db);
   const spaces = await spaceService.list({ page: 1, limit: 100 });
+  const allUsers = await userService.list(1, 200);
   const selectedSpaceId = options?.selectedSpaceId ?? c.req.query('selectedSpaceId');
 
   let detailHtml = renderEmptyState('Selecione um espaço para inspecionar equipamentos, disponibilidade e editar seus metadados.');
   if (selectedSpaceId) {
     const space = await spaceService.getById(selectedSpaceId);
     const availability = await spaceService.getAvailability(space.id, today());
-    detailHtml = renderSpaceDetail(space, availability);
+    detailHtml = renderSpaceDetail(space, availability, allUsers);
   }
 
   return `
@@ -275,9 +334,12 @@ async function renderSpacesView(
 
 function renderSpaceDetail(
   space: Awaited<ReturnType<SpaceService['getById']>>,
-  availability: Awaited<ReturnType<SpaceService['getAvailability']>>
+  availability: Awaited<ReturnType<SpaceService['getAvailability']>>,
+  allUsers: Awaited<ReturnType<UserService['list']>>
 ) {
   const closedHours = normalizeClosedHours(space.closedFrom, space.closedTo);
+  const assignedUserIds = new Set(space.managers.map((m) => m.userId));
+  const unassignedUsers = allUsers.filter((u) => !assignedUserIds.has(u.id));
 
   return `
     <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -306,7 +368,7 @@ function renderSpaceDetail(
           ${availability.map((slot) => `
             <div class="rounded-xl border border-slate-200 px-3 py-3">
               <div class="text-sm font-medium">${slot.startTime}-${slot.endTime}</div>
-              <div class="mt-1 text-sm ${slot.status === 'available' ? 'text-emerald-600' : slot.status === 'blocked' ? 'text-rose-600' : slot.status === 'closed' ? 'text-slate-500' : 'text-amber-600'}">
+              <div class="mt-1 text-sm ${slot.status === 'available' ? 'text-emerald-600' : slot.status === 'blocked' || slot.status === 'not_reservable' ? 'text-rose-600' : slot.status === 'closed' ? 'text-slate-500' : 'text-amber-600'}">
                 ${renderAvailabilityStatus(slot.status)}
               </div>
             </div>
@@ -326,6 +388,51 @@ function renderSpaceDetail(
             `).join('')
             : '<li class="rounded-xl bg-slate-50 px-3 py-3 text-slate-500">Nenhum equipamento cadastrado.</li>'}
         </ul>
+      </div>
+
+      <div class="mt-6 border-t border-slate-200 pt-6">
+        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Gestores</h4>
+        <ul class="mt-3 space-y-2 text-sm text-slate-700">
+          ${space.managers.length > 0
+            ? space.managers.map((m) => `
+              <li class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-3">
+                <div>
+                  <span class="font-medium">${escapeHtml(m.user?.name ?? m.userId)}</span>
+                  <span class="ml-2 text-slate-500">${escapeHtml(m.user?.registration ?? '')} · ${escapeHtml(m.user?.role ?? '')}</span>
+                  <span class="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium">${m.role === 'coordinator' ? 'Coordenador' : 'Mantenedor'}</span>
+                </div>
+                <form
+                  hx-delete="/admin/actions/spaces/${space.id}/managers/${m.userId}"
+                  hx-target="#admin-content"
+                  hx-swap="innerHTML"
+                  hx-confirm="Remover gestor ${escapeAttribute(m.user?.name ?? m.userId)} deste espaço?"
+                >
+                  <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50">Remover</button>
+                </form>
+              </li>
+            `).join('')
+            : '<li class="rounded-xl bg-slate-50 px-3 py-3 text-slate-500">Nenhum gestor atribuído.</li>'}
+        </ul>
+
+        ${unassignedUsers.length > 0 ? `
+          <div class="mt-4">
+            <h5 class="text-sm font-semibold text-slate-700">Atribuir Gestor</h5>
+            <form class="mt-2 grid gap-3 sm:grid-cols-[1fr_auto_auto]"
+              hx-post="/admin/actions/spaces/${space.id}/managers"
+              hx-target="#admin-content"
+              hx-swap="innerHTML"
+            >
+              ${renderSelect('userId', 'Usuário', unassignedUsers.map((u) => ({ value: u.id, label: `${u.name} (${u.role})` })), '', true)}
+              ${renderSelect('role', 'Papel', [
+                { value: 'coordinator', label: 'Coordenador' },
+                { value: 'maintainer', label: 'Mantenedor' },
+              ], '', true)}
+              <div class="flex items-end">
+                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Atribuir</button>
+              </div>
+            </form>
+          </div>
+        ` : ''}
       </div>
 
       <div class="mt-6 border-t border-slate-200 pt-6">
@@ -452,7 +559,7 @@ async function renderBlockingsView(
               { value: 'maintenance', label: 'Manutenção' },
               { value: 'administrative', label: 'Administrativo' },
             ])}
-            ${renderTextarea('reason', 'Motivo')}
+            ${renderTextarea('reason', 'Motivo', '', true, 'Descreva o motivo do bloqueio')}
             <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Criar Bloqueio</button>
           </form>
         </div>
@@ -701,6 +808,39 @@ async function renderLogsView(
   `;
 }
 
+function renderUserSwitcher(
+  users: Awaited<ReturnType<UserService['list']>>,
+  actingAs: string
+) {
+  const current = users.find((u) => u.id === actingAs);
+  const roleLabel: Record<string, string> = {
+    student: 'Estudante',
+    professor: 'Professor(a)',
+    staff: 'Staff',
+    maintenance: 'Manutenção',
+  };
+
+  return `
+    <div id="user-switcher" class="flex items-center gap-2 text-sm">
+      <span class="font-medium text-slate-700">Agindo como:</span>
+      <form hx-post="/admin/actions/acting-as" hx-target="#user-switcher" hx-swap="outerHTML">
+        <select
+          name="userId"
+          onchange="this.form.requestSubmit()"
+          class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-slate-900 focus:outline-none"
+        >
+          ${users.map((u) => `
+            <option value="${escapeAttribute(u.id)}" ${u.id === actingAs ? 'selected' : ''}>
+              ${escapeHtml(u.name)} · ${escapeHtml(roleLabel[u.role] ?? u.role)}
+            </option>
+          `).join('')}
+        </select>
+      </form>
+      ${current ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">${escapeHtml(current.registration)}</span>` : ''}
+    </div>
+  `;
+}
+
 function renderDashboard(stats: Awaited<ReturnType<StatsService['getDashboardStats']>>) {
   return `
     <section class="space-y-6" x-data="dashboardStats()" x-init="stats = ${escapeAttribute(JSON.stringify(stats))}; loading = false;">
@@ -820,6 +960,10 @@ function renderSpaceFields(space?: Record<string, unknown>) {
     ${renderInput('multimedia', 'Multimídia', 'text', stringValue(space?.multimedia), false, 'sm:col-span-2')}
     ${renderSelect('closedFrom', 'Fechado a partir de', HOURLY_OPTIONS, closedHours.closedFrom || DEFAULT_CLOSED_FROM, true)}
     ${renderSelect('closedTo', 'Fechado até', HOURLY_BOUNDARY_OPTIONS, closedHours.closedTo || DEFAULT_CLOSED_TO, true)}
+    <label class="flex items-center gap-2 text-sm sm:col-span-2">
+      <input type="checkbox" name="reservable" ${space?.reservable !== false ? 'checked' : ''} class="h-4 w-4 rounded border-slate-300" />
+      <span class="font-medium text-slate-700">Disponível para reservas</span>
+    </label>
   `;
 }
 
@@ -847,13 +991,21 @@ function renderInput(
   `;
 }
 
-function renderTextarea(name: string, label: string, value = '') {
+function renderTextarea(
+  name: string,
+  label: string,
+  value = '',
+  required = false,
+  placeholder = ''
+) {
   return `
     <label class="grid gap-1 text-sm">
       <span class="font-medium text-slate-700">${label}</span>
       <textarea
         class="min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm shadow-sm outline-none ring-0 focus:border-slate-900"
         name="${name}"
+        placeholder="${escapeAttribute(placeholder)}"
+        ${required ? 'required' : ''}
       >${escapeHtml(value)}</textarea>
     </label>
   `;
@@ -970,6 +1122,7 @@ function renderAvailabilityStatus(status: string) {
     blocked: 'Bloqueado',
     reserved: 'Reservado',
     closed: 'Fechado',
+    not_reservable: 'Não reservável',
   };
 
   return escapeHtml(labels[status] ?? status);
@@ -1052,6 +1205,7 @@ function parseSpaceForm(values: Record<string, unknown>) {
     lighting: blankToUndefined(values.lighting),
     hvac: blankToUndefined(values.hvac),
     multimedia: blankToUndefined(values.multimedia),
+    reservable: values.reservable === 'on',
     closedFrom: stringValue(values.closedFrom) || DEFAULT_CLOSED_FROM,
     closedTo: stringValue(values.closedTo) || DEFAULT_CLOSED_TO,
   };

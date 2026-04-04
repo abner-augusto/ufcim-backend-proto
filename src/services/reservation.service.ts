@@ -46,6 +46,10 @@ export class ReservationService {
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
 
+    if (!space.reservable) {
+      throw new ConflictError('This space is not open for reservations');
+    }
+
     if (userRole === 'student' && space.department !== userDept) {
       throw new ForbiddenError('Students can only reserve spaces in their own department');
     }
