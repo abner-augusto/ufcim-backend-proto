@@ -10,7 +10,7 @@ export const equipmentStatusSchema = z.enum([
 
 export const equipmentAssetIdSchema = z
   .string()
-  .regex(/^\d{10}$/, 'Equipment asset ID must be exactly 10 digits');
+  .regex(/^\d{10}$/, 'O ID patrimonial do equipamento deve ter exatamente 10 dígitos');
 
 export const createEquipmentSchema = z.object({
   assetId: equipmentAssetIdSchema,

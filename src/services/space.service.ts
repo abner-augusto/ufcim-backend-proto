@@ -54,7 +54,7 @@ export class SpaceService {
       })
       .returning();
 
-    await this.auditLog.log(userId, 'create_space', id, 'space', `Created space ${input.number}`);
+    await this.auditLog.log(userId, 'create_space', id, 'space', `Criou o espaço ${input.number}`);
 
     return space;
   }
@@ -85,7 +85,7 @@ export class SpaceService {
     await this.db.delete(spaceManagers).where(eq(spaceManagers.spaceId, id));
     await this.db.delete(spaces).where(eq(spaces.id, id));
 
-    await this.auditLog.log(userId, 'delete_space', id, 'space', `Deleted space ${existing.number}`);
+    await this.auditLog.log(userId, 'delete_space', id, 'space', `Removeu o espaço ${existing.number}`);
   }
 
   async update(id: string, userId: string, input: Partial<CreateSpaceInput>) {
@@ -98,7 +98,7 @@ export class SpaceService {
       .where(eq(spaces.id, id))
       .returning();
 
-    await this.auditLog.log(userId, 'update_space', id, 'space', `Updated space ${existing.number}`);
+    await this.auditLog.log(userId, 'update_space', id, 'space', `Atualizou o espaço ${existing.number}`);
 
     return updated;
   }

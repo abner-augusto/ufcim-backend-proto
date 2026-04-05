@@ -14,14 +14,14 @@ export function validate<T extends z.ZodType>(schema: T) {
     try {
       body = await c.req.json();
     } catch {
-      return c.json({ error: 'Request body must be valid JSON', code: 'INVALID_BODY' }, 400);
+      return c.json({ error: 'O corpo da requisição deve ser um JSON válido', code: 'INVALID_BODY' }, 400);
     }
 
     const result = schema.safeParse(body);
     if (!result.success) {
       return c.json(
         {
-          error: 'Validation failed',
+          error: 'Validação falhou',
           code: 'VALIDATION_ERROR',
           details: result.error.issues.map((e) => ({
             field: e.path.join('.'),
@@ -50,7 +50,7 @@ export function validateQuery<T extends z.ZodType>(schema: T) {
     if (!result.success) {
       return c.json(
         {
-          error: 'Invalid query parameters',
+          error: 'Parâmetros de consulta inválidos',
           code: 'VALIDATION_ERROR',
           details: result.error.issues.map((e) => ({
             field: e.path.join('.'),

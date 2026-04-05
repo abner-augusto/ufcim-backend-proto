@@ -83,7 +83,7 @@ describe('createRecurringReservationSchema', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const issue = result.error.issues.find((i) => i.path.includes('endDate'));
-      expect(issue?.message).toMatch(/after start/i);
+      expect(issue?.message).toBe('A data final deve ser posterior à data inicial');
     }
   });
 

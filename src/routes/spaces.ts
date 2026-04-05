@@ -50,7 +50,7 @@ spaceRoutes.get('/:id', async (c) => {
 spaceRoutes.get('/:id/availability', async (c) => {
   const date = c.req.query('date');
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return c.json({ error: 'date query parameter is required (YYYY-MM-DD)', code: 'VALIDATION_ERROR' }, 400);
+    return c.json({ error: 'O parâmetro de consulta "date" é obrigatório (YYYY-MM-DD)', code: 'VALIDATION_ERROR' }, 400);
   }
 
   const db = createDb(c.env.DB);

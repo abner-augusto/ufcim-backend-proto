@@ -32,7 +32,7 @@ export class EquipmentService {
     const existingAsset = await this.db.query.equipment.findFirst({
       where: eq(equipment.assetId, input.assetId),
     });
-    if (existingAsset) throw new ConflictError('Equipment asset ID already exists');
+    if (existingAsset) throw new ConflictError('O ID patrimonial do equipamento já existe');
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -47,7 +47,7 @@ export class EquipmentService {
       'create_equipment',
       id,
       'equipment',
-      `Added equipment "${input.name}" (${input.assetId}) to space ${space.number}`
+      `Adicionou o equipamento "${input.name}" (${input.assetId}) ao espaço ${space.number}`
     );
 
     return item;
@@ -73,7 +73,7 @@ export class EquipmentService {
       'update_equipment_status',
       id,
       'equipment',
-      `Updated equipment "${item.name}" status to ${input.status}`
+      `Atualizou o status do equipamento "${item.name}" para ${input.status}`
     );
 
     return updated;

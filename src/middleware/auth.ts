@@ -14,7 +14,7 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader?.startsWith('Bearer ')) {
-    return c.json({ error: 'Missing or invalid Authorization header', code: 'UNAUTHORIZED' }, 401);
+    return c.json({ error: 'Cabeçalho Authorization ausente ou inválido', code: 'UNAUTHORIZED' }, 401);
   }
 
   const token = authHeader.slice(7);
@@ -29,6 +29,6 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     c.set('user', payload as unknown as JwtPayload);
     await next();
   } catch {
-    return c.json({ error: 'Invalid or expired token', code: 'UNAUTHORIZED' }, 401);
+    return c.json({ error: 'Token inválido ou expirado', code: 'UNAUTHORIZED' }, 401);
   }
 });
