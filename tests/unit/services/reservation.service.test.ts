@@ -266,7 +266,7 @@ describe('ReservationService.createRecurring', () => {
     });
 
     expect(result.skipped).toHaveLength(1);
-    expect(result.skipped[0].reason).toBe('Time range unavailable');
+    expect(result.skipped[0].reason).toBe('Faixa de horário indisponível');
   });
 });
 

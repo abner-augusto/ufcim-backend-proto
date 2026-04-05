@@ -379,7 +379,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
       referenceId: SEED.spaces.classroom1,
       referenceType: 'space',
       timestamp: now,
-      details: 'Created space A101',
+      details: 'Criou o espaço A101',
     },
     {
       id: '00000000-0000-0000-0000-000000000092',
@@ -388,7 +388,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
       referenceId: SEED.reservations.todayReservation,
       referenceType: 'reservation',
       timestamp: now,
-      details: 'Reserved space A101 on 2026-04-02 (morning)',
+      details: 'Reservou o espaço A101 em 2026-04-02 (manhã)',
     },
     {
       id: '00000000-0000-0000-0000-000000000093',
@@ -397,7 +397,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
       referenceId: SEED.blockings.active2,
       referenceType: 'blocking',
       timestamp: now,
-      details: 'Blocked space B205 on 2026-04-05 (morning)',
+      details: 'Bloqueou o espaço B205 em 2026-04-05 (manhã)',
     },
   ]).onConflictDoNothing();
 

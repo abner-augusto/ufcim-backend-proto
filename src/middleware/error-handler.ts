@@ -11,7 +11,19 @@ export const globalErrorHandler: ErrorHandler = (err, c) => {
     );
   }
 
-  return c.json({ error: 'Internal server error' }, 500);
+  return c.json({ error: 'Erro interno do servidor' }, 500);
+};
+
+const resourceLabels: Record<string, string> = {
+  Space: 'Espaço',
+  User: 'Usuário',
+  Notification: 'Notificação',
+  Reservation: 'Reserva',
+  Blocking: 'Bloqueio',
+  Equipment: 'Equipamento',
+  'Recurring reservation series': 'Série de reservas recorrentes',
+  'Space manager assignment': 'Atribuição de gestor de espaço',
+  'Audit log entry': 'Registro de auditoria',
 };
 
 export class AppError extends Error {
@@ -27,7 +39,8 @@ export class AppError extends Error {
 
 export class NotFoundError extends AppError {
   constructor(resource: string) {
-    super(404, `${resource} not found`, 'NOT_FOUND');
+    const label = resourceLabels[resource] ?? resource;
+    super(404, `${label} não encontrado(a)`, 'NOT_FOUND');
   }
 }
 
@@ -38,13 +51,13 @@ export class ConflictError extends AppError {
 }
 
 export class ForbiddenError extends AppError {
-  constructor(message = 'You do not have permission to perform this action') {
+  constructor(message = 'Você não tem permissão para executar esta ação') {
     super(403, message, 'FORBIDDEN');
   }
 }
 
 export class UnauthorizedError extends AppError {
-  constructor(message = 'Authentication required') {
+  constructor(message = 'Autenticação obrigatória') {
     super(401, message, 'UNAUTHORIZED');
   }
 }

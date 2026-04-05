@@ -17,7 +17,7 @@ export function rbac(allowedRoles: UserRole[]) {
       if (!userRole || !allowedRoles.includes(userRole)) {
         return c.json(
           {
-            error: `This action requires one of: ${allowedRoles.join(', ')}`,
+            error: `Esta ação exige um dos seguintes papéis: ${allowedRoles.join(', ')}`,
             code: 'FORBIDDEN',
           },
           403

@@ -37,7 +37,7 @@ export class BlockingService {
     if (!space) throw new NotFoundError('Space');
 
     if (overlapsClosedHours(input.startTime, input.endTime, space.closedFrom, space.closedTo)) {
-      throw new ConflictError('This blocking falls within the room closed hours');
+      throw new ConflictError('Este bloqueio está dentro do período em que o espaço permanece fechado');
     }
 
     const existingBlockings = await this.db.query.blockings.findMany({
@@ -48,7 +48,7 @@ export class BlockingService {
       ),
     });
     if (existingBlockings.some((blocking) => intervalsOverlap(input.startTime, input.endTime, blocking.startTime, blocking.endTime))) {
-      throw new ConflictError('An active blocking already exists for this time range');
+      throw new ConflictError('Já existe um bloqueio ativo para esta faixa de horário');
     }
 
     const id = crypto.randomUUID();
@@ -92,8 +92,8 @@ export class BlockingService {
 
       await this.notification.create(
         conflicting.userId,
-        'Reservation overridden',
-        `Your reservation for space ${space.number} on ${input.date} (${conflicting.startTime}-${conflicting.endTime}) was overridden due to a ${input.blockType} blocking: ${input.reason}`,
+        'Reserva sobrescrita',
+        `Sua reserva para o espaço ${space.number} em ${input.date} (${conflicting.startTime}-${conflicting.endTime}) foi sobrescrita devido a um bloqueio do tipo ${input.blockType}: ${input.reason}`,
         'overridden'
       );
 
@@ -102,7 +102,7 @@ export class BlockingService {
         'override_reservation',
         conflicting.id,
         'reservation',
-        `Reservation overridden by blocking ${id} on space ${space.number}`
+        `Reserva sobrescrita pelo bloqueio ${id} no espaço ${space.number}`
       );
     }
 
@@ -111,7 +111,7 @@ export class BlockingService {
       'create_blocking',
       id,
       'blocking',
-      `Blocked space ${space.number} on ${input.date} (${input.startTime}-${input.endTime}): ${input.reason}`
+      `Bloqueou o espaço ${space.number} em ${input.date} (${input.startTime}-${input.endTime}): ${input.reason}`
     );
 
     return blocking;
@@ -135,7 +135,7 @@ export class BlockingService {
       'remove_blocking',
       blockingId,
       'blocking',
-      `Removed blocking for space ${blocking.spaceId} on ${blocking.date} (${blocking.startTime}-${blocking.endTime})`
+      `Removeu o bloqueio do espaço ${blocking.spaceId} em ${blocking.date} (${blocking.startTime}-${blocking.endTime})`
     );
 
     return updated;

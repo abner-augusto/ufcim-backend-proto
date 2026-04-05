@@ -30,7 +30,7 @@ export class SpaceManagerService {
         eq(spaceManagers.userId, input.userId)
       ),
     });
-    if (existing) throw new ConflictError('User is already a manager of this space');
+    if (existing) throw new ConflictError('O usuário já é gestor deste espaço');
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -45,7 +45,7 @@ export class SpaceManagerService {
       'assign_space_manager',
       id,
       'space_manager',
-      `Assigned ${user.name} as ${input.role} for space ${space.number}`
+      `Atribuiu ${user.name} como ${input.role} para o espaço ${space.number}`
     );
 
     return manager;
@@ -67,7 +67,7 @@ export class SpaceManagerService {
       'remove_space_manager',
       existing.id,
       'space_manager',
-      `Removed manager ${userId} from space ${spaceId}`
+      `Removeu o gestor ${userId} do espaço ${spaceId}`
     );
   }
 

@@ -9,7 +9,7 @@ export const createReservationSchema = z
     endTime: boundaryTimeSchema,
   })
   .refine((data) => data.startTime < data.endTime, {
-    message: 'End time must be after start time',
+    message: 'O horário de término deve ser posterior ao horário de início',
     path: ['endTime'],
   });
 
@@ -24,11 +24,11 @@ export const createRecurringReservationSchema = z
     description: z.string().min(1).max(200),
   })
   .refine((d) => new Date(d.endDate) > new Date(d.startDate), {
-    message: 'End date must be after start date',
+    message: 'A data final deve ser posterior à data inicial',
     path: ['endDate'],
   })
   .refine((d) => d.startTime < d.endTime, {
-    message: 'End time must be after start time',
+    message: 'O horário de término deve ser posterior ao horário de início',
     path: ['endTime'],
   });
 
@@ -41,6 +41,6 @@ export const updateReservationSchema = z.object({
   if (!data.startTime || !data.endTime) return true;
   return data.startTime < data.endTime;
 }, {
-  message: 'End time must be after start time',
+  message: 'O horário de término deve ser posterior ao horário de início',
   path: ['endTime'],
 });

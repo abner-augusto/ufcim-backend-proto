@@ -47,11 +47,11 @@ export class ReservationService {
     if (!space) throw new NotFoundError('Space');
 
     if (!space.reservable) {
-      throw new ConflictError('This space is not open for reservations');
+      throw new ConflictError('Este espaço não está disponível para reservas');
     }
 
     if (userRole === 'student' && space.department !== userDept) {
-      throw new ForbiddenError('Students can only reserve spaces in their own department');
+      throw new ForbiddenError('Estudantes só podem reservar espaços do próprio departamento');
     }
 
     await this.checkSlotAvailability(
@@ -90,13 +90,13 @@ export class ReservationService {
       'create_reservation',
       id,
       'reservation',
-      `Reserved space ${space.number} on ${input.date} (${input.startTime}-${input.endTime})`
+      `Reservou o espaço ${space.number} em ${input.date} (${input.startTime}-${input.endTime})`
     );
 
     await this.notification.create(
       userId,
-      'Reservation confirmed',
-      `Your reservation for space ${space.number} on ${input.date} (${input.startTime}-${input.endTime}) is confirmed.`,
+      'Reserva confirmada',
+      `Sua reserva para o espaço ${space.number} em ${input.date} (${input.startTime}-${input.endTime}) foi confirmada.`,
       'confirmed'
     );
 
@@ -105,7 +105,7 @@ export class ReservationService {
 
   async createRecurring(userId: string, userRole: string, input: CreateRecurringInput) {
     if (!['professor', 'staff'].includes(userRole)) {
-      throw new ForbiddenError('Only professors and staff can create recurring reservations');
+      throw new ForbiddenError('Apenas professores e funcionários podem criar reservas recorrentes');
     }
 
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
@@ -148,7 +148,7 @@ export class ReservationService {
           .returning();
         created.push(reservation);
       } catch {
-        skipped.push({ date, startTime: input.startTime, endTime: input.endTime, reason: 'Time range unavailable' });
+        skipped.push({ date, startTime: input.startTime, endTime: input.endTime, reason: 'Faixa de horário indisponível' });
       }
     }
 
@@ -157,7 +157,7 @@ export class ReservationService {
       'create_recurring_reservation',
       recurrenceId,
       'reservation',
-      `Created ${created.length} reservations for space ${space.number} (${input.startTime}-${input.endTime}, ${skipped.length} skipped)`
+      `Criou ${created.length} reservas para o espaço ${space.number} (${input.startTime}-${input.endTime}, ${skipped.length} ignoradas)`
     );
 
     return { recurrenceId, created, skipped };
@@ -167,15 +167,15 @@ export class ReservationService {
     const reservation = await this.findOrThrow(reservationId);
 
     if (reservation.status === 'canceled') {
-      throw new AppError(400, 'Reservation is already canceled', 'ALREADY_CANCELED');
+      throw new AppError(400, 'A reserva já está cancelada', 'ALREADY_CANCELED');
     }
 
     if (userRole === 'student' && reservation.userId !== userId) {
-      throw new ForbiddenError('Students can only cancel their own reservations');
+      throw new ForbiddenError('Estudantes só podem cancelar as próprias reservas');
     }
 
     if (userRole === 'maintenance') {
-      throw new ForbiddenError('Maintenance personnel cannot manage reservations');
+      throw new ForbiddenError('A equipe de manutenção não pode gerenciar reservas');
     }
 
     const now = new Date().toISOString();
@@ -190,14 +190,14 @@ export class ReservationService {
       'cancel_reservation',
       reservationId,
       'reservation',
-      `Canceled reservation for space ${reservation.spaceId} on ${reservation.date} (${reservation.startTime}-${reservation.endTime})`
+      `Cancelou a reserva do espaço ${reservation.spaceId} em ${reservation.date} (${reservation.startTime}-${reservation.endTime})`
     );
 
     if (reservation.userId !== userId) {
       await this.notification.create(
         reservation.userId,
-        'Reservation canceled',
-        `Your reservation on ${reservation.date} (${reservation.startTime}-${reservation.endTime}) was canceled.`,
+        'Reserva cancelada',
+        `Sua reserva em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.`,
         'canceled'
       );
     }
@@ -207,11 +207,11 @@ export class ReservationService {
 
   async cancelSeries(recurrenceId: string, userId: string, userRole: string) {
     if (userRole === 'student') {
-      throw new ForbiddenError('Students cannot cancel recurring reservation series');
+      throw new ForbiddenError('Estudantes não podem cancelar séries de reservas recorrentes');
     }
 
     if (userRole === 'maintenance') {
-      throw new ForbiddenError('Maintenance personnel cannot manage reservations');
+      throw new ForbiddenError('A equipe de manutenção não pode gerenciar reservas');
     }
 
     const seriesReservations = await this.db.query.reservations.findMany({
@@ -225,7 +225,7 @@ export class ReservationService {
 
     const activeReservations = seriesReservations.filter((reservation) => reservation.status === 'confirmed');
     if (activeReservations.length === 0) {
-      throw new AppError(400, 'Recurring reservation series is already canceled', 'ALREADY_CANCELED');
+      throw new AppError(400, 'A série de reservas recorrentes já está cancelada', 'ALREADY_CANCELED');
     }
 
     const now = new Date().toISOString();
@@ -240,7 +240,7 @@ export class ReservationService {
       'cancel_recurring_reservation',
       recurrenceId,
       'reservation',
-      `Canceled recurring series ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${activeReservations.length} reservations)`
+      `Cancelou a série recorrente ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${activeReservations.length} reservas)`
     );
 
     for (const reservation of activeReservations) {
@@ -248,8 +248,8 @@ export class ReservationService {
 
       await this.notification.create(
         reservation.userId,
-        'Recurring reservation series canceled',
-        `Your recurring reservation on ${reservation.date} (${reservation.startTime}-${reservation.endTime}) was canceled.`,
+        'Série de reservas recorrentes cancelada',
+        `Sua reserva recorrente em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.`,
         'canceled'
       );
     }
@@ -319,7 +319,7 @@ export class ReservationService {
     endTime: string
   ) {
     if (overlapsClosedHours(startTime, endTime, space.closedFrom, space.closedTo)) {
-      throw new ConflictError('This time range falls within the room closed hours');
+      throw new ConflictError('Esta faixa de horário está dentro do período em que o espaço permanece fechado');
     }
 
     const existingReservations = await this.db.query.reservations.findMany({
@@ -330,7 +330,7 @@ export class ReservationService {
       ),
     });
     if (existingReservations.some((existing) => intervalsOverlap(startTime, endTime, existing.startTime, existing.endTime))) {
-      throw new ConflictError('This time range overlaps an existing reservation');
+      throw new ConflictError('Esta faixa de horário conflita com uma reserva existente');
     }
 
     const activeBlockings = await this.db.query.blockings.findMany({
@@ -341,7 +341,7 @@ export class ReservationService {
       ),
     });
     if (activeBlockings.some((blocking) => intervalsOverlap(startTime, endTime, blocking.startTime, blocking.endTime))) {
-      throw new ConflictError('This space is blocked for the requested time range');
+      throw new ConflictError('Este espaço está bloqueado para a faixa de horário solicitada');
     }
   }
 
@@ -350,7 +350,7 @@ export class ReservationService {
       where: and(eq(reservations.userId, userId), eq(reservations.status, 'confirmed')),
     });
     if (active) {
-      throw new AppError(400, 'Students can only have one active reservation at a time', 'STUDENT_LIMIT');
+      throw new AppError(400, 'Estudantes só podem ter uma reserva ativa por vez', 'STUDENT_LIMIT');
     }
   }
 

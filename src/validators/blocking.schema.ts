@@ -13,6 +13,6 @@ export const createBlockingSchema = z
     blockType: blockTypeSchema,
   })
   .refine((data) => data.startTime < data.endTime, {
-    message: 'End time must be after start time',
+    message: 'O horário de término deve ser posterior ao horário de início',
     path: ['endTime'],
   });

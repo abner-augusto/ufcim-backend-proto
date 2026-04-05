@@ -320,7 +320,7 @@ async function renderSpacesView(
             <form class="mt-4 grid gap-3 sm:grid-cols-2" hx-post="/admin/actions/spaces" hx-target="#admin-content" hx-swap="innerHTML">
               ${renderSpaceFields()}
               <div class="sm:col-span-2">
-                <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Create</button>
+                <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Criar</button>
               </div>
             </form>
           </div>
@@ -354,7 +354,7 @@ function renderSpaceDetail(
       <dl class="mt-4 grid gap-3 text-sm text-slate-700">
         <div><strong>Bloco:</strong> ${escapeHtml(space.block)}</div>
         <div><strong>Capacidade:</strong> ${space.capacity}</div>
-        <div><strong>Model ID:</strong> <span class="font-mono text-xs text-slate-500">${escapeHtml(space.modelId ?? '—')}</span></div>
+        <div><strong>ID do Modelo:</strong> <span class="font-mono text-xs text-slate-500">${escapeHtml(space.modelId ?? '—')}</span></div>
         <div><strong>Horário Fechado:</strong> ${escapeHtml(closedHours.closedFrom)}-${escapeHtml(closedHours.closedTo)}</div>
         <div><strong>Mobiliário:</strong> ${escapeHtml(space.furniture ?? 'Não informado')}</div>
         <div><strong>Iluminação:</strong> ${escapeHtml(space.lighting ?? 'Não informado')}</div>
@@ -670,7 +670,7 @@ async function renderEquipmentView(
                   <h3 class="text-lg font-semibold">${escapeHtml(space.number)}</h3>
                   <p class="text-sm text-slate-600">${escapeHtml(space.type)} · ${escapeHtml(space.department)}</p>
                 </div>
-                <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${space.equipment.length} items</span>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${space.equipment.length} itens</span>
               </div>
               <div class="space-y-3">
                 ${space.equipment.length > 0
@@ -795,7 +795,7 @@ async function renderLogsView(
                   <td class="px-3 py-3">${escapeHtml(log.timestamp)}</td>
                   <td class="px-3 py-3 font-medium">${escapeHtml(log.user?.name ?? log.userId)}</td>
                   <td class="px-3 py-3">${escapeHtml(log.actionType)}</td>
-                  <td class="px-3 py-3">${escapeHtml(log.referenceType ?? 'n/a')} · ${escapeHtml(log.referenceId ?? 'n/a')}</td>
+                  <td class="px-3 py-3">${escapeHtml(log.referenceType ?? 'n/d')} · ${escapeHtml(log.referenceId ?? 'n/d')}</td>
                   <td class="px-3 py-3">${escapeHtml(log.details ?? 'Sem detalhes')}</td>
                 </tr>
               `).join('')}
@@ -816,7 +816,7 @@ function renderUserSwitcher(
   const roleLabel: Record<string, string> = {
     student: 'Estudante',
     professor: 'Professor(a)',
-    staff: 'Staff',
+    staff: 'Funcionário',
     maintenance: 'Manutenção',
   };
 
@@ -855,7 +855,7 @@ function renderDashboard(stats: Awaited<ReturnType<StatsService['getDashboardSta
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <h2 class="text-xl font-semibold">Visão Geral</h2>
           <p class="mt-2 text-sm leading-6 text-slate-600">
-            Este painel está otimizado para desenvolvimento local. O mesmo aplicativo Hono agora atende tanto à API quanto à uma superfície administrativa exclusiva para funcionários, e o painel de controle lê contagens resumidas de <code>/api/v1/stats</code>.
+            Este painel está otimizado para desenvolvimento local. O mesmo aplicativo Hono agora atende tanto à API quanto a uma interface administrativa exclusiva para funcionários, e o painel lê contagens resumidas de <code>/api/v1/stats</code>.
           </p>
         </div>
         <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -1118,7 +1118,7 @@ function renderStatusPill(status: string) {
 
 function renderAvailabilityStatus(status: string) {
   const labels: Record<string, string> = {
-    available: 'Disponivel',
+    available: 'Disponível',
     blocked: 'Bloqueado',
     reserved: 'Reservado',
     closed: 'Fechado',
@@ -1168,7 +1168,14 @@ function renderRoleBadge(role: string) {
     maintenance: 'bg-amber-100 text-amber-700',
   };
 
-  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${classMap[role] ?? 'bg-slate-100 text-slate-700'}">${escapeHtml(role)}</span>`;
+  const labelMap: Record<string, string> = {
+    student: 'Estudante',
+    professor: 'Professor(a)',
+    staff: 'Funcionário',
+    maintenance: 'Manutenção',
+  };
+
+  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${classMap[role] ?? 'bg-slate-100 text-slate-700'}">${escapeHtml(labelMap[role] ?? role)}</span>`;
 }
 
 function renderStatCard(title: string, expression: string, detail: string) {
