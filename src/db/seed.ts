@@ -358,7 +358,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
       message: 'Sua reserva da sala A101 foi confirmada.',
       type: 'confirmed',
       read: false,
-      sentAt: now,
+      createdAt: now,
     },
     {
       id: '00000000-0000-0000-0000-000000000082',
@@ -367,7 +367,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
       message: 'Sua reserva futura da sala B205 foi cancelada.',
       type: 'canceled',
       read: true,
-      sentAt: now,
+      createdAt: now,
     },
   ]).onConflictDoNothing();
 

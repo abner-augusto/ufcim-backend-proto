@@ -37,6 +37,17 @@ blockingRoutes.patch(
   }
 );
 
+// GET /blockings/mine — lista bloqueios criados pelo usuário autenticado
+blockingRoutes.get(
+  '/mine',
+  rbac(['professor', 'staff', 'maintenance']),
+  async (c) => {
+    const db = createDb(c.env.DB);
+    const service = new BlockingService(db);
+    return c.json(await service.listByUser(c.get('user').sub));
+  }
+);
+
 // GET /blockings/space/:spaceId?date=YYYY-MM-DD (any role)
 blockingRoutes.get('/space/:spaceId', async (c) => {
   const db = createDb(c.env.DB);

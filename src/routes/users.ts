@@ -24,10 +24,10 @@ userRoutes.get(
   }
 );
 
-// GET /users/me — current user profile (any authenticated role)
+// GET /users/me — current user profile with unread notification count
 userRoutes.get('/me', async (c) => {
   const db = createDb(c.env.DB);
   const service = new UserService(db);
-  const user = await service.getById(c.get('user').sub);
-  return c.json(user);
+  const profile = await service.getMeProfile(c.get('user').sub);
+  return c.json(profile);
 });

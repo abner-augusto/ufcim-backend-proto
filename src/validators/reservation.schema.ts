@@ -7,6 +7,7 @@ export const createReservationSchema = z
     date: futureDateSchema,
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,
+    purpose: z.string().max(100).optional(),
   })
   .refine((data) => data.startTime < data.endTime, {
     message: 'O horário de término deve ser posterior ao horário de início',
@@ -22,6 +23,7 @@ export const createRecurringReservationSchema = z
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,
     description: z.string().min(1).max(200),
+    purpose: z.string().max(100).optional(),
   })
   .refine((d) => new Date(d.endDate) > new Date(d.startDate), {
     message: 'A data final deve ser posterior à data inicial',

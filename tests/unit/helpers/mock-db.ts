@@ -27,6 +27,11 @@ export function createMockDb() {
   const deleteWhere = vi.fn().mockResolvedValue(undefined);
   const deleteFn = vi.fn().mockReturnValue({ where: deleteWhere });
 
+  // Select chain: select({...}).from(table).where(...)
+  const selectWhere = vi.fn().mockResolvedValue([{ unreadCount: 0 }]);
+  const selectFrom = vi.fn().mockReturnValue({ where: selectWhere });
+  const selectFn = vi.fn().mockReturnValue({ from: selectFrom });
+
   const db = {
     query: {
       spaces:        { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
@@ -42,10 +47,12 @@ export function createMockDb() {
     insert: insertFn,
     update: updateFn,
     delete: deleteFn,
+    select: selectFn,
     // Exposed for assertions and per-test overrides
     _insert: { fn: insertFn, values: insertValues, returning: insertReturning },
     _update: { fn: updateFn, set: updateSet, where: updateWhere, returning: updateReturning },
     _delete: { fn: deleteFn, where: deleteWhere },
+    _select: { fn: selectFn, from: selectFrom, where: selectWhere },
   };
 
   return db as unknown as Database & {
@@ -53,6 +60,7 @@ export function createMockDb() {
     _insert: typeof db._insert;
     _update: typeof db._update;
     _delete: typeof db._delete;
+    _select: typeof db._select;
   };
 }
 
@@ -105,6 +113,7 @@ export const SEED = {
     status: 'confirmed',
     recurrenceId: null,
     changeOrigin: null,
+    purpose: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   },

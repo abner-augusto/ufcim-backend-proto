@@ -136,3 +136,61 @@ describe('BlockingService.listBySpace', () => {
     expect(result).toEqual([]);
   });
 });
+
+describe('BlockingService.listByUser', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: BlockingService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new BlockingService(db);
+  });
+
+  it('returns empty list when user has no active blockings', async () => {
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    const result = await service.listByUser(SEED.user.id);
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns only blockings where createdBy === userId', async () => {
+    const blockingWithSpace = { ...SEED.blocking, space: SEED.space };
+    db.query.blockings.findMany.mockResolvedValue([blockingWithSpace]);
+
+    const result = await service.listByUser(SEED.blocking.createdBy);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].createdBy).toBe(SEED.blocking.createdBy);
+  });
+
+  it('does not return blockings with status removed', async () => {
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    const result = await service.listByUser(SEED.user.id);
+
+    expect(result).toEqual([]);
+  });
+
+  it('includes the embedded space object in each item', async () => {
+    const blockingWithSpace = { ...SEED.blocking, space: SEED.space };
+    db.query.blockings.findMany.mockResolvedValue([blockingWithSpace]);
+
+    const result = await service.listByUser(SEED.blocking.createdBy);
+
+    expect(result[0].space).toBeDefined();
+    expect(result[0].space.id).toBe(SEED.space.id);
+    expect(result[0].space.number).toBe(SEED.space.number);
+  });
+
+  it('orders by date descending', async () => {
+    const b1 = { ...SEED.blocking, id: 'b1', date: '2099-06-10', space: SEED.space };
+    const b2 = { ...SEED.blocking, id: 'b2', date: '2099-06-20', space: SEED.space };
+    db.query.blockings.findMany.mockResolvedValue([b2, b1]);
+
+    const result = await service.listByUser(SEED.blocking.createdBy);
+
+    expect(result[0].date).toBe('2099-06-20');
+    expect(result[1].date).toBe('2099-06-10');
+  });
+});

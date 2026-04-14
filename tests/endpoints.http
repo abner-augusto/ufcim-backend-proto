@@ -293,6 +293,14 @@ Content-Type: application/json
 GET {{base}}/api/v1/blockings/space/00000000-0000-0000-0000-000000000013
 Authorization: Bearer {{student_token}}
 
+### GET /blockings/mine (staff) — expects list of user's blockings
+GET {{base}}/api/v1/blockings/mine
+Authorization: Bearer {{staff_token}}
+
+### GET /blockings/mine (student) — expects 403
+GET {{base}}/api/v1/blockings/mine
+Authorization: Bearer {{student_token}}
+
 ### PATCH /blockings/:id/remove — replace :id with a real blocking UUID from above
 # PATCH {{base}}/api/v1/blockings/<id>/remove
 # Authorization: Bearer {{staff_token}}
