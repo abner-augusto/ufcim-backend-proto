@@ -11,6 +11,7 @@ interface CreateReservationInput {
   date: string;
   startTime: string;
   endTime: string;
+  purpose?: string;
 }
 
 interface CreateRecurringInput {
@@ -21,6 +22,7 @@ interface CreateRecurringInput {
   startTime: string;
   endTime: string;
   description: string;
+  purpose?: string;
 }
 
 interface ListReservationsFilters {
@@ -80,6 +82,7 @@ export class ReservationService {
         startTime: input.startTime,
         endTime: input.endTime,
         status: 'confirmed',
+        purpose: input.purpose ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -142,6 +145,7 @@ export class ReservationService {
             endTime: input.endTime,
             status: 'confirmed',
             recurrenceId,
+            purpose: input.purpose ?? null,
             createdAt: now,
             updatedAt: now,
           })

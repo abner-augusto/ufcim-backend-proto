@@ -41,7 +41,7 @@ INSERT OR IGNORE INTO blockings (id, space_id, created_by, date, time_slot, star
   ('00000000-0000-0000-0000-000000000073', '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000003', '2026-03-29', 'morning',   '08:00', '09:00', 'Bloqueio removido de teste',          'administrative', 'removed', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 -- ── Notifications ─────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO notifications (id, user_id, title, message, type, read, sent_at) VALUES
+INSERT OR IGNORE INTO notifications (id, user_id, title, message, type, read, created_at) VALUES
   ('00000000-0000-0000-0000-000000000081', '00000000-0000-0000-0000-000000000002', 'Reserva confirmada', 'Sua reserva da sala A101 foi confirmada.', 'confirmed', 0, '2026-01-01T00:00:00.000Z'),
   ('00000000-0000-0000-0000-000000000082', '00000000-0000-0000-0000-000000000001', 'Reserva cancelada',  'Sua reserva futura da sala B205 foi cancelada.', 'canceled', 1, '2026-01-01T00:00:00.000Z');
 

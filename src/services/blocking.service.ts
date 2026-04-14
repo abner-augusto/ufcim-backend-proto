@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { blockings, reservations, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, NotFoundError } from '@/middleware/error-handler';
@@ -139,6 +139,17 @@ export class BlockingService {
     );
 
     return updated;
+  }
+
+  async listByUser(userId: string) {
+    return this.db.query.blockings.findMany({
+      where: and(
+        eq(blockings.createdBy, userId),
+        eq(blockings.status, 'active')
+      ),
+      with: { space: true },
+      orderBy: (b, { desc: d }) => [d(b.date)],
+    });
   }
 
   async listBySpace(spaceId: string, date?: string) {

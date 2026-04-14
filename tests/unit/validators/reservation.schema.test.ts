@@ -58,6 +58,38 @@ describe('createReservationSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts optional purpose field', () => {
+    const result = createReservationSchema.safeParse({
+      spaceId: VALID_UUID,
+      date: FUTURE_DATE,
+      startTime: '09:00',
+      endTime: '10:00',
+      purpose: 'class',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts payload without purpose', () => {
+    const result = createReservationSchema.safeParse({
+      spaceId: VALID_UUID,
+      date: FUTURE_DATE,
+      startTime: '09:00',
+      endTime: '10:00',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects purpose longer than 100 chars', () => {
+    const result = createReservationSchema.safeParse({
+      spaceId: VALID_UUID,
+      date: FUTURE_DATE,
+      startTime: '09:00',
+      endTime: '10:00',
+      purpose: 'x'.repeat(101),
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('createRecurringReservationSchema', () => {
@@ -102,6 +134,20 @@ describe('createRecurringReservationSchema', () => {
 
   it('rejects empty description', () => {
     expect(createRecurringReservationSchema.safeParse({ ...base, description: '' }).success).toBe(false);
+  });
+
+  it('accepts optional purpose field in recurring payload', () => {
+    expect(createRecurringReservationSchema.safeParse({ ...base, purpose: 'class' }).success).toBe(true);
+  });
+
+  it('accepts recurring payload without purpose', () => {
+    expect(createRecurringReservationSchema.safeParse(base).success).toBe(true);
+  });
+
+  it('rejects purpose longer than 100 chars in recurring payload', () => {
+    expect(
+      createRecurringReservationSchema.safeParse({ ...base, purpose: 'x'.repeat(101) }).success
+    ).toBe(false);
   });
 
   it('rejects description longer than 200 chars', () => {

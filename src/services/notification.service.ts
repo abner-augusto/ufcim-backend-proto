@@ -19,7 +19,7 @@ export class NotificationService {
         message,
         type,
         read: false,
-        sentAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       })
       .returning();
     return notification;
@@ -31,7 +31,7 @@ export class NotificationService {
         eq(notifications.userId, userId),
         unreadOnly ? eq(notifications.read, false) : undefined
       ),
-      orderBy: (n, { desc: d }) => [d(n.sentAt)],
+      orderBy: (n, { desc: d }) => [d(n.createdAt)],
     });
   }
 

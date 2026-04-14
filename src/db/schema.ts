@@ -67,6 +67,7 @@ export const reservations = sqliteTable('reservations', {
   status: text('status').notNull(), // 'confirmed' | 'canceled' | 'modified' | 'overridden'
   recurrenceId: text('recurrence_id').references(() => recurrences.id),
   changeOrigin: text('change_origin'),
+  purpose: text('purpose'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -95,7 +96,7 @@ export const notifications = sqliteTable('notifications', {
   message: text('message').notNull(),
   type: text('type').notNull(), // 'confirmed' | 'canceled' | 'modified' | 'overridden'
   read: integer('read', { mode: 'boolean' }).notNull().default(false),
-  sentAt: text('sent_at').notNull(),
+  createdAt: text('created_at').notNull(),
 });
 
 // ─── Audit Logs (logs) ─────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import { users } from '@/db/schema';
+import { eq, and, count } from 'drizzle-orm';
+import { users, notifications } from '@/db/schema';
 import type { Database } from '@/db/client';
 import type { JwtPayload } from '@/types/auth';
 import { extractRole } from '@/middleware/rbac';
@@ -58,6 +58,25 @@ export class UserService {
     });
     if (!user) throw new NotFoundError('User');
     return user;
+  }
+
+  async getMeProfile(id: string) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, id),
+    });
+    if (!user) throw new NotFoundError('User');
+
+    const [{ unreadCount }] = await this.db
+      .select({ unreadCount: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, id),
+          eq(notifications.read, false)
+        )
+      );
+
+    return { ...user, unreadCount };
   }
 
   async list(page: number, limit: number) {
