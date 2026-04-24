@@ -4,7 +4,7 @@ import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
-import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
+import { deriveLegacyTimeSlot, intervalsOverlap } from '@/lib/schedule';
 
 interface CreateBlockingInput {
   spaceId: string;
@@ -35,10 +35,6 @@ export class BlockingService {
   async create(userId: string, input: CreateBlockingInput) {
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
-
-    if (overlapsClosedHours(input.startTime, input.endTime, space.closedFrom, space.closedTo)) {
-      throw new ConflictError('Este bloqueio está dentro do período em que o espaço permanece fechado');
-    }
 
     const existingBlockings = await this.db.query.blockings.findMany({
       where: and(
