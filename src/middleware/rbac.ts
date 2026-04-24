@@ -8,6 +8,13 @@ import type { Env } from '@/types/env';
  *
  * Usage: route.post('/path', rbac(['professor', 'staff']), handler)
  */
+const ROLE_LABELS: Record<UserRole, string> = {
+  student: 'estudante',
+  professor: 'professor',
+  staff: 'funcionário',
+  maintenance: 'manutenção',
+};
+
 export function rbac(allowedRoles: UserRole[]) {
   return createMiddleware<{ Bindings: Env; Variables: { user: JwtPayload } }>(
     async (c, next) => {
@@ -15,9 +22,10 @@ export function rbac(allowedRoles: UserRole[]) {
       const userRole = extractRole(user);
 
       if (!userRole || !allowedRoles.includes(userRole)) {
+        const labels = allowedRoles.map((r) => ROLE_LABELS[r]).join(', ');
         return c.json(
           {
-            error: `Esta ação exige um dos seguintes papéis: ${allowedRoles.join(', ')}`,
+            error: `Você não tem permissão para realizar esta ação. Perfil necessário: ${labels}.`,
             code: 'FORBIDDEN',
           },
           403

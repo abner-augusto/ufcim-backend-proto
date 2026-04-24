@@ -19,8 +19,8 @@ notificationRoutes.get('/', async (c) => {
 notificationRoutes.patch('/read-all', async (c) => {
   const db = createDb(c.env.DB);
   const service = new NotificationService(db);
-  await service.markAllRead(c.get('user').sub);
-  return c.json({ ok: true });
+  const updated = await service.markAllRead(c.get('user').sub);
+  return c.json({ updated });
 });
 
 // PATCH /notifications/:id/read (any role)

@@ -32,7 +32,7 @@ blockingRoutes.patch(
     const db = createDb(c.env.DB);
     const service = new BlockingService(db);
 
-    const result = await service.remove(c.req.param('id'), c.get('user').sub);
+    const result = await service.remove(c.req.param('id'), c.get('user').sub, extractRole(c.get('user')) ?? '');
     return c.json(result);
   }
 );

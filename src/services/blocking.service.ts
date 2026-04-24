@@ -1,7 +1,7 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { blockings, reservations, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
-import { ConflictError, NotFoundError } from '@/middleware/error-handler';
+import { ConflictError, ForbiddenError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
 import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
@@ -92,8 +92,8 @@ export class BlockingService {
 
       await this.notification.create(
         conflicting.userId,
-        'Reserva sobrescrita',
-        `Sua reserva para o espaço ${space.number} em ${input.date} (${conflicting.startTime}-${conflicting.endTime}) foi sobrescrita devido a um bloqueio do tipo ${input.blockType}: ${input.reason}`,
+        'Reserva sobreposta por bloqueio',
+        `Sua reserva para o espaço ${space.number} em ${input.date} (${conflicting.startTime}-${conflicting.endTime}) foi cancelada devido a um bloqueio ${input.blockType === 'administrative' ? 'administrativo' : 'de manutenção'}: ${input.reason}`,
         'overridden'
       );
 
@@ -117,11 +117,15 @@ export class BlockingService {
     return blocking;
   }
 
-  async remove(blockingId: string, userId: string) {
+  async remove(blockingId: string, userId: string, userRole: string) {
     const blocking = await this.db.query.blockings.findFirst({
       where: eq(blockings.id, blockingId),
     });
     if (!blocking) throw new NotFoundError('Blocking');
+
+    if (userRole !== 'staff' && blocking.createdBy !== userId) {
+      throw new ForbiddenError('Você só pode remover bloqueios criados por você');
+    }
 
     const now = new Date().toISOString();
     const [updated] = await this.db
