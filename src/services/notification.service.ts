@@ -50,10 +50,12 @@ export class NotificationService {
     return updated;
   }
 
-  async markAllRead(userId: string) {
-    await this.db
+  async markAllRead(userId: string): Promise<number> {
+    const result = await this.db
       .update(notifications)
       .set({ read: true })
-      .where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+      .where(and(eq(notifications.userId, userId), eq(notifications.read, false)))
+      .returning({ id: notifications.id });
+    return result.length;
   }
 }
