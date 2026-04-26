@@ -6,6 +6,7 @@ import { AuditLogService } from './audit-log.service';
 import { buildHourlyAvailability, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 
 interface CreateSpaceInput {
+  name: string;
   number: string;
   type: string;
   block: string;
@@ -54,7 +55,7 @@ export class SpaceService {
       })
       .returning();
 
-    await this.auditLog.log(userId, 'create_space', id, 'space', `Criou o espaço ${input.number}`);
+    await this.auditLog.log(userId, 'create_space', id, 'space', `Criou o espaço ${input.name} (${input.number})`);
 
     return space;
   }
@@ -83,6 +84,8 @@ export class SpaceService {
 
     await this.db.delete(equipment).where(eq(equipment.spaceId, id));
     await this.db.delete(spaceManagers).where(eq(spaceManagers.spaceId, id));
+    await this.db.delete(reservations).where(eq(reservations.spaceId, id));
+    await this.db.delete(blockings).where(eq(blockings.spaceId, id));
     await this.db.delete(spaces).where(eq(spaces.id, id));
 
     await this.auditLog.log(userId, 'delete_space', id, 'space', `Removeu o espaço ${existing.number}`);
