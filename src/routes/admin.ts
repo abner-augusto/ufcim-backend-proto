@@ -190,7 +190,7 @@ adminRoutes.patch('/actions/blockings/:id/remove', async (c) => {
   const filters = blockingFilterSchema.parse(await formDataToObject(c));
   const db = createDb(c.env.DB);
   const service = new BlockingService(db);
-  await service.remove(c.req.param('id'), getActingUserId(c));
+  await service.remove(c.req.param('id'), getActingUserId(c), 'staff');
   return c.html(await renderBlockingsView(c, { ...filters, message: 'Bloqueio removido' }));
 });
 
@@ -284,6 +284,7 @@ async function renderSpacesView(
             <table class="min-w-full divide-y divide-slate-200 text-sm">
               <thead>
                 <tr class="text-left text-slate-500">
+                  <th class="px-3 py-2 font-medium">Nome</th>
                   <th class="px-3 py-2 font-medium">Número</th>
                   <th class="px-3 py-2 font-medium">Tipo</th>
                   <th class="px-3 py-2 font-medium">Bloco</th>
@@ -300,7 +301,8 @@ async function renderSpacesView(
                     hx-target="#space-detail"
                     hx-swap="innerHTML"
                   >
-                    <td class="px-3 py-3 font-medium">${escapeHtml(space.number)}</td>
+                    <td class="px-3 py-3 font-medium">${escapeHtml(space.name)}</td>
+                    <td class="px-3 py-3 text-slate-500">${escapeHtml(space.number)}</td>
                     <td class="px-3 py-3">${escapeHtml(space.type)}</td>
                     <td class="px-3 py-3">${escapeHtml(space.block)}</td>
                     <td class="px-3 py-3">${escapeHtml(space.campus)}</td>
@@ -345,8 +347,8 @@ function renderSpaceDetail(
     <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h3 class="text-xl font-semibold">${escapeHtml(space.number)}</h3>
-          <p class="text-sm text-slate-600">${escapeHtml(space.department)} · ${escapeHtml(space.campus)} campus</p>
+          <h3 class="text-xl font-semibold">${escapeHtml(space.name)}</h3>
+          <p class="text-sm text-slate-600">${escapeHtml(space.number)} · ${escapeHtml(space.department)} · ${escapeHtml(space.campus)} campus</p>
         </div>
         <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">${escapeHtml(space.type)}</span>
       </div>
@@ -667,8 +669,8 @@ async function renderEquipmentView(
             <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <div class="mb-4 flex items-center justify-between">
                 <div>
-                  <h3 class="text-lg font-semibold">${escapeHtml(space.number)}</h3>
-                  <p class="text-sm text-slate-600">${escapeHtml(space.type)} · ${escapeHtml(space.department)}</p>
+                  <h3 class="text-lg font-semibold">${escapeHtml(space.name)}</h3>
+                  <p class="text-sm text-slate-600">${escapeHtml(space.number)} · ${escapeHtml(space.type)} · ${escapeHtml(space.department)}</p>
                 </div>
                 <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${space.equipment.length} itens</span>
               </div>
@@ -680,10 +682,7 @@ async function renderEquipmentView(
                         <div class="font-medium">${escapeHtml(item.name)}</div>
                         <div class="text-sm text-slate-500">${escapeHtml(item.type)}</div>
                       </div>
-                      <div>
-                        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">ID Patrimonial</div>
-                        <div class="mt-1 font-mono text-sm text-slate-700">${escapeHtml(item.assetId)}</div>
-                      </div>
+                      ${renderInput('assetId', 'ID Patrimonial', 'text', item.assetId, true, '', 'ex.: 2020002658')}
                       ${renderSelect('status', 'Status', [
                         { value: 'working', label: 'Funcionando' },
                         { value: 'broken', label: 'Quebrado' },
@@ -943,12 +942,14 @@ function renderSpaceFields(space?: Record<string, unknown>) {
   const closedHours = normalizeClosedHours(stringValue(space?.closedFrom), stringValue(space?.closedTo));
 
   return `
+    ${renderInput('name', 'Nome', 'text', stringValue(space?.name))}
     ${renderInput('number', 'Número', 'text', stringValue(space?.number))}
     ${renderSelect('type', 'Tipo', [
       { value: 'classroom', label: 'Sala de aula' },
       { value: 'study_room', label: 'Sala de estudo' },
       { value: 'meeting_room', label: 'Sala de reunião' },
       { value: 'hall', label: 'Auditório' },
+      { value: 'other', label: 'Outros' },
     ], stringValue(space?.type))}
     ${renderInput('block', 'Bloco', 'text', stringValue(space?.block))}
     ${renderInput('campus', 'Campus', 'text', stringValue(space?.campus))}
@@ -1202,6 +1203,7 @@ async function formDataToObject(c: AdminContext) {
 
 function parseSpaceForm(values: Record<string, unknown>) {
   return {
+    name: stringValue(values.name),
     number: stringValue(values.number),
     type: stringValue(values.type),
     block: stringValue(values.block),
