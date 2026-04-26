@@ -94,6 +94,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
   await db.insert(schema.spaces).values([
     {
       id: SEED.spaces.classroom1,
+      name: 'Sala A101',
       number: 'A101',
       type: 'classroom',
       block: 'A',
@@ -112,6 +113,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
     },
     {
       id: SEED.spaces.studyRoom1,
+      name: 'Sala B205',
       number: 'B205',
       type: 'study_room',
       block: 'B',
@@ -130,6 +132,7 @@ export async function seed(db: ReturnType<typeof createDb>) {
     },
     {
       id: SEED.spaces.meetingRoom1,
+      name: 'Sala C301',
       number: 'C301',
       type: 'meeting_room',
       block: 'C',

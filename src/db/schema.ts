@@ -16,6 +16,8 @@ export const users = sqliteTable('users', {
 // ─── Spaces (ambientes) ─────────────────────────────────────────────────────
 export const spaces = sqliteTable('spaces', {
   id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  // number is capped at 20 chars — enforced in the Zod validator (createSpaceSchema)
   number: text('number').notNull(),
   type: text('type').notNull(), // 'classroom' | 'study_room' | 'meeting_room' | 'hall'
   block: text('block').notNull(),
