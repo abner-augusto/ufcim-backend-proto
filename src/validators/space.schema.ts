@@ -2,10 +2,11 @@ import { z } from 'zod';
 import { boundaryTimeSchema } from './common.schema';
 import { DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 
-export const spaceTypeSchema = z.enum(['classroom', 'study_room', 'meeting_room', 'hall']);
+export const spaceTypeSchema = z.enum(['classroom', 'study_room', 'meeting_room', 'hall', 'other']);
 
 export const createSpaceSchema = z.object({
-  number: z.string().min(1).max(50),
+  name: z.string().min(1).max(100),
+  number: z.string().min(1).max(20),
   type: spaceTypeSchema,
   block: z.string().min(1).max(50),
   campus: z.string().min(1).max(100),
