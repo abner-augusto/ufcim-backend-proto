@@ -60,6 +60,7 @@ export class EquipmentService {
     const [updated] = await this.db
       .update(equipment)
       .set({
+        assetId: input.assetId ?? item.assetId,
         status: input.status,
         notes: input.notes ?? item.notes,
         updatedBy: userId,

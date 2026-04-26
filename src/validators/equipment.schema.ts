@@ -22,6 +22,7 @@ export const createEquipmentSchema = z.object({
 });
 
 export const updateEquipmentStatusSchema = z.object({
+  assetId: equipmentAssetIdSchema.optional(),
   status: equipmentStatusSchema,
   notes: z.string().optional(),
 });
