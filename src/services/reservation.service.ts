@@ -5,6 +5,14 @@ import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middle
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
 import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
+import { count } from 'drizzle-orm';
+
+const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
+  student: 5,
+  professor: 10,
+  staff: null,
+  maintenance: 0,
+};
 
 interface CreateReservationInput {
   spaceId: string;
@@ -64,9 +72,7 @@ export class ReservationService {
       input.endTime
     );
 
-    if (userRole === 'student') {
-      await this.enforceStudentLimit(userId);
-    }
+    await this.enforceActiveLimit(userId, userRole);
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -110,6 +116,8 @@ export class ReservationService {
     if (!['professor', 'staff'].includes(userRole)) {
       throw new ForbiddenError('Apenas professores e funcionários podem criar reservas recorrentes');
     }
+
+    await this.enforceActiveLimit(userId, userRole);
 
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
@@ -351,12 +359,25 @@ export class ReservationService {
     }
   }
 
-  private async enforceStudentLimit(userId: string) {
-    const active = await this.db.query.reservations.findFirst({
-      where: and(eq(reservations.userId, userId), eq(reservations.status, 'confirmed')),
-    });
-    if (active) {
-      throw new AppError(400, 'Estudantes só podem ter uma reserva ativa por vez', 'STUDENT_LIMIT');
+  private async enforceActiveLimit(userId: string, userRole: string) {
+    const limit = ACTIVE_RESERVATION_LIMITS[userRole] ?? null;
+    if (limit === null) return;
+
+    if (limit === 0) {
+      throw new ForbiddenError('Sua função não permite criar reservas');
+    }
+
+    const [row] = await this.db
+      .select({ total: count() })
+      .from(reservations)
+      .where(and(eq(reservations.userId, userId), eq(reservations.status, 'confirmed')));
+
+    if ((row?.total ?? 0) >= limit) {
+      throw new AppError(
+        400,
+        `Limite de ${limit} reserva${limit === 1 ? '' : 's'} ativa${limit === 1 ? '' : 's'} atingido para o seu perfil`,
+        'RESERVATION_LIMIT'
+      );
     }
   }
 

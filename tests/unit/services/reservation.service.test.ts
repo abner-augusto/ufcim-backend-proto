@@ -70,24 +70,51 @@ describe('ReservationService.create', () => {
     ).rejects.toThrow(ConflictError);
   });
 
-  it('throws STUDENT_LIMIT error when student already has an active reservation', async () => {
+  it('throws RESERVATION_LIMIT when student has reached 5 active reservations', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
-    db.query.reservations.findFirst.mockResolvedValueOnce(SEED.reservation);
+    db._select.where.mockResolvedValueOnce([{ total: 5 }]);
 
     const err = await service
       .create(USER_ID, 'student', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
       .catch((e) => e);
 
     expect(err).toBeInstanceOf(AppError);
-    expect((err as AppError).code).toBe('STUDENT_LIMIT');
+    expect((err as AppError).code).toBe('RESERVATION_LIMIT');
+  });
+
+  it('throws RESERVATION_LIMIT when professor has reached 10 active reservations', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 10 }]);
+
+    const err = await service
+      .create(OTHER_USER_ID, 'professor', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('RESERVATION_LIMIT');
+  });
+
+  it('throws ForbiddenError when maintenance role tries to create a reservation', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    const err = await service
+      .create(USER_ID, 'maintenance', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(ForbiddenError);
   });
 
   it('creates and returns a reservation for a professor with no conflicts', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
     db._insert.returning.mockResolvedValue([SEED.reservation]);
 
     const result = await service.create(
