@@ -10,7 +10,7 @@ export const createSpaceSchema = z.object({
   type: spaceTypeSchema,
   block: z.string().min(1).max(50),
   campus: z.string().min(1).max(100),
-  department: z.string().min(1).max(100),
+  department: z.string().min(1).max(50),
   capacity: z.number().int().positive(),
   furniture: z.string().optional(),
   lighting: z.string().optional(),

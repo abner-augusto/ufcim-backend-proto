@@ -12,6 +12,7 @@ import { EquipmentService } from '@/services/equipment.service';
 import { UserService } from '@/services/user.service';
 import { UserAdminService } from '@/services/user-admin.service';
 import { InvitationService } from '@/services/invitation.service';
+import { DepartmentService } from '@/services/department.service';
 import { AuditLogService } from '@/services/audit-log.service';
 import { StatsService } from '@/services/stats.service';
 import { createSpaceSchema, updateSpaceSchema } from '@/validators/space.schema';
@@ -76,15 +77,17 @@ adminRoutes.get('/partials/spaces/:id', async (c) => {
   const spaceService = new SpaceService(db);
   const userService = new UserService(db);
   const space = await spaceService.getById(c.req.param('id'));
-  const [availability, allUsers, allSpaces] = await Promise.all([
+  const [availability, allUsers, allSpaces, depts] = await Promise.all([
     spaceService.getAvailability(space.id, today()),
     userService.list(1, 200),
     spaceService.list({ page: 1, limit: 100 }),
+    new DepartmentService(db).list(),
   ]);
   const usedModelIds = new Set(allSpaces.filter((s) => s.id !== space.id).map((s) => s.modelId).filter(Boolean));
   const availablePins = IAUD_PINS.filter((p) => !usedModelIds.has(p.id));
+  const deptOptions = depts.map((d) => ({ value: d.id, label: d.name }));
 
-  return c.html(renderSpaceDetail(space, availability, allUsers, availablePins));
+  return c.html(renderSpaceDetail(space, availability, allUsers, availablePins, deptOptions));
 });
 
 adminRoutes.get('/partials/reservations', async (c) => {
@@ -105,6 +108,33 @@ adminRoutes.get('/partials/users', async (c) => {
 
 adminRoutes.get('/partials/invitations', async (c) => {
   return c.html(await renderInvitationsView(c));
+});
+
+adminRoutes.get('/partials/departments', async (c) => {
+  return c.html(await renderDepartmentsView(c));
+});
+
+adminRoutes.post('/actions/departments', async (c) => {
+  const body = await c.req.parseBody();
+  const db = createDb(c.env.DB);
+  const service = new DepartmentService(db);
+  const dept = await service.create({
+    id: (body.id as string).trim().toLowerCase(),
+    name: (body.name as string).trim(),
+    campus: (body.campus as string).trim(),
+  });
+  return c.html(await renderDepartmentsView(c, { message: `Departamento "${dept!.name}" criado.` }));
+});
+
+adminRoutes.patch('/actions/departments/:id', async (c) => {
+  const body = await c.req.parseBody();
+  const db = createDb(c.env.DB);
+  const service = new DepartmentService(db);
+  const dept = await service.update(c.req.param('id'), {
+    name: (body.name as string)?.trim(),
+    campus: (body.campus as string)?.trim(),
+  });
+  return c.html(await renderDepartmentsView(c, { message: `Departamento "${dept!.name}" atualizado.` }));
 });
 
 adminRoutes.get('/partials/logs', async (c) => {
@@ -362,6 +392,8 @@ async function renderSpacesView(
   const db = createDb(c.env.DB);
   const spaceService = new SpaceService(db);
   const userService = new UserService(db);
+  const depts = await new DepartmentService(db).list();
+  const deptOptions = depts.map((d) => ({ value: d.id, label: d.name }));
   const spaces = await spaceService.list({ page: 1, limit: 100 });
   const allUsers = await userService.list(1, 200);
   const selectedSpaceId = options?.selectedSpaceId ?? c.req.query('selectedSpaceId');
@@ -375,7 +407,7 @@ async function renderSpacesView(
     const availability = await spaceService.getAvailability(space.id, today());
     const usedByOthers = new Set(spaces.filter((s) => s.id !== space.id).map((s) => s.modelId).filter(Boolean));
     const availablePinsForDetail = IAUD_PINS.filter((p) => !usedByOthers.has(p.id));
-    detailHtml = renderSpaceDetail(space, availability, allUsers, availablePinsForDetail);
+    detailHtml = renderSpaceDetail(space, availability, allUsers, availablePinsForDetail, deptOptions);
   }
 
   return `
@@ -430,7 +462,7 @@ async function renderSpacesView(
             <h2 class="text-xl font-semibold">Criar Espaço</h2>
             <p class="mt-1 text-sm text-slate-600">Utiliza a mesma camada de serviço da API pública.</p>
             <form class="mt-4 grid gap-3 sm:grid-cols-2" hx-post="/admin/actions/spaces" hx-target="#admin-content" hx-swap="innerHTML">
-              ${renderSpaceFields(undefined, availablePins)}
+              ${renderSpaceFields(undefined, availablePins, deptOptions)}
               <div class="sm:col-span-2">
                 <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Criar</button>
               </div>
@@ -448,7 +480,8 @@ function renderSpaceDetail(
   space: Awaited<ReturnType<SpaceService['getById']>>,
   availability: Awaited<ReturnType<SpaceService['getAvailability']>>,
   allUsers: Awaited<ReturnType<UserService['list']>>,
-  availablePins?: { id: string; block: string; floor: string }[]
+  availablePins?: { id: string; block: string; floor: string }[],
+  deptOptions: Array<{ value: string; label: string }> = []
 ) {
   const closedHours = normalizeClosedHours(space.closedFrom, space.closedTo);
   const assignedUserIds = new Set(space.managers.map((m) => m.userId));
@@ -551,7 +584,7 @@ function renderSpaceDetail(
       <div class="mt-6 border-t border-slate-200 pt-6">
         <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Editar Espaço</h4>
         <form class="mt-4 grid gap-3 sm:grid-cols-2" hx-put="/admin/actions/spaces/${space.id}" hx-target="#admin-content" hx-swap="innerHTML">
-          ${renderSpaceFields(space as unknown as Record<string, unknown>, availablePins)}
+          ${renderSpaceFields(space as unknown as Record<string, unknown>, availablePins, deptOptions)}
           <input type="hidden" name="selectedSpaceId" value="${space.id}" />
           <div class="sm:col-span-2 flex items-center gap-3">
             <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Salvar Alterações</button>
@@ -944,7 +977,11 @@ async function renderInvitationsView(
   const statusFilter = (c.req.query('status') ?? 'all') as 'pending' | 'accepted' | 'expired' | 'revoked' | 'all';
   const db = createDb(c.env.DB);
   const service = new InvitationService(db, c.env);
-  const result = await service.list({ status: statusFilter, page: 1, limit: 50 });
+  const [result, depts] = await Promise.all([
+    service.list({ status: statusFilter, page: 1, limit: 50 }),
+    new DepartmentService(db).list(),
+  ]);
+  const deptOptions = depts.map((d) => ({ value: d.id, label: d.name }));
 
   const now = new Date().toISOString();
 
@@ -996,7 +1033,7 @@ async function renderInvitationsView(
             ${renderInput('email', 'E-mail', 'email')}
             ${renderInput('name', 'Nome', 'text')}
             ${renderInput('registration', 'Matrícula (opcional)', 'text', '', false, '', 'Deixe em branco se o usuário não possui matrícula UFC')}
-            ${renderInput('department', 'Departamento', 'text')}
+            ${renderSelect('department', 'Departamento', deptOptions, '', true)}
             ${renderSelect('role', 'Papel', [
               { value: 'student', label: 'Estudante' },
               { value: 'professor', label: 'Professor(a)' },
@@ -1077,6 +1114,78 @@ async function renderInvitationsView(
               </table>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+async function renderDepartmentsView(
+  c: AdminContext,
+  options?: { message?: string }
+) {
+  const db = createDb(c.env.DB);
+  const depts = await new DepartmentService(db).list();
+
+  return `
+    <section class="space-y-6">
+      ${renderMessage(options?.message)}
+      <div class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-xl font-semibold">Departamentos</h2>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${depts.length} cadastrados</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead>
+                <tr class="text-left text-slate-500">
+                  <th class="px-3 py-2 font-medium">ID (slug)</th>
+                  <th class="px-3 py-2 font-medium">Nome</th>
+                  <th class="px-3 py-2 font-medium">Campus</th>
+                  <th class="px-3 py-2 font-medium">Ações</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${depts.length === 0
+                  ? `<tr><td colspan="4" class="px-3 py-6 text-center text-slate-400">Nenhum departamento cadastrado.</td></tr>`
+                  : depts.map((d) => `
+                    <tr>
+                      <td class="px-3 py-3 font-mono text-xs text-slate-500">${escapeHtml(d.id)}</td>
+                      <td class="px-3 py-3 font-medium">${escapeHtml(d.name)}</td>
+                      <td class="px-3 py-3">${escapeHtml(d.campus)}</td>
+                      <td class="px-3 py-3">
+                        <form class="inline-flex gap-2 items-end"
+                          hx-patch="/admin/actions/departments/${escapeAttribute(d.id)}"
+                          hx-target="#admin-content" hx-swap="innerHTML">
+                          <input class="rounded border border-slate-300 px-2 py-1 text-xs outline-none focus:border-slate-900 w-48"
+                            type="text" name="name" value="${escapeAttribute(d.name)}" required />
+                          <input class="rounded border border-slate-300 px-2 py-1 text-xs outline-none focus:border-slate-900 w-28"
+                            type="text" name="campus" value="${escapeAttribute(d.campus)}" required />
+                          <button type="submit"
+                            class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
+                            Salvar
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <h2 class="text-xl font-semibold">Novo Departamento</h2>
+          <p class="mt-1 text-sm text-slate-600">O ID (slug) deve ser único, em minúsculas, sem espaços. Ex.: <code>iaud</code>, <code>cc</code>.</p>
+          <form class="mt-4 grid gap-3"
+            hx-post="/admin/actions/departments"
+            hx-target="#admin-content" hx-swap="innerHTML">
+            ${renderInput('id', 'ID (slug)', 'text', '', false, '', 'ex.: iaud')}
+            ${renderInput('name', 'Nome completo', 'text', '', false, '', 'ex.: Instituto de Arquitetura e Design (IAUD)')}
+            ${renderInput('campus', 'Campus', 'text', '', false, '', 'ex.: Benfica')}
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Criar</button>
+          </form>
         </div>
       </div>
     </section>
@@ -1286,7 +1395,7 @@ function renderReservationRow(
   `;
 }
 
-function renderSpaceFields(space?: Record<string, unknown>, availablePins?: { id: string; block: string; floor: string }[]) {
+function renderSpaceFields(space?: Record<string, unknown>, availablePins?: { id: string; block: string; floor: string }[], deptOptions: Array<{ value: string; label: string }> = []) {
   const closedHours = normalizeClosedHours(stringValue(space?.closedFrom), stringValue(space?.closedTo));
   const currentModelId = stringValue(space?.modelId);
 
@@ -1319,7 +1428,7 @@ function renderSpaceFields(space?: Record<string, unknown>, availablePins?: { id
     ], stringValue(space?.type))}
     ${renderInput('block', 'Bloco', 'text', stringValue(space?.block))}
     ${renderInput('campus', 'Campus', 'text', stringValue(space?.campus))}
-    ${renderInput('department', 'Departamento', 'text', stringValue(space?.department))}
+    ${renderSelect('department', 'Departamento', deptOptions, stringValue(space?.department), true)}
     ${renderInput('capacity', 'Capacidade', 'number', stringValue(space?.capacity))}
     ${modelIdField}
     ${renderInput('furniture', 'Mobiliário', 'text', stringValue(space?.furniture), false, 'sm:col-span-2')}

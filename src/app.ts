@@ -16,6 +16,7 @@ import { blockingRoutes } from '@/routes/blockings';
 import { notificationRoutes } from '@/routes/notifications';
 import { logRoutes } from '@/routes/logs';
 import { statsRoutes } from '@/routes/stats';
+import { departmentRoutes } from '@/routes/departments';
 import { adminRoutes } from '@/routes/admin';
 import { authRoutes } from '@/routes/auth';
 import { bootstrapRoutes } from '@/routes/bootstrap';
@@ -68,13 +69,14 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   api.route('/notifications', notificationRoutes);
   api.route('/logs', logRoutes);
   api.route('/stats', statsRoutes);
+  api.route('/departments', departmentRoutes);
 
   app.route('/api/v1', api);
 
   app.get('/admin/login', (c) => c.html(renderAdminLogin()));
 
   // Shell pages are pure HTML skeletons — auth happens via HTMX Bearer headers on partials.
-  const adminPages = ['/admin', '/admin/spaces', '/admin/reservations', '/admin/blockings', '/admin/equipment', '/admin/users', '/admin/invitations', '/admin/logs'] as const;
+  const adminPages = ['/admin', '/admin/spaces', '/admin/reservations', '/admin/blockings', '/admin/equipment', '/admin/users', '/admin/invitations', '/admin/departments', '/admin/logs'] as const;
   for (const path of adminPages) {
     app.get(path, (c) => c.html(renderAdminShell(path, c.env.ENVIRONMENT)));
   }

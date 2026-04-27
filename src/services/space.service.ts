@@ -1,8 +1,9 @@
 import { eq, and, count } from 'drizzle-orm';
 import { spaces, reservations, blockings, equipment, spaceManagers } from '@/db/schema';
 import type { Database } from '@/db/client';
-import { NotFoundError } from '@/middleware/error-handler';
+import { AppError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
+import { DepartmentService } from './department.service';
 import { buildHourlyAvailability, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 
 interface CreateSpaceInput {
@@ -40,6 +41,10 @@ export class SpaceService {
   }
 
   async create(userId: string, input: CreateSpaceInput) {
+    if (!(await new DepartmentService(this.db).validateId(input.department))) {
+      throw new AppError(422, `Departamento "${input.department}" não existe`, 'INVALID_DEPARTMENT');
+    }
+
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
@@ -95,6 +100,10 @@ export class SpaceService {
     const existing = await this.db.query.spaces.findFirst({ where: eq(spaces.id, id) });
     if (!existing) throw new NotFoundError('Space');
 
+    if (input.department && !(await new DepartmentService(this.db).validateId(input.department))) {
+      throw new AppError(422, `Departamento "${input.department}" não existe`, 'INVALID_DEPARTMENT');
+    }
+
     const [updated] = await this.db
       .update(spaces)
       .set({ ...input, updatedAt: new Date().toISOString() })
@@ -109,14 +118,14 @@ export class SpaceService {
   async getById(id: string) {
     const space = await this.db.query.spaces.findFirst({
       where: eq(spaces.id, id),
-      with: { equipment: true, managers: { with: { user: true } } },
+      with: { equipment: true, managers: { with: { user: true } }, department: true },
     });
     if (!space) throw new NotFoundError('Space');
-    return space;
+    return { ...space, department: space.department?.name ?? space.department as unknown as string };
   }
 
   async list(filters: ListSpacesFilters) {
-    return this.db.query.spaces.findMany({
+    const rows = await this.db.query.spaces.findMany({
       where: and(
         filters.campus ? eq(spaces.campus, filters.campus) : undefined,
         filters.block ? eq(spaces.block, filters.block) : undefined,
@@ -124,9 +133,11 @@ export class SpaceService {
         filters.type ? eq(spaces.type, filters.type) : undefined,
         filters.modelId ? eq(spaces.modelId, filters.modelId) : undefined
       ),
+      with: { department: true },
       limit: filters.limit,
       offset: (filters.page - 1) * filters.limit,
     });
+    return rows.map((s) => ({ ...s, department: s.department?.name ?? s.department as unknown as string }));
   }
 
   /**

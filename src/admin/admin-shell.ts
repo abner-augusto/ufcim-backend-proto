@@ -70,6 +70,7 @@ export function renderAdminShell(currentPath: string, environment: 'development'
           ${navLink(normalizedPath, '/admin/equipment', 'Equipamentos')}
           ${navLink(normalizedPath, '/admin/users', 'Usuários')}
           ${navLink(normalizedPath, '/admin/invitations', 'Convites')}
+          ${navLink(normalizedPath, '/admin/departments', 'Departamentos')}
           ${navLink(normalizedPath, '/admin/logs', 'Logs de Auditoria')}
         </nav>
       </header>

@@ -1,6 +1,15 @@
 import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { relations, sql } from 'drizzle-orm';
 
+// ─── Departments ─────────────────────────────────────────────────────────────
+export const departments = sqliteTable('departments', {
+  id: text('id').primaryKey(), // slug, e.g. "iaud"
+  name: text('name').notNull(),
+  campus: text('campus').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 export const users = sqliteTable(
   'users',
@@ -9,7 +18,7 @@ export const users = sqliteTable(
     name: text('name').notNull(),
     registration: text('registration'), // nullable — invitees may not have one
     role: text('role').notNull(), // 'student' | 'professor' | 'staff' | 'maintenance'
-    department: text('department').notNull(),
+    department: text('department').notNull().references(() => departments.id),
     email: text('email').notNull().unique(),
     isMasterAdmin: integer('is_master_admin', { mode: 'boolean' }).notNull().default(false),
     disabledAt: text('disabled_at'), // ISO timestamp or null (null = active)
@@ -30,7 +39,7 @@ export const spaces = sqliteTable('spaces', {
   type: text('type').notNull(), // 'classroom' | 'study_room' | 'meeting_room' | 'hall'
   block: text('block').notNull(),
   campus: text('campus').notNull(),
-  department: text('department').notNull(),
+  department: text('department').notNull().references(() => departments.id),
   capacity: integer('capacity').notNull(),
   furniture: text('furniture'),
   lighting: text('lighting'),
@@ -153,7 +162,7 @@ export const invitations = sqliteTable('invitations', {
   role: text('role').notNull(), // student | professor | staff | maintenance
   name: text('name').notNull(),
   registration: text('registration'), // nullable — invitee may not have one
-  department: text('department').notNull(),
+  department: text('department').notNull().references(() => departments.id),
   tokenHash: text('token_hash').notNull().unique(), // SHA-256 of URL token, hex
   purpose: text('purpose').notNull().default('invite'), // 'invite' | 'reset'
   invitedBy: text('invited_by').notNull().references(() => users.id),
@@ -177,7 +186,14 @@ export const refreshTokens = sqliteTable('refresh_tokens', {
 });
 
 // ─── Relations ──────────────────────────────────────────────────────────────
+export const departmentsRelations = relations(departments, ({ many }) => ({
+  users: many(users),
+  spaces: many(spaces),
+  invitations: many(invitations),
+}));
+
 export const usersRelations = relations(users, ({ one, many }) => ({
+  department: one(departments, { fields: [users.department], references: [departments.id] }),
   reservations: many(reservations),
   blockings: many(blockings),
   notifications: many(notifications),
@@ -189,7 +205,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   refreshTokens: many(refreshTokens),
 }));
 
-export const spacesRelations = relations(spaces, ({ many }) => ({
+export const spacesRelations = relations(spaces, ({ one, many }) => ({
+  department: one(departments, { fields: [spaces.department], references: [departments.id] }),
   equipment: many(equipment),
   reservations: many(reservations),
   blockings: many(blockings),
@@ -236,6 +253,7 @@ export const userCredentialsRelations = relations(userCredentials, ({ one }) => 
 }));
 
 export const invitationsRelations = relations(invitations, ({ one }) => ({
+  department: one(departments, { fields: [invitations.department], references: [departments.id] }),
   inviter: one(users, { fields: [invitations.invitedBy], references: [users.id], relationName: 'inviter' }),
   acceptedUser: one(users, { fields: [invitations.acceptedUserId], references: [users.id], relationName: 'acceptedUser' }),
 }));

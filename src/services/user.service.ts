@@ -70,6 +70,7 @@ export class UserService {
   async getMeProfile(id: string) {
     const user = await this.db.query.users.findFirst({
       where: eq(users.id, id),
+      with: { department: true },
     });
     if (!user) throw new NotFoundError('User');
 
@@ -83,7 +84,11 @@ export class UserService {
         )
       );
 
-    return { ...user, unreadCount };
+    return {
+      ...user,
+      department: user.department?.name ?? user.department as unknown as string,
+      unreadCount,
+    };
   }
 
   async list(page: number, limit: number) {

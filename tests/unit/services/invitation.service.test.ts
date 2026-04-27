@@ -21,6 +21,7 @@ function createMockDb() {
         findFirst: vi.fn().mockResolvedValue(undefined),
         findMany: vi.fn().mockResolvedValue([]),
       },
+      departments: { findFirst: vi.fn().mockResolvedValue({ id: 'cc', name: 'CC', campus: 'Pici' }) },
       auditLogs: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     },
     insert: insertFn,

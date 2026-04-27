@@ -3,8 +3,9 @@ import { invitations, users } from '@/db/schema';
 import type { Database } from '@/db/client';
 import type { Env } from '@/types/env';
 import type { UserRole } from '@/types/auth';
-import { ConflictError, NotFoundError } from '@/middleware/error-handler';
+import { AppError, ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from '@/services/audit-log.service';
+import { DepartmentService } from '@/services/department.service';
 import { generateOpaqueToken, sha256Hex } from '@/lib/crypto';
 
 type Invitation = typeof invitations.$inferSelect;
@@ -45,6 +46,11 @@ export class InvitationService {
     purpose?: 'invite' | 'reset';
   }): Promise<{ invitation: Invitation; token: string; url: string }> {
     const { inviterId, email, name, role, department, registration, ttlHours = 72, purpose = 'invite' } = input;
+
+    const deptService = new DepartmentService(this.db);
+    if (!(await deptService.validateId(department))) {
+      throw new AppError(422, `Departamento "${department}" não existe`, 'INVALID_DEPARTMENT');
+    }
 
     // For 'invite' purpose: block existing users
     if (purpose === 'invite') {

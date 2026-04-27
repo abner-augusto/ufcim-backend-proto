@@ -43,6 +43,7 @@ export function createMockDb() {
       equipment:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       recurrences:   { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       spaceManagers: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      departments:   { findFirst: vi.fn().mockResolvedValue({ id: 'iaud', name: 'IAUD', campus: 'Benfica' }), findMany: vi.fn().mockResolvedValue([]) },
     },
     insert: insertFn,
     update: updateFn,
