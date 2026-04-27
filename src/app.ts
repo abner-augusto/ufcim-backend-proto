@@ -20,6 +20,7 @@ import { adminRoutes } from '@/routes/admin';
 import { authRoutes } from '@/routes/auth';
 import { bootstrapRoutes } from '@/routes/bootstrap';
 import { rbac, requireMasterAdmin } from '@/middleware/rbac';
+import { renderAdminLogin } from '@/admin/admin-login';
 
 type AppEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -68,6 +69,8 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   api.route('/stats', statsRoutes);
 
   app.route('/api/v1', api);
+
+  app.get('/admin/login', (c) => c.html(renderAdminLogin()));
 
   admin.use('*', authMiddleware);
   admin.use('*', syncUserMiddleware);

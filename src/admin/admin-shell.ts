@@ -84,6 +84,21 @@ export function renderAdminShell(currentPath: string, environment: 'development'
     </div>
 
     <script>
+      // Inject Authorization header on every HTMX request
+      document.body.addEventListener('htmx:configRequest', (event) => {
+        const token = sessionStorage.getItem('ufcim_admin_token');
+        if (token) event.detail.headers['Authorization'] = 'Bearer ' + token;
+      });
+      // On 401/403, bounce to login
+      document.body.addEventListener('htmx:responseError', (event) => {
+        if (event.detail.xhr.status === 401 || event.detail.xhr.status === 403) {
+          sessionStorage.removeItem('ufcim_admin_token');
+          sessionStorage.removeItem('ufcim_admin_refresh');
+          window.location.href = '/admin/login';
+        }
+      });
+    </script>
+    <script>
       window.applyAdminNavState = function applyAdminNavState(activePath) {
         const navLinks = document.querySelectorAll('[data-admin-nav-link="true"]');
 
