@@ -207,9 +207,31 @@ export class AuthService {
     if (!invite) throw new UnauthorizedError('Convite inválido ou expirado');
 
     const now = new Date().toISOString();
-    const newUserId = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
 
+    if (invite.purpose === 'reset') {
+      const existingUser = await this.db.query.users.findFirst({
+        where: eq(users.email, invite.email),
+      });
+      if (!existingUser) throw new UnauthorizedError('Usuário não encontrado');
+
+      await this.db.batch([
+        this.db
+          .update(userCredentials)
+          .set({ passwordHash, passwordUpdatedAt: now, failedAttempts: 0, lockedUntil: null })
+          .where(eq(userCredentials.userId, existingUser.id)),
+        this.db
+          .update(invitations)
+          .set({ acceptedAt: now, acceptedUserId: existingUser.id })
+          .where(eq(invitations.id, invite.id)),
+      ]);
+
+      const { accessToken, refreshToken } = await this.issueTokenPair(existingUser, userAgent);
+      await this.auditLog.log(existingUser.id, 'auth.password.reset', invite.id, 'invitation');
+      return { accessToken, refreshToken, user: toPublicUser(existingUser) };
+    }
+
+    const newUserId = crypto.randomUUID();
     await this.db.batch([
       this.db.insert(users).values({
         id: newUserId,

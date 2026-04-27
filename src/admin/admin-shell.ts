@@ -21,7 +21,7 @@ function navLink(currentPath: string, href: string, label: string) {
   `;
 }
 
-export function renderAdminShell(currentPath: string) {
+export function renderAdminShell(currentPath: string, environment: 'development' | 'staging' | 'production' = 'development') {
   const normalizedPath = currentPath === '/admin/' ? '/admin' : currentPath;
   const partialPath = normalizedPath === '/admin'
     ? '/admin/partials/dashboard'
@@ -56,7 +56,9 @@ export function renderAdminShell(currentPath: string) {
               hx-swap="outerHTML"
             ></div>
             <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-              No ambiente local, a autenticação ignora as restrições de cargo de equipe (staff-role) de forma protegida, mas apenas se o ambiente estiver configurado como <code>ENVIRONMENT=development</code>.
+              ${environment === 'production'
+                ? 'Você está conectado como Administrador Principal. Use "Convites" para cadastrar novos usuários. O link gerado é exibido apenas uma vez.'
+                : 'No ambiente local, a autenticação ignora as restrições de cargo de equipe (staff-role) de forma protegida, mas apenas se o ambiente estiver configurado como <code>ENVIRONMENT=development</code>.'}
             </div>
           </div>
         </div>
@@ -67,6 +69,7 @@ export function renderAdminShell(currentPath: string) {
           ${navLink(normalizedPath, '/admin/blockings', 'Bloqueios')}
           ${navLink(normalizedPath, '/admin/equipment', 'Equipamentos')}
           ${navLink(normalizedPath, '/admin/users', 'Usuários')}
+          ${navLink(normalizedPath, '/admin/invitations', 'Convites')}
           ${navLink(normalizedPath, '/admin/logs', 'Logs de Auditoria')}
         </nav>
       </header>

@@ -10,11 +10,14 @@ import { ReservationService } from '@/services/reservation.service';
 import { BlockingService } from '@/services/blocking.service';
 import { EquipmentService } from '@/services/equipment.service';
 import { UserService } from '@/services/user.service';
+import { UserAdminService } from '@/services/user-admin.service';
+import { InvitationService } from '@/services/invitation.service';
 import { AuditLogService } from '@/services/audit-log.service';
 import { StatsService } from '@/services/stats.service';
 import { createSpaceSchema, updateSpaceSchema } from '@/validators/space.schema';
 import { createBlockingSchema } from '@/validators/blocking.schema';
 import { createEquipmentSchema, updateEquipmentStatusSchema } from '@/validators/equipment.schema';
+import { createInvitationSchema } from '@/validators/invitation.schema';
 import { paginationSchema } from '@/validators/common.schema';
 import { renderAdminShell } from '@/admin/admin-shell';
 import { DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO, normalizeClosedHours } from '@/lib/schedule';
@@ -56,13 +59,14 @@ function getActingUserId(c: AdminContext): string {
   return getCookie(c, 'admin_acting_as') ?? c.get('user').sub;
 }
 
-adminRoutes.get('/', (c) => c.html(renderAdminShell('/admin')));
-adminRoutes.get('/spaces', (c) => c.html(renderAdminShell('/admin/spaces')));
-adminRoutes.get('/reservations', (c) => c.html(renderAdminShell('/admin/reservations')));
-adminRoutes.get('/blockings', (c) => c.html(renderAdminShell('/admin/blockings')));
-adminRoutes.get('/equipment', (c) => c.html(renderAdminShell('/admin/equipment')));
-adminRoutes.get('/users', (c) => c.html(renderAdminShell('/admin/users')));
-adminRoutes.get('/logs', (c) => c.html(renderAdminShell('/admin/logs')));
+adminRoutes.get('/', (c) => c.html(renderAdminShell('/admin', c.env.ENVIRONMENT)));
+adminRoutes.get('/spaces', (c) => c.html(renderAdminShell('/admin/spaces', c.env.ENVIRONMENT)));
+adminRoutes.get('/reservations', (c) => c.html(renderAdminShell('/admin/reservations', c.env.ENVIRONMENT)));
+adminRoutes.get('/blockings', (c) => c.html(renderAdminShell('/admin/blockings', c.env.ENVIRONMENT)));
+adminRoutes.get('/equipment', (c) => c.html(renderAdminShell('/admin/equipment', c.env.ENVIRONMENT)));
+adminRoutes.get('/users', (c) => c.html(renderAdminShell('/admin/users', c.env.ENVIRONMENT)));
+adminRoutes.get('/invitations', (c) => c.html(renderAdminShell('/admin/invitations', c.env.ENVIRONMENT)));
+adminRoutes.get('/logs', (c) => c.html(renderAdminShell('/admin/logs', c.env.ENVIRONMENT)));
 
 adminRoutes.get('/partials/dashboard', async (c) => {
   const db = createDb(c.env.DB);
@@ -102,6 +106,10 @@ adminRoutes.get('/partials/equipment', async (c) => {
 
 adminRoutes.get('/partials/users', async (c) => {
   return c.html(await renderUsersView(c));
+});
+
+adminRoutes.get('/partials/invitations', async (c) => {
+  return c.html(await renderInvitationsView(c));
 });
 
 adminRoutes.get('/partials/logs', async (c) => {
@@ -219,6 +227,104 @@ adminRoutes.post('/actions/equipment', async (c) => {
   await service.create(getActingUserId(c), parsed.data);
 
   return c.html(await renderEquipmentView(c, { message: 'Equipamento cadastrado' }));
+});
+
+adminRoutes.post('/actions/invitations', async (c) => {
+  const body = await formDataToObject(c);
+  const parsed = createInvitationSchema.safeParse({
+    email: stringValue(body.email),
+    name: stringValue(body.name),
+    role: stringValue(body.role),
+    department: stringValue(body.department),
+    registration: blankToUndefined(body.registration),
+  });
+  if (!parsed.success) return c.html(renderValidationErrors(parsed.error.issues));
+
+  const db = createDb(c.env.DB);
+  const service = new InvitationService(db, c.env);
+  const { invitation, url } = await service.create({
+    inviterId: getActingUserId(c),
+    ...parsed.data,
+  });
+  return c.html(await renderInvitationsView(c, {
+    message: `Convite criado para ${invitation.email}.`,
+    highlightUrl: url,
+    highlightInvitationId: invitation.id,
+  }));
+});
+
+adminRoutes.delete('/actions/invitations/:id', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new InvitationService(db, c.env);
+  try {
+    await service.revoke(getActingUserId(c), c.req.param('id'));
+    return c.html(await renderInvitationsView(c, { message: 'Convite revogado.' }));
+  } catch (err) {
+    return c.html(await renderInvitationsView(c, { message: err instanceof Error ? err.message : 'Erro ao revogar convite' }));
+  }
+});
+
+adminRoutes.post('/actions/invitations/:id/resend', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new InvitationService(db, c.env);
+  try {
+    const { invitation, url } = await service.resend(getActingUserId(c), c.req.param('id'));
+    return c.html(await renderInvitationsView(c, {
+      message: `Link reenviado para ${invitation.email}.`,
+      highlightUrl: url,
+      highlightInvitationId: invitation.id,
+    }));
+  } catch (err) {
+    return c.html(await renderInvitationsView(c, { message: err instanceof Error ? err.message : 'Erro ao reenviar convite' }));
+  }
+});
+
+adminRoutes.patch('/actions/users/:id/role', async (c) => {
+  const body = await formDataToObject(c);
+  const newRole = stringValue(body.role);
+  const db = createDb(c.env.DB);
+  const service = new UserAdminService(db, c.env);
+  try {
+    await service.changeRole(getActingUserId(c), c.req.param('id'), newRole as Parameters<UserAdminService['changeRole']>[2]);
+    return c.html(await renderUsersView(c, { message: 'Papel atualizado.' }));
+  } catch (err) {
+    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao alterar papel' }));
+  }
+});
+
+adminRoutes.patch('/actions/users/:id/disable', async (c) => {
+  const body = await formDataToObject(c);
+  const disabled = body.disabled === 'true';
+  const db = createDb(c.env.DB);
+  const service = new UserAdminService(db, c.env);
+  try {
+    await service.setDisabled(getActingUserId(c), c.req.param('id'), disabled);
+    return c.html(await renderUsersView(c, { message: disabled ? 'Conta desativada.' : 'Conta reativada.' }));
+  } catch (err) {
+    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao alterar status' }));
+  }
+});
+
+adminRoutes.post('/actions/users/:id/reset-password', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new UserAdminService(db, c.env);
+  try {
+    const { url } = await service.resetPassword(getActingUserId(c), c.req.param('id'));
+    return c.html(await renderUsersView(c, { message: 'Link de redefinição gerado.', highlightUrl: url, highlightUserId: c.req.param('id') }));
+  } catch (err) {
+    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao gerar link de redefinição' }));
+  }
+});
+
+adminRoutes.delete('/actions/users/:id/sessions', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new UserAdminService(db, c.env);
+  try {
+    const { revoked } = await service.revokeAllSessions(getActingUserId(c), c.req.param('id'));
+    return c.html(await renderUsersView(c, { message: `${revoked} sessão(ões) encerrada(s).` }));
+  } catch (err) {
+    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao encerrar sessões' }));
+  }
 });
 
 adminRoutes.post('/actions/spaces/:spaceId/managers', async (c) => {
@@ -706,18 +812,39 @@ async function renderEquipmentView(
 }
 
 async function renderUsersView(
-  c: AdminContext
+  c: AdminContext,
+  options?: { message?: string; highlightUrl?: string; highlightUserId?: string }
 ) {
   const filters = paginationSchema.parse(c.req.query());
   const db = createDb(c.env.DB);
   const userService = new UserService(db);
   const result = await userService.listForAdmin(filters.page, filters.limit);
 
+  const resetCallout = options?.highlightUrl && options?.highlightUserId
+    ? `
+      <div class="rounded-2xl border border-emerald-300 bg-emerald-50 p-6 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1">
+            <p class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Link de redefinição de senha — copie e envie</p>
+            <p class="mt-2 break-all rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-800 ring-1 ring-emerald-200">${escapeHtml(options.highlightUrl)}</p>
+            <p class="mt-2 text-xs text-emerald-700">Este link aparece apenas uma vez. Após sair desta tela, gere um novo via "Resetar senha".</p>
+          </div>
+          <button
+            class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            onclick="navigator.clipboard.writeText('${escapeAttribute(options.highlightUrl)}'); this.textContent='Copiado ✓'; setTimeout(() => this.textContent='Copiar', 2000)"
+          >Copiar</button>
+        </div>
+      </div>
+    `
+    : '';
+
   return `
     <section class="space-y-6">
+      ${renderMessage(options?.message)}
+      ${resetCallout}
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <h2 class="text-xl font-semibold">Usuários</h2>
-        <p class="mt-1 text-sm text-slate-600">Visualização somente leitura. Os registros de usuários são sincronizados a partir das claims do JWT.</p>
+        <p class="mt-1 text-sm text-slate-600">Gerencie papéis, status e sessões dos usuários.</p>
       </div>
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div class="overflow-x-auto">
@@ -729,22 +856,223 @@ async function renderUsersView(
                 <th class="px-3 py-2 font-medium">Email</th>
                 <th class="px-3 py-2 font-medium">Departamento</th>
                 <th class="px-3 py-2 font-medium">Papel</th>
+                <th class="px-3 py-2 font-medium">Status</th>
+                <th class="px-3 py-2 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              ${result.data.map((user) => `
-                <tr>
-                  <td class="px-3 py-3 font-medium">${escapeHtml(user.name)}</td>
-                  <td class="px-3 py-3">${escapeHtml(user.registration ?? '—')}</td>
-                  <td class="px-3 py-3">${escapeHtml(user.email)}</td>
-                  <td class="px-3 py-3">${escapeHtml(user.department)}</td>
-                  <td class="px-3 py-3">${renderRoleBadge(user.role)}</td>
-                </tr>
-              `).join('')}
+              ${result.data.map((user) => {
+                const isMaster = user.isMasterAdmin;
+                const isDisabled = user.disabledAt != null;
+                return `
+                  <tr class="${isDisabled ? 'opacity-60' : ''}">
+                    <td class="px-3 py-3 font-medium">
+                      ${escapeHtml(user.name)}
+                      ${isMaster ? '<span class="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">Master Admin</span>' : ''}
+                    </td>
+                    <td class="px-3 py-3">${escapeHtml(user.registration ?? '—')}</td>
+                    <td class="px-3 py-3">${escapeHtml(user.email)}</td>
+                    <td class="px-3 py-3">${escapeHtml(user.department)}</td>
+                    <td class="px-3 py-3">
+                      ${isMaster
+                        ? renderRoleBadge(user.role)
+                        : `<form hx-patch="/admin/actions/users/${user.id}/role" hx-target="#admin-content" hx-swap="innerHTML">
+                            <select
+                              name="role"
+                              onchange="this.form.requestSubmit()"
+                              class="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-slate-900 focus:outline-none"
+                            >
+                              ${['student', 'professor', 'staff', 'maintenance'].map((r) => `
+                                <option value="${r}" ${r === user.role ? 'selected' : ''}>${{student:'Estudante',professor:'Professor(a)',staff:'Funcionário',maintenance:'Manutenção'}[r] ?? r}</option>
+                              `).join('')}
+                            </select>
+                          </form>`
+                      }
+                    </td>
+                    <td class="px-3 py-3">
+                      ${isDisabled
+                        ? '<span class="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">Desativado</span>'
+                        : '<span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Ativo</span>'}
+                    </td>
+                    <td class="px-3 py-3">
+                      <div class="flex flex-wrap gap-2">
+                        ${isMaster
+                          ? '<span class="text-xs text-slate-400">—</span>'
+                          : `
+                            <form hx-patch="/admin/actions/users/${user.id}/disable" hx-target="#admin-content" hx-swap="innerHTML">
+                              <input type="hidden" name="disabled" value="${isDisabled ? 'false' : 'true'}" />
+                              <button type="submit" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
+                                ${isDisabled ? 'Ativar' : 'Desativar'}
+                              </button>
+                            </form>
+                            <form hx-post="/admin/actions/users/${user.id}/reset-password" hx-target="#admin-content" hx-swap="innerHTML">
+                              <button type="submit" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Resetar senha</button>
+                            </form>
+                            <form
+                              hx-delete="/admin/actions/users/${user.id}/sessions"
+                              hx-target="#admin-content"
+                              hx-swap="innerHTML"
+                              hx-confirm="Encerrar todas as sessões de ${escapeAttribute(user.name)}?"
+                            >
+                              <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50">Encerrar sessões</button>
+                            </form>
+                          `
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
         </div>
         ${renderPagination('/admin/partials/users', result.pagination, filters)}
+      </div>
+    </section>
+  `;
+}
+
+async function renderInvitationsView(
+  c: AdminContext,
+  options?: { message?: string; highlightUrl?: string; highlightInvitationId?: string }
+) {
+  const statusFilter = (c.req.query('status') ?? 'all') as 'pending' | 'accepted' | 'expired' | 'revoked' | 'all';
+  const db = createDb(c.env.DB);
+  const service = new InvitationService(db, c.env);
+  const result = await service.list({ status: statusFilter, page: 1, limit: 50 });
+
+  const now = new Date().toISOString();
+
+  const highlightCallout = options?.highlightUrl && options?.highlightInvitationId
+    ? `
+      <div class="rounded-2xl border border-emerald-300 bg-emerald-50 p-6 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1">
+            <p class="text-sm font-semibold uppercase tracking-wide text-emerald-700">Convite criado — copie e envie via WhatsApp</p>
+            <p class="mt-2 break-all rounded-lg bg-white px-3 py-2 font-mono text-sm text-slate-800 ring-1 ring-emerald-200" id="invite-url-${options.highlightInvitationId}">${escapeHtml(options.highlightUrl)}</p>
+            <p class="mt-2 text-xs text-emerald-700">Este link aparece apenas uma vez. Após sair desta tela, gere um novo via "Reenviar".</p>
+          </div>
+          <button
+            class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            onclick="navigator.clipboard.writeText('${escapeAttribute(options.highlightUrl)}'); this.textContent='Copiado ✓'; setTimeout(() => this.textContent='Copiar', 2000)"
+          >Copiar</button>
+        </div>
+      </div>
+    `
+    : '';
+
+  const statusOptions = [
+    { value: 'all', label: 'Todos' },
+    { value: 'pending', label: 'Pendente' },
+    { value: 'accepted', label: 'Aceito' },
+    { value: 'expired', label: 'Expirado' },
+    { value: 'revoked', label: 'Revogado' },
+  ];
+
+  const invitationStatusLabel = (inv: typeof result.data[number]) => {
+    if (inv.acceptedAt) return '<span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Aceito</span>';
+    if (inv.revokedAt) return '<span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Revogado</span>';
+    if (inv.expiresAt < now) return '<span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">Expirado</span>';
+    return '<span class="inline-flex rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-700">Pendente</span>';
+  };
+
+  const isPending = (inv: typeof result.data[number]) =>
+    inv.acceptedAt == null && inv.revokedAt == null && inv.expiresAt >= now;
+
+  return `
+    <section class="space-y-6">
+      ${renderMessage(options?.message)}
+      ${highlightCallout}
+      <div class="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <h2 class="text-xl font-semibold">Criar Convite</h2>
+          <p class="mt-1 text-sm text-slate-600">O link gerado é exibido apenas uma vez. Envie via WhatsApp ou e-mail.</p>
+          <form class="mt-4 grid gap-3" hx-post="/admin/actions/invitations" hx-target="#admin-content" hx-swap="innerHTML">
+            ${renderInput('email', 'E-mail', 'email')}
+            ${renderInput('name', 'Nome', 'text')}
+            ${renderInput('registration', 'Matrícula (opcional)', 'text', '', false, '', 'Deixe em branco se o usuário não possui matrícula UFC')}
+            ${renderInput('department', 'Departamento', 'text')}
+            ${renderSelect('role', 'Papel', [
+              { value: 'student', label: 'Estudante' },
+              { value: 'professor', label: 'Professor(a)' },
+              { value: 'staff', label: 'Funcionário' },
+              { value: 'maintenance', label: 'Manutenção' },
+            ], '', true)}
+            <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Criar Convite</button>
+          </form>
+        </div>
+
+        <div class="space-y-4">
+          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div class="flex items-center justify-between gap-4">
+              <h2 class="text-xl font-semibold">Convites</h2>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-600">${result.pagination.total} total</span>
+            </div>
+            <form class="mt-4" hx-get="/admin/partials/invitations" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true">
+              ${renderSelect('status', 'Filtrar por status', statusOptions, statusFilter, true)}
+              <div class="mt-3">
+                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Filtrar</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead>
+                  <tr class="text-left text-slate-500">
+                    <th class="px-3 py-2 font-medium">Email</th>
+                    <th class="px-3 py-2 font-medium">Nome</th>
+                    <th class="px-3 py-2 font-medium">Papel</th>
+                    <th class="px-3 py-2 font-medium">Status</th>
+                    <th class="px-3 py-2 font-medium">Criado em</th>
+                    <th class="px-3 py-2 font-medium">Expira em</th>
+                    <th class="px-3 py-2 font-medium">Ações</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${result.data.length === 0
+                    ? `<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">Nenhum convite encontrado.</td></tr>`
+                    : result.data.map((inv) => {
+                        const pending = isPending(inv);
+                        const dimmed = inv.revokedAt || (inv.expiresAt < now && !inv.acceptedAt);
+                        return `
+                          <tr class="${dimmed ? 'opacity-50' : ''}">
+                            <td class="px-3 py-3">${escapeHtml(inv.email)}</td>
+                            <td class="px-3 py-3 font-medium">${escapeHtml(inv.name)}</td>
+                            <td class="px-3 py-3">${renderRoleBadge(inv.role)}</td>
+                            <td class="px-3 py-3">${invitationStatusLabel(inv)}</td>
+                            <td class="px-3 py-3 tabular-nums">${inv.createdAt.slice(0, 10)}</td>
+                            <td class="px-3 py-3 tabular-nums">${inv.expiresAt.slice(0, 10)}</td>
+                            <td class="px-3 py-3">
+                              <div class="flex flex-wrap gap-2">
+                                ${pending
+                                  ? `
+                                    <form hx-post="/admin/actions/invitations/${inv.id}/resend" hx-target="#admin-content" hx-swap="innerHTML">
+                                      <button type="submit" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">Reenviar</button>
+                                    </form>
+                                    <form
+                                      hx-delete="/admin/actions/invitations/${inv.id}"
+                                      hx-target="#admin-content"
+                                      hx-swap="innerHTML"
+                                      hx-confirm="Revogar convite para ${escapeAttribute(inv.email)}?"
+                                    >
+                                      <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50">Revogar</button>
+                                    </form>
+                                  `
+                                  : '<span class="text-xs text-slate-400">—</span>'
+                                }
+                              </div>
+                            </td>
+                          </tr>
+                        `;
+                      }).join('')
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   `;

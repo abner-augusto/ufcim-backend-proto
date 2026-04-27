@@ -154,6 +154,7 @@ export const invitations = sqliteTable('invitations', {
   registration: text('registration'), // nullable — invitee may not have one
   department: text('department').notNull(),
   tokenHash: text('token_hash').notNull().unique(), // SHA-256 of URL token, hex
+  purpose: text('purpose').notNull().default('invite'), // 'invite' | 'reset'
   invitedBy: text('invited_by').notNull().references(() => users.id),
   expiresAt: text('expires_at').notNull(),
   acceptedAt: text('accepted_at'), // null = pending

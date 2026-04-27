@@ -100,6 +100,7 @@ function makeInvitation(overrides = {}) {
     registration: null,
     department: 'CC',
     tokenHash: '',
+    purpose: 'invite',
     invitedBy: 'user-1',
     expiresAt: FUTURE,
     acceptedAt: null,
@@ -354,5 +355,28 @@ describe('AuthService.acceptInvitation', () => {
     await expect(
       service.acceptInvitation({ token: 'used-token', password: 'Password123' })
     ).rejects.toThrow('Convite inválido ou expirado');
+  });
+
+  it('purpose=reset updates existing user credentials instead of creating new user', async () => {
+    const resetInvite = makeInvitation({ purpose: 'reset', email: 'test@ufc.br' });
+    db.query.invitations.findFirst.mockResolvedValue(resetInvite);
+    db.query.users.findFirst.mockResolvedValue(makeUser({ email: 'test@ufc.br' }));
+    db.batch.mockResolvedValue([]);
+
+    const result = await service.acceptInvitation({ token: 'reset-token', password: 'NewPassword123' });
+    expect(result.accessToken).toBeTruthy();
+    expect(db.batch).toHaveBeenCalled();
+    // Only updates are batched (no insert into users table)
+    expect(db.update).toHaveBeenCalled();
+  });
+
+  it('purpose=reset throws when existing user not found', async () => {
+    const resetInvite = makeInvitation({ purpose: 'reset', email: 'ghost@ufc.br' });
+    db.query.invitations.findFirst.mockResolvedValue(resetInvite);
+    db.query.users.findFirst.mockResolvedValue(undefined);
+
+    await expect(
+      service.acceptInvitation({ token: 'reset-token', password: 'NewPassword123' })
+    ).rejects.toThrow('Usuário não encontrado');
   });
 });

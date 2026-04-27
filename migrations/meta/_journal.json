@@ -36,6 +36,13 @@
       "when": 1777248276354,
       "tag": "0004_auth_phase1",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777250930956,
+      "tag": "0005_invitations_purpose",
+      "breakpoints": true
     }
   ]
 }
