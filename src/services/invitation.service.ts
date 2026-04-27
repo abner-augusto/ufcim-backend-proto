@@ -29,6 +29,11 @@ export class InvitationService {
     this.auditLog = new AuditLogService(db);
   }
 
+  private buildInviteUrl(token: string): string {
+    if (!this.env.INVITE_BASE_URL) throw new Error('INVITE_BASE_URL não configurado — rode com --env dev');
+    return `${this.env.INVITE_BASE_URL}/${token}`;
+  }
+
   async create(input: {
     inviterId: string;
     email: string;
@@ -91,7 +96,7 @@ export class InvitationService {
       })
       .returning();
 
-    const url = `${this.env.INVITE_BASE_URL}/${rawToken}`;
+    const url = this.buildInviteUrl(rawToken);
     await this.auditLog.log(inviterId, 'invitation.created', id, 'invitation', `Convite criado para ${email}`);
 
     return { invitation, token: rawToken, url };
@@ -170,7 +175,7 @@ export class InvitationService {
       .where(eq(invitations.id, invitationId))
       .returning();
 
-    const url = `${this.env.INVITE_BASE_URL}/${rawToken}`;
+    const url = this.buildInviteUrl(rawToken);
     await this.auditLog.log(inviterId, 'invitation.resent', invitationId, 'invitation', `Convite reenviado para ${invite.email}`);
     return { invitation: updated, token: rawToken, url };
   }
