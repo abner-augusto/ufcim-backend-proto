@@ -78,6 +78,7 @@ export const reservations = sqliteTable('reservations', {
   recurrenceId: text('recurrence_id').references(() => recurrences.id),
   changeOrigin: text('change_origin'),
   purpose: text('purpose'),
+  cancelReason: text('cancel_reason'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

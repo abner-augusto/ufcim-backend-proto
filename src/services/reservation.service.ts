@@ -167,7 +167,7 @@ export class ReservationService {
     return { recurrenceId, created, skipped };
   }
 
-  async cancel(reservationId: string, userId: string, userRole: string) {
+  async cancel(reservationId: string, userId: string, userRole: string, cancelReason?: string) {
     const reservation = await this.findOrThrow(reservationId);
 
     if (reservation.status === 'canceled') {
@@ -185,23 +185,24 @@ export class ReservationService {
     const now = new Date().toISOString();
     const [updated] = await this.db
       .update(reservations)
-      .set({ status: 'canceled', updatedAt: now })
+      .set({ status: 'canceled', cancelReason: cancelReason ?? null, updatedAt: now })
       .where(eq(reservations.id, reservationId))
       .returning();
 
+    const reasonSuffix = cancelReason ? ` Motivo: ${cancelReason}` : '';
     await this.auditLog.log(
       userId,
       'cancel_reservation',
       reservationId,
       'reservation',
-      `Cancelou a reserva do espaço ${reservation.spaceId} em ${reservation.date} (${reservation.startTime}-${reservation.endTime})`
+      `Cancelou a reserva do espaço ${reservation.spaceId} em ${reservation.date} (${reservation.startTime}-${reservation.endTime})${reasonSuffix}`
     );
 
     if (reservation.userId !== userId) {
       await this.notification.create(
         reservation.userId,
         'Reserva cancelada',
-        `Sua reserva em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.`,
+        `Sua reserva em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.${reasonSuffix}`,
         'canceled'
       );
     }
@@ -209,7 +210,7 @@ export class ReservationService {
     return updated;
   }
 
-  async cancelSeries(recurrenceId: string, userId: string, userRole: string) {
+  async cancelSeries(recurrenceId: string, userId: string, userRole: string, cancelReason?: string) {
     if (userRole === 'student') {
       throw new ForbiddenError('Estudantes não podem cancelar séries de reservas recorrentes');
     }
@@ -235,16 +236,17 @@ export class ReservationService {
     const now = new Date().toISOString();
     const updatedReservations = await this.db
       .update(reservations)
-      .set({ status: 'canceled', updatedAt: now })
+      .set({ status: 'canceled', cancelReason: cancelReason ?? null, updatedAt: now })
       .where(eq(reservations.recurrenceId, recurrenceId))
       .returning();
 
+    const reasonSuffix = cancelReason ? ` Motivo: ${cancelReason}` : '';
     await this.auditLog.log(
       userId,
       'cancel_recurring_reservation',
       recurrenceId,
       'reservation',
-      `Cancelou a série recorrente ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${activeReservations.length} reservas)`
+      `Cancelou a série recorrente ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${activeReservations.length} reservas)${reasonSuffix}`
     );
 
     for (const reservation of activeReservations) {
@@ -253,7 +255,7 @@ export class ReservationService {
       await this.notification.create(
         reservation.userId,
         'Série de reservas recorrentes cancelada',
-        `Sua reserva recorrente em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.`,
+        `Sua reserva recorrente em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.${reasonSuffix}`,
         'canceled'
       );
     }

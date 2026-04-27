@@ -60,7 +60,17 @@ reservationRoutes.patch(
     const service = new ReservationService(db);
     const user = c.get('user');
 
-    const result = await service.cancel(c.req.param('id'), user.sub, extractRole(user) ?? 'student');
+    let cancelReason: string | undefined;
+    try {
+      const body = await c.req.json();
+      if (typeof body?.cancelReason === 'string' && body.cancelReason.trim()) {
+        cancelReason = body.cancelReason.trim();
+      }
+    } catch {
+      // body absent or not JSON — cancelReason stays undefined
+    }
+
+    const result = await service.cancel(c.req.param('id'), user.sub, extractRole(user) ?? 'student', cancelReason);
     return c.json(result);
   }
 );
