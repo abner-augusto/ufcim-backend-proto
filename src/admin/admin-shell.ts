@@ -49,12 +49,6 @@ export function renderAdminShell(currentPath: string, environment: 'development'
             </p>
           </div>
           <div class="flex flex-col items-end gap-3">
-            <div
-              id="user-switcher"
-              hx-get="/admin/partials/user-switcher"
-              hx-trigger="load"
-              hx-swap="outerHTML"
-            ></div>
             <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
               ${environment === 'production'
                 ? 'Você está conectado como Administrador Principal. Use "Convites" para cadastrar novos usuários. O link gerado é exibido apenas uma vez.'

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { getCookie, setCookie } from 'hono/cookie';
+
 import { z } from 'zod';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
@@ -57,7 +57,7 @@ export const adminRoutes = new Hono<AppEnv>();
 type AdminContext = Context<AppEnv>;
 
 function getActingUserId(c: AdminContext): string {
-  return getCookie(c, 'admin_acting_as') ?? c.get('user').sub;
+  return c.get('user').sub;
 }
 
 
@@ -141,23 +141,6 @@ adminRoutes.get('/partials/logs', async (c) => {
   return c.html(await renderLogsView(c));
 });
 
-adminRoutes.get('/partials/user-switcher', async (c) => {
-  const db = createDb(c.env.DB);
-  const userService = new UserService(db);
-  const users = await userService.list(1, 100);
-  const actingAs = getActingUserId(c);
-  return c.html(renderUserSwitcher(users, actingAs));
-});
-
-adminRoutes.post('/actions/acting-as', async (c) => {
-  const body = await formDataToObject(c);
-  const userId = String(body.userId ?? '');
-  setCookie(c, 'admin_acting_as', userId, { path: '/' });
-  const db = createDb(c.env.DB);
-  const userService = new UserService(db);
-  const users = await userService.list(1, 100);
-  return c.html(renderUserSwitcher(users, userId));
-});
 
 adminRoutes.post('/actions/spaces', async (c) => {
   const body = await formDataToObject(c);
@@ -1289,38 +1272,6 @@ async function renderLogsView(
   `;
 }
 
-function renderUserSwitcher(
-  users: Awaited<ReturnType<UserService['list']>>,
-  actingAs: string
-) {
-  const current = users.find((u) => u.id === actingAs);
-  const roleLabel: Record<string, string> = {
-    student: 'Estudante',
-    professor: 'Professor(a)',
-    staff: 'Funcionário',
-    maintenance: 'Manutenção',
-  };
-
-  return `
-    <div id="user-switcher" class="flex items-center gap-2 text-sm">
-      <span class="font-medium text-slate-700">Agindo como:</span>
-      <form hx-post="/admin/actions/acting-as" hx-target="#user-switcher" hx-swap="outerHTML">
-        <select
-          name="userId"
-          onchange="this.form.requestSubmit()"
-          class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm shadow-sm focus:border-slate-900 focus:outline-none"
-        >
-          ${users.map((u) => `
-            <option value="${escapeAttribute(u.id)}" ${u.id === actingAs ? 'selected' : ''}>
-              ${escapeHtml(u.name)} · ${escapeHtml(roleLabel[u.role] ?? u.role)}
-            </option>
-          `).join('')}
-        </select>
-      </form>
-      ${current ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">${escapeHtml(current.registration ?? '—')}</span>` : ''}
-    </div>
-  `;
-}
 
 function renderDashboard(stats: Awaited<ReturnType<StatsService['getDashboardStats']>>) {
   return `
