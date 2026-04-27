@@ -16,6 +16,7 @@ interface CreateEquipmentInput {
 interface UpdateEquipmentStatusInput {
   status: string;
   notes?: string;
+  assetId?: string;
 }
 
 export class EquipmentService {

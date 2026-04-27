@@ -31,7 +31,7 @@ export class UserService {
       .values({
         id: payload.sub,
         name: payload.name,
-        registration: payload.registration ?? payload.preferred_username,
+        registration: payload.registration ?? payload.preferred_username ?? null,
         role,
         department: payload.department ?? 'Unknown',
         email: payload.email,
@@ -58,6 +58,13 @@ export class UserService {
     });
     if (!user) throw new NotFoundError('User');
     return user;
+  }
+
+  async getByEmail(email: string) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+    return user ?? null;
   }
 
   async getMeProfile(id: string) {

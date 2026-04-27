@@ -735,7 +735,7 @@ async function renderUsersView(
               ${result.data.map((user) => `
                 <tr>
                   <td class="px-3 py-3 font-medium">${escapeHtml(user.name)}</td>
-                  <td class="px-3 py-3">${escapeHtml(user.registration)}</td>
+                  <td class="px-3 py-3">${escapeHtml(user.registration ?? '—')}</td>
                   <td class="px-3 py-3">${escapeHtml(user.email)}</td>
                   <td class="px-3 py-3">${escapeHtml(user.department)}</td>
                   <td class="px-3 py-3">${renderRoleBadge(user.role)}</td>
@@ -835,7 +835,7 @@ function renderUserSwitcher(
           `).join('')}
         </select>
       </form>
-      ${current ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">${escapeHtml(current.registration)}</span>` : ''}
+      ${current ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">${escapeHtml(current.registration ?? '—')}</span>` : ''}
     </div>
   `;
 }

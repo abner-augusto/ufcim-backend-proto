@@ -1,17 +1,25 @@
 import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // ─── Users ───────────────────────────────────────────────────────────────────
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(), // UUID
-  name: text('name').notNull(),
-  registration: text('registration').notNull().unique(),
-  role: text('role').notNull(), // 'student' | 'professor' | 'staff' | 'maintenance'
-  department: text('department').notNull(),
-  email: text('email').notNull().unique(),
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-});
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(), // UUID
+    name: text('name').notNull(),
+    registration: text('registration'), // nullable — invitees may not have one
+    role: text('role').notNull(), // 'student' | 'professor' | 'staff' | 'maintenance'
+    department: text('department').notNull(),
+    email: text('email').notNull().unique(),
+    isMasterAdmin: integer('is_master_admin', { mode: 'boolean' }).notNull().default(false),
+    disabledAt: text('disabled_at'), // ISO timestamp or null (null = active)
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => ({
+    registrationUnq: uniqueIndex('users_registration_unq').on(t.registration).where(sql`registration IS NOT NULL`),
+  })
+);
 
 // ─── Spaces (ambientes) ─────────────────────────────────────────────────────
 export const spaces = sqliteTable('spaces', {
@@ -128,14 +136,55 @@ export const spaceManagers = sqliteTable(
   })
 );
 
+// ─── User Credentials ────────────────────────────────────────────────────────
+export const userCredentials = sqliteTable('user_credentials', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  passwordHash: text('password_hash').notNull(), // format: "pbkdf2$<iterations>$<saltB64>$<hashB64>"
+  passwordUpdatedAt: text('password_updated_at').notNull(),
+  failedAttempts: integer('failed_attempts').notNull().default(0),
+  lockedUntil: text('locked_until'), // ISO timestamp or null
+});
+
+// ─── Invitations ─────────────────────────────────────────────────────────────
+export const invitations = sqliteTable('invitations', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull(),
+  role: text('role').notNull(), // student | professor | staff | maintenance
+  name: text('name').notNull(),
+  registration: text('registration'), // nullable — invitee may not have one
+  department: text('department').notNull(),
+  tokenHash: text('token_hash').notNull().unique(), // SHA-256 of URL token, hex
+  invitedBy: text('invited_by').notNull().references(() => users.id),
+  expiresAt: text('expires_at').notNull(),
+  acceptedAt: text('accepted_at'), // null = pending
+  acceptedUserId: text('accepted_user_id').references(() => users.id),
+  revokedAt: text('revoked_at'), // null = not revoked
+  createdAt: text('created_at').notNull(),
+});
+
+// ─── Refresh Tokens ──────────────────────────────────────────────────────────
+export const refreshTokens = sqliteTable('refresh_tokens', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(), // SHA-256 hex of opaque token
+  expiresAt: text('expires_at').notNull(),
+  revokedAt: text('revoked_at'), // null = valid
+  replacedBy: text('replaced_by'), // refresh_tokens.id of next token
+  userAgent: text('user_agent'),
+  createdAt: text('created_at').notNull(),
+});
+
 // ─── Relations ──────────────────────────────────────────────────────────────
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   reservations: many(reservations),
   blockings: many(blockings),
   notifications: many(notifications),
   auditLogs: many(auditLogs),
   managedSpaces: many(spaceManagers, { relationName: 'manager' }),
   assignedManagers: many(spaceManagers, { relationName: 'assigner' }),
+  credentials: one(userCredentials),
+  invitationsSent: many(invitations, { relationName: 'inviter' }),
+  refreshTokens: many(refreshTokens),
 }));
 
 export const spacesRelations = relations(spaces, ({ many }) => ({
@@ -178,4 +227,17 @@ export const spaceManagersRelations = relations(spaceManagers, ({ one }) => ({
   space: one(spaces, { fields: [spaceManagers.spaceId], references: [spaces.id] }),
   user: one(users, { fields: [spaceManagers.userId], references: [users.id], relationName: 'manager' }),
   assigner: one(users, { fields: [spaceManagers.assignedBy], references: [users.id], relationName: 'assigner' }),
+}));
+
+export const userCredentialsRelations = relations(userCredentials, ({ one }) => ({
+  user: one(users, { fields: [userCredentials.userId], references: [users.id] }),
+}));
+
+export const invitationsRelations = relations(invitations, ({ one }) => ({
+  inviter: one(users, { fields: [invitations.invitedBy], references: [users.id], relationName: 'inviter' }),
+  acceptedUser: one(users, { fields: [invitations.acceptedUserId], references: [users.id], relationName: 'acceptedUser' }),
+}));
+
+export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+  user: one(users, { fields: [refreshTokens.userId], references: [users.id] }),
 }));
