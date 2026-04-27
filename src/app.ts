@@ -17,6 +17,7 @@ import { notificationRoutes } from '@/routes/notifications';
 import { logRoutes } from '@/routes/logs';
 import { statsRoutes } from '@/routes/stats';
 import { adminRoutes } from '@/routes/admin';
+import { authRoutes } from '@/routes/auth';
 import { rbac, requireMasterAdmin } from '@/middleware/rbac';
 
 type AppEnv = { Bindings: Env; Variables: AppVariables };
@@ -47,6 +48,8 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   if (devRoutes) {
     app.route('/', devRoutes);
   }
+
+  app.route('/auth', authRoutes);
 
   api.use('*', authMiddleware);
   api.use('*', syncUserMiddleware);
