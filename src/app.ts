@@ -17,7 +17,7 @@ import { notificationRoutes } from '@/routes/notifications';
 import { logRoutes } from '@/routes/logs';
 import { statsRoutes } from '@/routes/stats';
 import { adminRoutes } from '@/routes/admin';
-import { rbac } from '@/middleware/rbac';
+import { rbac, requireMasterAdmin } from '@/middleware/rbac';
 
 type AppEnv = { Bindings: Env; Variables: AppVariables };
 
@@ -66,7 +66,7 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
 
   admin.use('*', authMiddleware);
   admin.use('*', syncUserMiddleware);
-  admin.use('*', rbac(['staff']));
+  admin.use('*', requireMasterAdmin());
   admin.route('/', adminRoutes);
 
   app.route('/admin', admin);

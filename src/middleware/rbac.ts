@@ -37,6 +37,23 @@ export function rbac(allowedRoles: UserRole[]) {
   );
 }
 
+export function isMasterAdmin(payload: JwtPayload): boolean {
+  return (payload.realm_access?.roles ?? []).includes('ufcim-master-admin');
+}
+
+export function requireMasterAdmin() {
+  return createMiddleware<{ Bindings: Env; Variables: { user: JwtPayload } }>(async (c, next) => {
+    const user = c.get('user');
+    if (!isMasterAdmin(user)) {
+      return c.json(
+        { error: 'Acesso restrito ao administrador principal.', code: 'FORBIDDEN' },
+        403
+      );
+    }
+    await next();
+  });
+}
+
 /**
  * Extracts the UFCIM application role from Keycloak JWT realm_access claims.
  * Maps Keycloak realm roles to app roles.

@@ -1,6 +1,6 @@
 import { createApp } from './app';
-import { authMiddleware } from './middleware/auth';
+import { localAuthMiddleware } from './middleware/auth-local';
 
-const app = createApp({ authMiddleware });
+const app = createApp({ authMiddleware: localAuthMiddleware });
 
 export default app;

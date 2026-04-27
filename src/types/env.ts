@@ -5,6 +5,10 @@ export type Env = {
   JWKS_URL: string;
   JWT_ISSUER: string;
   JWT_AUDIENCE?: string;
+  JWT_SIGNING_SECRET: string;
+  INVITE_BASE_URL: string;
+  ADMIN_BASE_URL: string;
+  BOOTSTRAP_TOKEN?: string;
   ENVIRONMENT: 'development' | 'staging' | 'production';
 };
 
