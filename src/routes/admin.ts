@@ -356,6 +356,17 @@ adminRoutes.delete('/actions/users/:id/sessions', async (c) => {
   }
 });
 
+adminRoutes.delete('/actions/users/:id', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new UserAdminService(db, c.env);
+  try {
+    await service.softDelete(getActingUserId(c), c.req.param('id'));
+    return c.html(await renderUsersView(c, { message: 'Usuário excluído.' }));
+  } catch (err) {
+    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao excluir usuário' }));
+  }
+});
+
 adminRoutes.post('/actions/spaces/:spaceId/managers', async (c) => {
   const body = await formDataToObject(c);
   const spaceId = c.req.param('spaceId');
@@ -853,10 +864,16 @@ async function renderUsersView(
   c: AdminContext,
   options?: { message?: string; highlightUrl?: string; highlightUserId?: string }
 ) {
-  const filters = paginationSchema.parse(c.req.query());
+  const rawQuery = c.req.query();
+  const filters = paginationSchema.parse(rawQuery);
+  const includeDeleted = rawQuery.includeDeleted === 'true';
   const db = createDb(c.env.DB);
   const userService = new UserService(db);
-  const result = await userService.listForAdmin(filters.page, filters.limit);
+  const [result, actingUser] = await Promise.all([
+    userService.listForAdmin(filters.page, filters.limit, includeDeleted),
+    userService.getById(getActingUserId(c)),
+  ]);
+  const actingIsMaster = actingUser.isMasterAdmin;
 
   const resetCallout = options?.highlightUrl && options?.highlightUserId
     ? `
@@ -880,9 +897,17 @@ async function renderUsersView(
     <section class="space-y-6">
       ${renderMessage(options?.message)}
       ${resetCallout}
-      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-xl font-semibold">Usuários</h2>
-        <p class="mt-1 text-sm text-slate-600">Gerencie papéis, status e sessões dos usuários.</p>
+      <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 flex items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-semibold">Usuários</h2>
+          <p class="mt-1 text-sm text-slate-600">Gerencie papéis, status e sessões dos usuários.</p>
+        </div>
+        <form hx-get="/admin/partials/users" hx-target="#admin-content" hx-swap="innerHTML" hx-push-url="true">
+          <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+            <input type="checkbox" name="includeDeleted" value="true" onchange="this.form.requestSubmit()" ${includeDeleted ? 'checked' : ''} class="rounded border-slate-300" />
+            Mostrar excluídos
+          </label>
+        </form>
       </div>
       <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div class="overflow-x-auto">
@@ -901,18 +926,20 @@ async function renderUsersView(
             <tbody class="divide-y divide-slate-100">
               ${result.data.map((user) => {
                 const isMaster = user.isMasterAdmin;
+                const isDeleted = user.deletedAt != null;
                 const isDisabled = user.disabledAt != null;
                 return `
-                  <tr class="${isDisabled ? 'opacity-60' : ''}">
+                  <tr class="${isDeleted ? 'opacity-40 line-through' : isDisabled ? 'opacity-60' : ''}">
                     <td class="px-3 py-3 font-medium">
                       ${escapeHtml(user.name)}
                       ${isMaster ? '<span class="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">Master Admin</span>' : ''}
+                      ${isDeleted ? '<span class="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500 no-underline" style="text-decoration:none">Excluído</span>' : ''}
                     </td>
                     <td class="px-3 py-3">${escapeHtml(user.registration ?? '—')}</td>
                     <td class="px-3 py-3">${escapeHtml(user.email)}</td>
                     <td class="px-3 py-3">${escapeHtml(user.department)}</td>
                     <td class="px-3 py-3">
-                      ${isMaster
+                      ${isMaster || isDeleted
                         ? renderRoleBadge(user.role)
                         : `<form hx-patch="/admin/actions/users/${user.id}/role" hx-target="#admin-content" hx-swap="innerHTML">
                             <select
@@ -928,13 +955,15 @@ async function renderUsersView(
                       }
                     </td>
                     <td class="px-3 py-3">
-                      ${isDisabled
-                        ? '<span class="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">Desativado</span>'
-                        : '<span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Ativo</span>'}
+                      ${isDeleted
+                        ? '<span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">Excluído</span>'
+                        : isDisabled
+                          ? '<span class="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">Desativado</span>'
+                          : '<span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Ativo</span>'}
                     </td>
                     <td class="px-3 py-3">
                       <div class="flex flex-wrap gap-2">
-                        ${isMaster
+                        ${isMaster || isDeleted
                           ? '<span class="text-xs text-slate-400">—</span>'
                           : `
                             <form hx-patch="/admin/actions/users/${user.id}/disable" hx-target="#admin-content" hx-swap="innerHTML">
@@ -954,6 +983,17 @@ async function renderUsersView(
                             >
                               <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-xs text-rose-700 hover:bg-rose-50">Encerrar sessões</button>
                             </form>
+                            ${actingIsMaster
+                              ? `<form
+                                  hx-delete="/admin/actions/users/${user.id}"
+                                  hx-target="#admin-content"
+                                  hx-swap="innerHTML"
+                                  hx-confirm="Excluir permanentemente ${escapeAttribute(user.name)}? Esta ação não pode ser desfeita."
+                                >
+                                  <button type="submit" class="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs text-red-700 hover:bg-red-100">Excluir</button>
+                                </form>`
+                              : ''
+                            }
                           `
                         }
                       </div>

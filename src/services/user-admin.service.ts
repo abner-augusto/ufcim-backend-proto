@@ -6,6 +6,7 @@ import type { UserRole } from '@/types/auth';
 import { ForbiddenError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from '@/services/audit-log.service';
 import { InvitationService } from '@/services/invitation.service';
+import { UserService } from '@/services/user.service';
 
 type User = typeof users.$inferSelect;
 
@@ -86,6 +87,37 @@ export class UserAdminService {
 
     await this.auditLog.log(actorId, 'user.password.reset', userId, 'user');
     return { token, url };
+  }
+
+  async softDelete(actorId: string, userId: string): Promise<void> {
+    const actor = await new UserService(this.db).getById(actorId);
+    if (!actor.isMasterAdmin) {
+      throw new ForbiddenError('Apenas o administrador principal pode excluir usuários');
+    }
+
+    const user = await this.db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!user) throw new NotFoundError('User');
+    if (user.isMasterAdmin) {
+      throw new ForbiddenError('Não é possível excluir o administrador principal');
+    }
+    if (actorId === userId) {
+      throw new ForbiddenError('Não é possível excluir a própria conta');
+    }
+
+    const now = new Date().toISOString();
+
+    // Revoke all active sessions first
+    await this.db
+      .update(refreshTokens)
+      .set({ revokedAt: now })
+      .where(and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt)));
+
+    await this.db
+      .update(users)
+      .set({ deletedAt: now, disabledAt: now, updatedAt: now })
+      .where(eq(users.id, userId));
+
+    await this.auditLog.log(actorId, 'user.deleted', userId, 'user', `Usuário ${user.name} marcado como excluído`);
   }
 
   async revokeAllSessions(actorId: string, userId: string): Promise<{ revoked: number }> {

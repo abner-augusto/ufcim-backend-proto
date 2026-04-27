@@ -1,4 +1,4 @@
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, isNull } from 'drizzle-orm';
 import { users, notifications } from '@/db/schema';
 import type { Database } from '@/db/client';
 import type { JwtPayload } from '@/types/auth';
@@ -93,6 +93,7 @@ export class UserService {
 
   async list(page: number, limit: number) {
     const data = await this.db.query.users.findMany({
+      where: isNull(users.deletedAt),
       orderBy: (u, { asc }) => [asc(u.name)],
       limit,
       offset: (page - 1) * limit,
@@ -100,8 +101,9 @@ export class UserService {
     return data;
   }
 
-  async listForAdmin(page: number, limit: number): Promise<PaginatedUsers> {
+  async listForAdmin(page: number, limit: number, includeDeleted = false): Promise<PaginatedUsers> {
     const allUsers = await this.db.query.users.findMany({
+      where: includeDeleted ? undefined : isNull(users.deletedAt),
       orderBy: (u, { asc }) => [asc(u.name)],
     });
 

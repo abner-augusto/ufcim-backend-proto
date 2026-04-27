@@ -22,6 +22,7 @@ export const users = sqliteTable(
     email: text('email').notNull().unique(),
     isMasterAdmin: integer('is_master_admin', { mode: 'boolean' }).notNull().default(false),
     disabledAt: text('disabled_at'), // ISO timestamp or null (null = active)
+    deletedAt: text('deleted_at'),   // ISO timestamp or null (null = not deleted)
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
