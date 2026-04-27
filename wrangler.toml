@@ -13,7 +13,7 @@ database_id = "6c2a2f98-6296-492d-b5e9-5c1db08385cb"
 
 [env.production]
 main = "src/index.ts"
-vars = { ENVIRONMENT = "production", JWKS_URL = "https://your-keycloak/realms/ufc/protocol/openid-connect/certs", JWT_ISSUER = "https://your-keycloak/realms/ufc" }
+vars = { ENVIRONMENT = "production", JWKS_URL = "https://your-keycloak/realms/ufc/protocol/openid-connect/certs", JWT_ISSUER = "ufcim-prototype", INVITE_BASE_URL = "https://ufcim.pages.dev/#/convite", ADMIN_BASE_URL = "https://your-worker.workers.dev/admin" }
 
 [[env.production.d1_databases]]
 binding = "DB"

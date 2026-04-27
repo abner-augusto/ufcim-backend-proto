@@ -18,6 +18,7 @@ import { logRoutes } from '@/routes/logs';
 import { statsRoutes } from '@/routes/stats';
 import { adminRoutes } from '@/routes/admin';
 import { authRoutes } from '@/routes/auth';
+import { bootstrapRoutes } from '@/routes/bootstrap';
 import { rbac, requireMasterAdmin } from '@/middleware/rbac';
 
 type AppEnv = { Bindings: Env; Variables: AppVariables };
@@ -44,6 +45,7 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   app.onError(globalErrorHandler);
 
   app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+  app.route('/bootstrap', bootstrapRoutes);
 
   if (devRoutes) {
     app.route('/', devRoutes);
