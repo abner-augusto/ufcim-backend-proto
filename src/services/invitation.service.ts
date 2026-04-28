@@ -31,7 +31,11 @@ export class InvitationService {
   }
 
   private buildInviteUrl(token: string): string {
-    if (!this.env.INVITE_BASE_URL) throw new Error('INVITE_BASE_URL não configurado — rode com --env dev');
+    if (!this.env.INVITE_BASE_URL) {
+      throw new Error(
+        'INVITE_BASE_URL não está configurado. Defina-o em wrangler.toml em [env.<environment>].vars.'
+      );
+    }
     return `${this.env.INVITE_BASE_URL}/${token}`;
   }
 

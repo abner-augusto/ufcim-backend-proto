@@ -38,10 +38,30 @@ interface CreateAppOptions {
   devRoutes?: Hono<AppEnv>;
 }
 
+function ensureProductionVarsSet(env: Env) {
+  if (env.ENVIRONMENT !== 'production') return;
+  const required = ['JWT_ISSUER', 'JWT_SIGNING_SECRET', 'INVITE_BASE_URL'];
+  const missing = required.filter((k) => !env[k as keyof Env]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Variáveis de ambiente obrigatórias ausentes em produção: ${missing.join(', ')}`
+    );
+  }
+}
+
 export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   const app = new Hono<AppEnv>();
   const api = new Hono<AppEnv>();
   const admin = new Hono<AppEnv>();
+
+  let configChecked = false;
+  app.use('*', async (c, next) => {
+    if (!configChecked) {
+      ensureProductionVarsSet(c.env);
+      configChecked = true;
+    }
+    return next();
+  });
 
   // TODO: replace PROD_ORIGINS with the real Pages URL once deployed.
   const PROD_ORIGINS = ['https://ufcim.pages.dev'];
