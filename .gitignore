@@ -60,3 +60,12 @@ repomix.config.json
 repomix-output.xml
 .dev.vars.example
 .markdownlint.json
+
+# LLM tool files
+CLAUDE.md
+CONVENTIONS.md
+.claude/
+docs/UFCIM_Build_Guide.md
+docs/UFCIM_TDD.md
+docs/auth-rollout/
+docs/BOOTSTRAP.md
