@@ -1,8 +1,20 @@
 import type { ErrorHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { AppEnv } from '@/types/env';
 
-export const globalErrorHandler: ErrorHandler = (err, c) => {
-  console.error(`[ERROR] ${err.message}`, err.stack);
+export const globalErrorHandler: ErrorHandler<AppEnv> = (err, c) => {
+  const isProd = c.env.ENVIRONMENT === 'production';
+
+  const logRecord: Record<string, unknown> = {
+    msg: err.message,
+    name: err.name,
+    code: (err as AppError).code,
+    status: (err as AppError).statusCode,
+    path: c.req.path,
+    method: c.req.method,
+  };
+  if (!isProd) logRecord.stack = err.stack;
+  console.error(JSON.stringify(logRecord));
 
   if (err instanceof AppError) {
     return c.json(
@@ -11,7 +23,10 @@ export const globalErrorHandler: ErrorHandler = (err, c) => {
     );
   }
 
-  return c.json({ error: 'Erro interno do servidor' }, 500);
+  return c.json(
+    { error: isProd ? 'Erro interno do servidor' : (err.message ?? 'Erro interno do servidor'), code: 'INTERNAL_ERROR' },
+    500
+  );
 };
 
 const resourceLabels: Record<string, string> = {
