@@ -10,7 +10,7 @@ import { validate } from '@/middleware/validation';
 import { ConflictError, UnauthorizedError } from '@/middleware/error-handler';
 
 const bootstrapSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform((s) => s.trim().toLowerCase()),
   name: z.string().min(1),
   department: z.string().min(1),
   password: passwordPolicySchema,

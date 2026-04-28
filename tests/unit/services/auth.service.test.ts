@@ -182,6 +182,25 @@ describe('AuthService.login', () => {
     const insertCalls = db.insert.mock.calls.map((call: unknown[]) => call);
     expect(insertCalls.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('normalizes mixed-case email before lookup', async () => {
+    const hash = await hashPassword('correctpassword1');
+    db.query.users.findFirst.mockResolvedValue(makeUser({ email: 'test@ufc.br' }));
+    db.query.userCredentials.findFirst.mockResolvedValue(makeCreds({ passwordHash: hash }));
+
+    const result = await service.login({ email: 'Test@UFC.BR', password: 'correctpassword1' });
+    expect(result.user.email).toBe('test@ufc.br');
+    expect(db.query.users.findFirst).toHaveBeenCalledOnce();
+  });
+
+  it('normalizes email with surrounding whitespace before lookup', async () => {
+    const hash = await hashPassword('correctpassword1');
+    db.query.users.findFirst.mockResolvedValue(makeUser({ email: 'test@ufc.br' }));
+    db.query.userCredentials.findFirst.mockResolvedValue(makeCreds({ passwordHash: hash }));
+
+    const result = await service.login({ email: '  test@ufc.br  ', password: 'correctpassword1' });
+    expect(result.user.email).toBe('test@ufc.br');
+  });
 });
 
 // ─── Refresh ──────────────────────────────────────────────────────────────────

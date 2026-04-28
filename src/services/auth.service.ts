@@ -33,7 +33,9 @@ export class AuthService {
     password: string;
     userAgent?: string;
   }): Promise<{ accessToken: string; refreshToken: string; user: PublicUser }> {
-    const { email, password, userAgent } = input;
+    const email = input.email.trim().toLowerCase();
+    const password = input.password;
+    const userAgent = input.userAgent;
 
     const user = await this.db.query.users.findFirst({ where: eq(users.email, email) });
     if (!user) throw new UnauthorizedError('Credenciais inválidas');

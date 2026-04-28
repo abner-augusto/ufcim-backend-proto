@@ -143,4 +143,28 @@ describe('POST /bootstrap/master-admin', () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it('normalizes mixed-case email to lowercase before storing', async () => {
+    const mockBind = vi.fn().mockReturnValue({});
+    const mockPrepare = vi.fn().mockReturnValue({ bind: mockBind });
+    const app = makeApp();
+    const mixedBody = JSON.stringify({
+      email: 'Admin@UFC.br',
+      name: 'Admin User',
+      department: 'IAUD',
+      password: 'AdminPass123',
+    });
+    const res = await app.request(
+      'http://localhost/bootstrap/master-admin',
+      { method: 'POST', headers: VALID_HEADERS, body: mixedBody },
+      makeEnv({
+        DB: { prepare: mockPrepare, batch: mockBatch } as unknown as D1Database,
+      })
+    );
+    expect(res.status).toBe(200);
+    // All bind() calls should use lowercase email only
+    const allBindArgs = mockBind.mock.calls.flat();
+    expect(allBindArgs).toContain('admin@ufc.br');
+    expect(allBindArgs).not.toContain('Admin@UFC.br');
+  });
 });

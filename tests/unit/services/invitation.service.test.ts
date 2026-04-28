@@ -132,6 +132,20 @@ describe('InvitationService.create', () => {
       purpose: 'reset',
     })).resolves.toBeDefined();
   });
+
+  it('rejects mixed-case duplicate email (Joao@ufc.br then JOAO@ufc.br)', async () => {
+    db.query.users.findFirst.mockResolvedValue(undefined);
+    // Simulates: an invite for joao@ufc.br already pending in DB (stored lowercase)
+    db.query.invitations.findFirst.mockResolvedValue(makeInvitation({ email: 'joao@ufc.br' }));
+
+    await expect(service.create({
+      inviterId: 'actor-1',
+      email: 'JOAO@ufc.br',
+      name: 'Joao',
+      role: 'student',
+      department: 'CC',
+    })).rejects.toThrow('Reenviar');
+  });
 });
 
 // ─── List ──────────────────────────────────────────────────────────────────────

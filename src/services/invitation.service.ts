@@ -45,7 +45,8 @@ export class InvitationService {
     ttlHours?: number;
     purpose?: 'invite' | 'reset';
   }): Promise<{ invitation: Invitation; token: string; url: string }> {
-    const { inviterId, email, name, role, department, registration, ttlHours = 72, purpose = 'invite' } = input;
+    const { inviterId, name, role, department, registration, ttlHours = 72, purpose = 'invite' } = input;
+    const email = input.email.trim().toLowerCase();
 
     const deptService = new DepartmentService(this.db);
     if (!(await deptService.validateId(department))) {
