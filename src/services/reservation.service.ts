@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 import { reservations, blockings, recurrences, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middleware/error-handler';
@@ -367,10 +367,11 @@ export class ReservationService {
       throw new ForbiddenError('Sua função não permite criar reservas');
     }
 
+    const today = new Date().toISOString().slice(0, 10);
     const [row] = await this.db
       .select({ total: count() })
       .from(reservations)
-      .where(and(eq(reservations.userId, userId), eq(reservations.status, 'confirmed')));
+      .where(and(eq(reservations.userId, userId), eq(reservations.status, 'confirmed'), gte(reservations.date, today)));
 
     if ((row?.total ?? 0) >= limit) {
       throw new AppError(

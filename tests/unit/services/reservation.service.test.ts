@@ -110,6 +110,19 @@ describe('ReservationService.create', () => {
     expect(err).toBeInstanceOf(ForbiddenError);
   });
 
+  it('does not count past reservations toward the active limit', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    // Simulate: query returns 0 because the date filter excludes past records
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+
+    await expect(
+      service.create(USER_ID, 'student', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+    ).resolves.toMatchObject({ id: SEED.reservation.id });
+  });
+
   it('creates and returns a reservation for a professor with no conflicts', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
