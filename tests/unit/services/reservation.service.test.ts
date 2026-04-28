@@ -330,7 +330,7 @@ describe('ReservationService.cancelSeries', () => {
     await expect(service.cancelSeries('missing-series', OTHER_USER_ID, 'staff')).rejects.toThrow(NotFoundError);
   });
 
-  it('cancels all confirmed reservations in a recurring series', async () => {
+  it('cancels only upcoming confirmed reservations in a recurring series', async () => {
     db.query.reservations.findMany.mockResolvedValue([
       { ...SEED.reservation, recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula semanal' }, space: SEED.space },
       { ...SEED.reservation, id: 'r-2', date: '2099-06-22', recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula semanal' }, space: SEED.space },
@@ -340,5 +340,21 @@ describe('ReservationService.cancelSeries', () => {
 
     expect(result).toHaveLength(2);
     expect(db._update.fn).toHaveBeenCalled();
+  });
+
+  it('throws ALREADY_CANCELED when all upcoming reservations are already canceled', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, date: '2020-01-01', recurrenceId: 'series-1', status: 'confirmed', recurrence: null, space: SEED.space },
+      { ...SEED.reservation, id: 'r-2', date: '2020-01-08', recurrenceId: 'series-1', status: 'confirmed', recurrence: null, space: SEED.space },
+    ]);
+
+    const err = await service.cancelSeries('series-1', OTHER_USER_ID, 'staff').catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('ALREADY_CANCELED');
+  });
+
+  it('throws ForbiddenError when a student tries to cancel a series', async () => {
+    await expect(service.cancelSeries('series-1', USER_ID, 'student')).rejects.toThrow(ForbiddenError);
   });
 });

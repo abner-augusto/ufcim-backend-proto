@@ -236,16 +236,17 @@ export class ReservationService {
       throw new NotFoundError('Recurring reservation series');
     }
 
-    const activeReservations = seriesReservations.filter((reservation) => reservation.status === 'confirmed');
-    if (activeReservations.length === 0) {
-      throw new AppError(400, 'A série de reservas recorrentes já está cancelada', 'ALREADY_CANCELED');
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = seriesReservations.filter((r) => r.status === 'confirmed' && r.date >= today);
+    if (upcoming.length === 0) {
+      throw new AppError(400, 'A série de reservas recorrentes já está cancelada ou todas as ocorrências já passaram', 'ALREADY_CANCELED');
     }
 
     const now = new Date().toISOString();
     const updatedReservations = await this.db
       .update(reservations)
       .set({ status: 'canceled', cancelReason: cancelReason ?? null, updatedAt: now })
-      .where(eq(reservations.recurrenceId, recurrenceId))
+      .where(and(eq(reservations.recurrenceId, recurrenceId), gte(reservations.date, today)))
       .returning();
 
     const reasonSuffix = cancelReason ? ` Motivo: ${cancelReason}` : '';
@@ -254,10 +255,10 @@ export class ReservationService {
       'cancel_recurring_reservation',
       recurrenceId,
       'reservation',
-      `Cancelou a série recorrente ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${activeReservations.length} reservas)${reasonSuffix}`
+      `Cancelou a série recorrente ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${upcoming.length} reservas)${reasonSuffix}`
     );
 
-    for (const reservation of activeReservations) {
+    for (const reservation of upcoming) {
       if (reservation.userId === userId) continue;
 
       await this.notification.create(

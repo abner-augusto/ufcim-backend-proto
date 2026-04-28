@@ -75,6 +75,30 @@ reservationRoutes.patch(
   }
 );
 
+// PATCH /reservations/series/:recurrenceId/cancel (professor, staff)
+reservationRoutes.patch(
+  '/series/:recurrenceId/cancel',
+  rbac(['professor', 'staff']),
+  async (c) => {
+    const db = createDb(c.env.DB);
+    const service = new ReservationService(db);
+    const user = c.get('user');
+
+    let cancelReason: string | undefined;
+    try {
+      const body = await c.req.json();
+      if (typeof body?.cancelReason === 'string' && body.cancelReason.trim()) {
+        cancelReason = body.cancelReason.trim();
+      }
+    } catch {
+      // body absent or not JSON — cancelReason stays undefined
+    }
+
+    const result = await service.cancelSeries(c.req.param('recurrenceId'), user.sub, extractRole(user) ?? 'professor', cancelReason);
+    return c.json(result);
+  }
+);
+
 // GET /reservations/mine — current user's reservations (any role)
 reservationRoutes.get(
   '/mine',
