@@ -121,15 +121,23 @@ export const notifications = sqliteTable('notifications', {
 });
 
 // ─── Audit Logs (logs) ─────────────────────────────────────────────────────
-export const auditLogs = sqliteTable('audit_logs', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id),
-  actionType: text('action_type').notNull(),
-  referenceId: text('reference_id'),
-  referenceType: text('reference_type'), // 'reservation' | 'blocking' | 'equipment' | 'space'
-  timestamp: text('timestamp').notNull(),
-  details: text('details'),
-});
+export const auditLogs = sqliteTable(
+  'audit_logs',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id),
+    actionType: text('action_type').notNull(),
+    referenceId: text('reference_id'),
+    referenceType: text('reference_type'), // 'reservation' | 'blocking' | 'equipment' | 'space'
+    timestamp: text('timestamp').notNull(),
+    details: text('details'),
+  },
+  (t) => ({
+    actorIdx: index('audit_logs_actor_idx').on(t.userId),
+    actionIdx: index('audit_logs_action_idx').on(t.actionType),
+    timestampIdx: index('audit_logs_timestamp_idx').on(t.timestamp),
+  })
+);
 
 // ─── Space Managers (gestores de espaços) ───────────────────────────────────
 export const spaceManagers = sqliteTable(
@@ -157,34 +165,48 @@ export const userCredentials = sqliteTable('user_credentials', {
 });
 
 // ─── Invitations ─────────────────────────────────────────────────────────────
-export const invitations = sqliteTable('invitations', {
-  id: text('id').primaryKey(),
-  email: text('email').notNull(),
-  role: text('role').notNull(), // student | professor | staff | maintenance
-  name: text('name').notNull(),
-  registration: text('registration'), // nullable — invitee may not have one
-  department: text('department').notNull().references(() => departments.id),
-  tokenHash: text('token_hash').notNull().unique(), // SHA-256 of URL token, hex
-  purpose: text('purpose').notNull().default('invite'), // 'invite' | 'reset'
-  invitedBy: text('invited_by').notNull().references(() => users.id),
-  expiresAt: text('expires_at').notNull(),
-  acceptedAt: text('accepted_at'), // null = pending
-  acceptedUserId: text('accepted_user_id').references(() => users.id),
-  revokedAt: text('revoked_at'), // null = not revoked
-  createdAt: text('created_at').notNull(),
-});
+export const invitations = sqliteTable(
+  'invitations',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    role: text('role').notNull(), // student | professor | staff | maintenance
+    name: text('name').notNull(),
+    registration: text('registration'), // nullable — invitee may not have one
+    department: text('department').notNull().references(() => departments.id),
+    tokenHash: text('token_hash').notNull().unique(), // SHA-256 of URL token, hex
+    purpose: text('purpose').notNull().default('invite'), // 'invite' | 'reset'
+    invitedBy: text('invited_by').notNull().references(() => users.id),
+    expiresAt: text('expires_at').notNull(),
+    acceptedAt: text('accepted_at'), // null = pending
+    acceptedUserId: text('accepted_user_id').references(() => users.id),
+    revokedAt: text('revoked_at'), // null = not revoked
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => ({
+    emailIdx: index('invitations_email_idx').on(t.email),
+    expiresAtIdx: index('invitations_expires_at_idx').on(t.expiresAt),
+  })
+);
 
 // ─── Refresh Tokens ──────────────────────────────────────────────────────────
-export const refreshTokens = sqliteTable('refresh_tokens', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  tokenHash: text('token_hash').notNull().unique(), // SHA-256 hex of opaque token
-  expiresAt: text('expires_at').notNull(),
-  revokedAt: text('revoked_at'), // null = valid
-  replacedBy: text('replaced_by'), // refresh_tokens.id of next token
-  userAgent: text('user_agent'),
-  createdAt: text('created_at').notNull(),
-});
+export const refreshTokens = sqliteTable(
+  'refresh_tokens',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(), // SHA-256 hex of opaque token
+    expiresAt: text('expires_at').notNull(),
+    revokedAt: text('revoked_at'), // null = valid
+    replacedBy: text('replaced_by'), // refresh_tokens.id of next token
+    userAgent: text('user_agent'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => ({
+    userIdIdx: index('refresh_tokens_user_id_idx').on(t.userId),
+    expiresAtIdx: index('refresh_tokens_expires_at_idx').on(t.expiresAt),
+  })
+);
 
 export const rateLimitBuckets = sqliteTable(
   'rate_limit_buckets',
