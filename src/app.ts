@@ -43,7 +43,26 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   const api = new Hono<AppEnv>();
   const admin = new Hono<AppEnv>();
 
-  app.use('*', cors());
+  // TODO: replace PROD_ORIGINS with the real Pages URL once deployed.
+  const PROD_ORIGINS = ['https://ufcim.pages.dev'];
+  const DEV_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:8787',
+    'http://127.0.0.1:8787',
+  ];
+  app.use('*', async (c, next) => {
+    const origins = c.env.ENVIRONMENT === 'production' ? PROD_ORIGINS : DEV_ORIGINS;
+    const middleware = cors({
+      origin: origins,
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Bootstrap-Token'],
+      exposeHeaders: [],
+      credentials: false,
+      maxAge: 86400,
+    });
+    return middleware(c, next);
+  });
   app.use('*', logger());
   app.onError(globalErrorHandler);
 
