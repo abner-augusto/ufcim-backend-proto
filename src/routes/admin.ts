@@ -655,11 +655,9 @@ async function renderReservationsView(
                 <th class="px-3 py-2 font-medium">Ação</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
-              ${reservations.data.length === 0
-                ? `<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">Nenhuma reserva encontrada com os filtros atuais.</td></tr>`
-                : renderReservationRows(reservations.data, normalizedFilters)}
-            </tbody>
+            ${reservations.data.length === 0
+              ? `<tbody><tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">Nenhuma reserva encontrada com os filtros atuais.</td></tr></tbody>`
+              : renderReservationRows(reservations.data, normalizedFilters)}
           </table>
         </div>
         ${renderPagination('/admin/partials/reservations', reservations.pagination, normalizedFilters)}
@@ -732,12 +730,13 @@ async function renderBlockingsView(
                     <th class="px-3 py-2 font-medium">Espaço</th>
                     <th class="px-3 py-2 font-medium">Tipo</th>
                     <th class="px-3 py-2 font-medium">Motivo</th>
+                    <th class="px-3 py-2 font-medium">Emitido por</th>
                     <th class="px-3 py-2 font-medium">Ação</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                   ${result.data.length === 0
-                    ? `<tr><td colspan="6" class="px-3 py-6 text-center text-slate-400">Nenhum bloqueio ativo encontrado.</td></tr>`
+                    ? `<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">Nenhum bloqueio ativo encontrado.</td></tr>`
                     : result.data.map((blocking) => `
                       <tr class="hover:bg-slate-50">
                         <td class="px-3 py-3">${blocking.date}</td>
@@ -745,6 +744,7 @@ async function renderBlockingsView(
                         <td class="px-3 py-3 font-medium">${escapeHtml(blocking.space?.number ?? blocking.spaceId)}</td>
                         <td class="px-3 py-3">${escapeHtml(renderBlockingType(blocking.blockType))}</td>
                         <td class="px-3 py-3 max-w-xs truncate" title="${escapeAttribute(blocking.reason)}">${escapeHtml(blocking.reason)}</td>
+                        <td class="px-3 py-3 text-slate-600" title="${escapeAttribute(blocking.creator?.email ?? '')}">${escapeHtml(blocking.creator?.name ?? '—')}</td>
                         <td class="px-3 py-3">
                           <form hx-patch="/admin/actions/blockings/${blocking.id}/remove" hx-target="#admin-content" hx-swap="innerHTML" hx-confirm="Remover bloqueio de ${escapeAttribute(blocking.date)} (${escapeAttribute(blocking.startTime)}–${escapeAttribute(blocking.endTime)})? Esta ação não pode ser desfeita.">
                             ${renderHiddenInputs(normalizedFilters)}
@@ -1321,34 +1321,46 @@ function renderReservationRows(
   }
 
   const groupedRows = [...grouped.entries()].map(([recurrenceId, items]) => `
-    <tr class="bg-slate-50">
-      <td colspan="7" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div class="space-y-1">
-            <div>Série recorrente · ${escapeHtml(items[0].recurrence?.description ?? recurrenceId)}</div>
-            <div class="normal-case tracking-normal text-slate-600">${escapeHtml(describeRecurringSeries(items))}</div>
+    <tbody x-data="{ open: true }">
+      <tr class="bg-slate-50 cursor-pointer select-none" @click="open = !open">
+        <td colspan="7" class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-2">
+              <svg :class="open ? 'rotate-90' : 'rotate-0'" class="h-3.5 w-3.5 shrink-0 transition-transform duration-150 text-slate-400" style="width:14px;height:14px" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+              <div class="space-y-1">
+                <div>Série recorrente · ${escapeHtml(items[0].recurrence?.description ?? recurrenceId)}</div>
+                <div class="normal-case tracking-normal text-slate-600">${escapeHtml(describeRecurringSeries(items))}</div>
+              </div>
+            </div>
+            <div @click.stop>
+              ${items.some((item) => item.status === 'confirmed')
+                ? `
+                  <form hx-patch="/admin/actions/reservations/series/${recurrenceId}/cancel" hx-target="#admin-content" hx-swap="innerHTML" class="flex items-center gap-2">
+                    ${renderHiddenInputs(filters)}
+                    <input
+                      type="text"
+                      name="cancelReason"
+                      placeholder="Motivo do cancelamento (opcional)"
+                      class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs shadow-sm outline-none focus:border-slate-900 w-56"
+                    />
+                    <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700 hover:bg-rose-50 whitespace-nowrap">Cancelar série</button>
+                  </form>
+                `
+                : '<span class="normal-case tracking-normal text-slate-400">Sem ações em lote</span>'}
+            </div>
           </div>
-          ${items.some((item) => item.status === 'confirmed')
-            ? `
-              <form hx-patch="/admin/actions/reservations/series/${recurrenceId}/cancel" hx-target="#admin-content" hx-swap="innerHTML" class="flex items-center gap-2">
-                ${renderHiddenInputs(filters)}
-                <input
-                  type="text"
-                  name="cancelReason"
-                  placeholder="Motivo do cancelamento (opcional)"
-                  class="rounded-lg border border-slate-300 px-2 py-1.5 text-xs shadow-sm outline-none focus:border-slate-900 w-56"
-                />
-                <button type="submit" class="rounded-lg border border-rose-200 px-3 py-1.5 text-rose-700 hover:bg-rose-50 whitespace-nowrap">Cancelar série</button>
-              </form>
-            `
-            : '<span class="normal-case tracking-normal text-slate-400">Sem ações em lote</span>'}
-        </div>
-      </td>
-    </tr>
-    ${items.map((reservation) => renderReservationRow(reservation, filters)).join('')}
+        </td>
+      </tr>
+      ${items.map((reservation) => `<tr x-show="open" class="hover:bg-slate-50">${renderReservationRow(reservation, filters)}</tr>`).join('')}
+    </tbody>
   `).join('');
 
-  return `${groupedRows}${singles.map((reservation) => renderReservationRow(reservation, filters)).join('')}`;
+  const singlesRows = singles.length === 0 ? '' : `
+    <tbody class="divide-y divide-slate-100">
+      ${singles.map((reservation) => `<tr class="hover:bg-slate-50">${renderReservationRow(reservation, filters)}</tr>`).join('')}
+    </tbody>
+  `;
+  return `${groupedRows}${singlesRows}`;
 }
 
 function renderReservationRow(
@@ -1356,7 +1368,6 @@ function renderReservationRow(
   filters: Record<string, unknown>
 ) {
   return `
-    <tr class="hover:bg-slate-50">
       <td class="px-3 py-3">${reservation.date}</td>
       <td class="px-3 py-3 tabular-nums">${reservation.startTime}–${reservation.endTime}</td>
       <td class="px-3 py-3 font-medium">${escapeHtml(reservation.space?.number ?? reservation.spaceId)}</td>
@@ -1382,7 +1393,6 @@ function renderReservationRow(
           `
           : '<span class="text-slate-400 text-sm">—</span>'}
       </td>
-    </tr>
   `;
 }
 
