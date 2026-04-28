@@ -36,7 +36,7 @@ export class InvitationService {
         'INVITE_BASE_URL não está configurado. Defina-o em wrangler.toml em [env.<environment>].vars.'
       );
     }
-    return `${this.env.INVITE_BASE_URL}/${token}`;
+    return `${this.env.INVITE_BASE_URL.replace(/\/+$/, '')}/#/convite/${token}`;
   }
 
   async create(input: {

@@ -42,7 +42,7 @@ const TEST_ENV: Env = {
   JWKS_URL: '',
   JWT_ISSUER: 'http://localhost',
   JWT_SIGNING_SECRET: 'test-secret',
-  INVITE_BASE_URL: 'http://localhost/invite',
+  INVITE_BASE_URL: 'http://localhost',
   ADMIN_BASE_URL: 'http://localhost/admin',
   ENVIRONMENT: 'development',
 };
@@ -116,7 +116,7 @@ describe('InvitationService.create', () => {
     });
 
     expect(result.token).toBeTruthy();
-    expect(result.url).toContain('http://localhost/invite/');
+    expect(result.url).toContain('http://localhost/#/convite/');
     expect(result.invitation).toBeDefined();
   });
 
@@ -257,7 +257,7 @@ describe('InvitationService.resend', () => {
 
     const result = await service.resend('actor-1', 'inv-1');
     expect(result.token).toBeTruthy();
-    expect(result.url).toContain('http://localhost/invite/');
+    expect(result.url).toContain('http://localhost/#/convite/');
     expect(db.update).toHaveBeenCalled();
 
     const setCall = db.update().set;

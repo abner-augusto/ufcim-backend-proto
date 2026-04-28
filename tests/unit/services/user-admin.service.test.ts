@@ -40,7 +40,7 @@ const TEST_ENV: Env = {
   JWKS_URL: '',
   JWT_ISSUER: 'http://localhost',
   JWT_SIGNING_SECRET: 'test-secret',
-  INVITE_BASE_URL: 'http://localhost/invite',
+  INVITE_BASE_URL: 'http://localhost',
   ADMIN_BASE_URL: 'http://localhost/admin',
   ENVIRONMENT: 'development',
 };
