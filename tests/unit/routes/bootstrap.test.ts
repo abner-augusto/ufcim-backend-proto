@@ -147,6 +147,34 @@ describe('POST /bootstrap/master-admin', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 401 for a token of wrong length', async () => {
+    const app = makeApp();
+    const res = await app.request(
+      'http://localhost/bootstrap/master-admin',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Bootstrap-Token': 'short' },
+        body: VALID_BODY,
+      },
+      makeEnv()
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 401 for an empty token', async () => {
+    const app = makeApp();
+    const res = await app.request(
+      'http://localhost/bootstrap/master-admin',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Bootstrap-Token': '' },
+        body: VALID_BODY,
+      },
+      makeEnv()
+    );
+    expect(res.status).toBe(401);
+  });
+
   it('normalizes mixed-case email to lowercase before storing', async () => {
     const mockBind = vi.fn().mockReturnValue({
       first: vi.fn().mockResolvedValue({ count: 1 }),

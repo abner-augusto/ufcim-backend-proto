@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
 import { users } from '@/db/schema';
-import { hashPassword } from '@/lib/crypto';
+import { hashPassword, constantTimeEqual } from '@/lib/crypto';
 import { passwordPolicySchema } from '@/validators/auth.schema';
 import { validate } from '@/middleware/validation';
 import { rateLimit } from '@/middleware/rate-limit';
@@ -23,7 +23,7 @@ bootstrapRoutes.post('/master-admin', rateLimit({ namespace: 'bootstrap', max: 5
   const expected = c.env.BOOTSTRAP_TOKEN;
   const provided = c.req.header('X-Bootstrap-Token');
 
-  if (!expected || !provided || expected !== provided) {
+  if (!expected || !provided || expected.length !== provided.length || !constantTimeEqual(expected, provided)) {
     throw new UnauthorizedError('Token de bootstrap inválido');
   }
 
