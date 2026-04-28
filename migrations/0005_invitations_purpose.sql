@@ -1,0 +1,1 @@
+ALTER TABLE `invitations` ADD `purpose` text NOT NULL DEFAULT 'invite';

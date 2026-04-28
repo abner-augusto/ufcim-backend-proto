@@ -70,24 +70,64 @@ describe('ReservationService.create', () => {
     ).rejects.toThrow(ConflictError);
   });
 
-  it('throws STUDENT_LIMIT error when student already has an active reservation', async () => {
+  it('throws RESERVATION_LIMIT when student has reached 5 active reservations', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
-    db.query.reservations.findFirst.mockResolvedValueOnce(SEED.reservation);
+    db._select.where.mockResolvedValueOnce([{ total: 5 }]);
 
     const err = await service
       .create(USER_ID, 'student', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
       .catch((e) => e);
 
     expect(err).toBeInstanceOf(AppError);
-    expect((err as AppError).code).toBe('STUDENT_LIMIT');
+    expect((err as AppError).code).toBe('RESERVATION_LIMIT');
+  });
+
+  it('throws RESERVATION_LIMIT when professor has reached 10 active reservations', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 10 }]);
+
+    const err = await service
+      .create(OTHER_USER_ID, 'professor', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('RESERVATION_LIMIT');
+  });
+
+  it('throws ForbiddenError when maintenance role tries to create a reservation', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    const err = await service
+      .create(USER_ID, 'maintenance', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(ForbiddenError);
+  });
+
+  it('does not count past reservations toward the active limit', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    // Simulate: query returns 0 because the date filter excludes past records
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+
+    await expect(
+      service.create(USER_ID, 'student', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+    ).resolves.toMatchObject({ id: SEED.reservation.id });
   });
 
   it('creates and returns a reservation for a professor with no conflicts', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
     db._insert.returning.mockResolvedValue([SEED.reservation]);
 
     const result = await service.create(
@@ -290,7 +330,7 @@ describe('ReservationService.cancelSeries', () => {
     await expect(service.cancelSeries('missing-series', OTHER_USER_ID, 'staff')).rejects.toThrow(NotFoundError);
   });
 
-  it('cancels all confirmed reservations in a recurring series', async () => {
+  it('cancels only upcoming confirmed reservations in a recurring series', async () => {
     db.query.reservations.findMany.mockResolvedValue([
       { ...SEED.reservation, recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula semanal' }, space: SEED.space },
       { ...SEED.reservation, id: 'r-2', date: '2099-06-22', recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula semanal' }, space: SEED.space },
@@ -300,5 +340,21 @@ describe('ReservationService.cancelSeries', () => {
 
     expect(result).toHaveLength(2);
     expect(db._update.fn).toHaveBeenCalled();
+  });
+
+  it('throws ALREADY_CANCELED when all upcoming reservations are already canceled', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, date: '2020-01-01', recurrenceId: 'series-1', status: 'confirmed', recurrence: null, space: SEED.space },
+      { ...SEED.reservation, id: 'r-2', date: '2020-01-08', recurrenceId: 'series-1', status: 'confirmed', recurrence: null, space: SEED.space },
+    ]);
+
+    const err = await service.cancelSeries('series-1', OTHER_USER_ID, 'staff').catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('ALREADY_CANCELED');
+  });
+
+  it('throws ForbiddenError when a student tries to cancel a series', async () => {
+    await expect(service.cancelSeries('series-1', USER_ID, 'student')).rejects.toThrow(ForbiddenError);
   });
 });

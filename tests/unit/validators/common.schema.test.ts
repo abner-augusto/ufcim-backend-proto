@@ -65,7 +65,7 @@ describe('futureDateSchema', () => {
     const result = futureDateSchema.safeParse(yesterday());
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0].message).toMatch(/past/i);
+      expect(result.error.issues[0].message).toMatch(/passado/i);
     }
   });
 

@@ -1,11 +1,51 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { Hono } from 'hono';
 import {
   AppError,
   NotFoundError,
   ConflictError,
   ForbiddenError,
   UnauthorizedError,
+  globalErrorHandler,
 } from '@/middleware/error-handler';
+import type { AppEnv, Env } from '@/types/env';
+
+async function invoke(environment: Env['ENVIRONMENT'], throwFn: () => void) {
+  const app = new Hono<AppEnv>();
+  app.onError((err, c) => {
+    // c.env is null in the test runtime (no Workers bindings); patch it in.
+    (c as unknown as { env: Partial<Env> }).env = { ENVIRONMENT: environment };
+    return globalErrorHandler(err, c);
+  });
+  app.get('/test', () => { throwFn(); return new Response(); });
+  return app.request('/test');
+}
+
+describe('globalErrorHandler', () => {
+  it('AppError → returns error+code, no stack leakage', async () => {
+    const res = await invoke('production', () => { throw new ForbiddenError(); });
+    const body = await res.json();
+    expect(res.status).toBe(403);
+    expect(body).toEqual({ error: 'Você não tem permissão para executar esta ação', code: 'FORBIDDEN' });
+    expect(JSON.stringify(body)).not.toContain('stack');
+  });
+
+  it('unknown error in production → generic message, INTERNAL_ERROR code', async () => {
+    const res = await invoke('production', () => { throw new Error('SQL near "FROM users": no such table'); });
+    const body = await res.json();
+    expect(res.status).toBe(500);
+    expect(body).toEqual({ error: 'Erro interno do servidor', code: 'INTERNAL_ERROR' });
+    expect(JSON.stringify(body)).not.toContain('SQL');
+  });
+
+  it('unknown error in development → real message, INTERNAL_ERROR code', async () => {
+    const res = await invoke('development', () => { throw new Error('SQL near "FROM users": no such table'); });
+    const body = await res.json();
+    expect(res.status).toBe(500);
+    expect(body.code).toBe('INTERNAL_ERROR');
+    expect(body.error).toContain('SQL');
+  });
+});
 
 describe('AppError', () => {
   it('stores statusCode, message, and code', () => {

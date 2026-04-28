@@ -13,7 +13,7 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "types": ["@cloudflare/workers-types"]
+    "types": ["./worker-configuration.d.ts"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

@@ -60,7 +60,41 @@ reservationRoutes.patch(
     const service = new ReservationService(db);
     const user = c.get('user');
 
-    const result = await service.cancel(c.req.param('id'), user.sub, extractRole(user) ?? 'student');
+    let cancelReason: string | undefined;
+    try {
+      const body = await c.req.json();
+      if (typeof body?.cancelReason === 'string' && body.cancelReason.trim()) {
+        cancelReason = body.cancelReason.trim();
+      }
+    } catch {
+      // body absent or not JSON — cancelReason stays undefined
+    }
+
+    const result = await service.cancel(c.req.param('id'), user.sub, extractRole(user) ?? 'student', cancelReason);
+    return c.json(result);
+  }
+);
+
+// PATCH /reservations/series/:recurrenceId/cancel (professor, staff)
+reservationRoutes.patch(
+  '/series/:recurrenceId/cancel',
+  rbac(['professor', 'staff']),
+  async (c) => {
+    const db = createDb(c.env.DB);
+    const service = new ReservationService(db);
+    const user = c.get('user');
+
+    let cancelReason: string | undefined;
+    try {
+      const body = await c.req.json();
+      if (typeof body?.cancelReason === 'string' && body.cancelReason.trim()) {
+        cancelReason = body.cancelReason.trim();
+      }
+    } catch {
+      // body absent or not JSON — cancelReason stays undefined
+    }
+
+    const result = await service.cancelSeries(c.req.param('recurrenceId'), user.sub, extractRole(user) ?? 'professor', cancelReason);
     return c.json(result);
   }
 );

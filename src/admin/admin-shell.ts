@@ -21,7 +21,7 @@ function navLink(currentPath: string, href: string, label: string) {
   `;
 }
 
-export function renderAdminShell(currentPath: string) {
+export function renderAdminShell(currentPath: string, environment: 'development' | 'staging' | 'production' = 'development') {
   const normalizedPath = currentPath === '/admin/' ? '/admin' : currentPath;
   const partialPath = normalizedPath === '/admin'
     ? '/admin/partials/dashboard'
@@ -49,14 +49,10 @@ export function renderAdminShell(currentPath: string) {
             </p>
           </div>
           <div class="flex flex-col items-end gap-3">
-            <div
-              id="user-switcher"
-              hx-get="/admin/partials/user-switcher"
-              hx-trigger="load"
-              hx-swap="outerHTML"
-            ></div>
             <div class="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200">
-              No ambiente local, a autenticação ignora as restrições de cargo de equipe (staff-role) de forma protegida, mas apenas se o ambiente estiver configurado como <code>ENVIRONMENT=development</code>.
+              ${environment === 'production'
+                ? 'Você está conectado como Administrador Principal. Use "Convites" para cadastrar novos usuários. O link gerado é exibido apenas uma vez.'
+                : 'No ambiente local, a autenticação ignora as restrições de cargo de equipe (staff-role) de forma protegida, mas apenas se o ambiente estiver configurado como <code>ENVIRONMENT=development</code>.'}
             </div>
           </div>
         </div>
@@ -67,6 +63,8 @@ export function renderAdminShell(currentPath: string) {
           ${navLink(normalizedPath, '/admin/blockings', 'Bloqueios')}
           ${navLink(normalizedPath, '/admin/equipment', 'Equipamentos')}
           ${navLink(normalizedPath, '/admin/users', 'Usuários')}
+          ${navLink(normalizedPath, '/admin/invitations', 'Convites')}
+          ${navLink(normalizedPath, '/admin/departments', 'Departamentos')}
           ${navLink(normalizedPath, '/admin/logs', 'Logs de Auditoria')}
         </nav>
       </header>
@@ -80,6 +78,21 @@ export function renderAdminShell(currentPath: string) {
       ></main>
     </div>
 
+    <script>
+      // Inject Authorization header on every HTMX request
+      document.body.addEventListener('htmx:configRequest', (event) => {
+        const token = sessionStorage.getItem('ufcim_admin_token');
+        if (token) event.detail.headers['Authorization'] = 'Bearer ' + token;
+      });
+      // On 401/403, bounce to login
+      document.body.addEventListener('htmx:responseError', (event) => {
+        if (event.detail.xhr.status === 401 || event.detail.xhr.status === 403) {
+          sessionStorage.removeItem('ufcim_admin_token');
+          sessionStorage.removeItem('ufcim_admin_refresh');
+          window.location.href = '/admin/login';
+        }
+      });
+    </script>
     <script>
       window.applyAdminNavState = function applyAdminNavState(activePath) {
         const navLinks = document.querySelectorAll('[data-admin-nav-link="true"]');

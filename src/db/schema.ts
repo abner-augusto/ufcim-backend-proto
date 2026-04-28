@@ -1,17 +1,35 @@
-import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import { relations } from 'drizzle-orm';
+import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import { relations, sql } from 'drizzle-orm';
 
-// ─── Users ───────────────────────────────────────────────────────────────────
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(), // UUID
+// ─── Departments ─────────────────────────────────────────────────────────────
+export const departments = sqliteTable('departments', {
+  id: text('id').primaryKey(), // slug, e.g. "iaud"
   name: text('name').notNull(),
-  registration: text('registration').notNull().unique(),
-  role: text('role').notNull(), // 'student' | 'professor' | 'staff' | 'maintenance'
-  department: text('department').notNull(),
-  email: text('email').notNull().unique(),
+  campus: text('campus').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
+
+// ─── Users ───────────────────────────────────────────────────────────────────
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(), // UUID
+    name: text('name').notNull(),
+    registration: text('registration'), // nullable — invitees may not have one
+    role: text('role').notNull(), // 'student' | 'professor' | 'staff' | 'maintenance'
+    department: text('department').notNull().references(() => departments.id),
+    email: text('email').notNull().unique(),
+    isMasterAdmin: integer('is_master_admin', { mode: 'boolean' }).notNull().default(false),
+    disabledAt: text('disabled_at'), // ISO timestamp or null (null = active)
+    deletedAt: text('deleted_at'),   // ISO timestamp or null (null = not deleted)
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => ({
+    registrationUnq: uniqueIndex('users_registration_unq').on(t.registration).where(sql`registration IS NOT NULL`),
+  })
+);
 
 // ─── Spaces (ambientes) ─────────────────────────────────────────────────────
 export const spaces = sqliteTable('spaces', {
@@ -22,7 +40,7 @@ export const spaces = sqliteTable('spaces', {
   type: text('type').notNull(), // 'classroom' | 'study_room' | 'meeting_room' | 'hall'
   block: text('block').notNull(),
   campus: text('campus').notNull(),
-  department: text('department').notNull(),
+  department: text('department').notNull().references(() => departments.id),
   capacity: integer('capacity').notNull(),
   furniture: text('furniture'),
   lighting: text('lighting'),
@@ -70,6 +88,7 @@ export const reservations = sqliteTable('reservations', {
   recurrenceId: text('recurrence_id').references(() => recurrences.id),
   changeOrigin: text('change_origin'),
   purpose: text('purpose'),
+  cancelReason: text('cancel_reason'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
@@ -102,15 +121,23 @@ export const notifications = sqliteTable('notifications', {
 });
 
 // ─── Audit Logs (logs) ─────────────────────────────────────────────────────
-export const auditLogs = sqliteTable('audit_logs', {
-  id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => users.id),
-  actionType: text('action_type').notNull(),
-  referenceId: text('reference_id'),
-  referenceType: text('reference_type'), // 'reservation' | 'blocking' | 'equipment' | 'space'
-  timestamp: text('timestamp').notNull(),
-  details: text('details'),
-});
+export const auditLogs = sqliteTable(
+  'audit_logs',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id),
+    actionType: text('action_type').notNull(),
+    referenceId: text('reference_id'),
+    referenceType: text('reference_type'), // 'reservation' | 'blocking' | 'equipment' | 'space'
+    timestamp: text('timestamp').notNull(),
+    details: text('details'),
+  },
+  (t) => ({
+    actorIdx: index('audit_logs_actor_idx').on(t.userId),
+    actionIdx: index('audit_logs_action_idx').on(t.actionType),
+    timestampIdx: index('audit_logs_timestamp_idx').on(t.timestamp),
+  })
+);
 
 // ─── Space Managers (gestores de espaços) ───────────────────────────────────
 export const spaceManagers = sqliteTable(
@@ -128,17 +155,93 @@ export const spaceManagers = sqliteTable(
   })
 );
 
+// ─── User Credentials ────────────────────────────────────────────────────────
+export const userCredentials = sqliteTable('user_credentials', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  passwordHash: text('password_hash').notNull(), // format: "pbkdf2$<iterations>$<saltB64>$<hashB64>"
+  passwordUpdatedAt: text('password_updated_at').notNull(),
+  failedAttempts: integer('failed_attempts').notNull().default(0),
+  lockedUntil: text('locked_until'), // ISO timestamp or null
+});
+
+// ─── Invitations ─────────────────────────────────────────────────────────────
+export const invitations = sqliteTable(
+  'invitations',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    role: text('role').notNull(), // student | professor | staff | maintenance
+    name: text('name').notNull(),
+    registration: text('registration'), // nullable — invitee may not have one
+    department: text('department').notNull().references(() => departments.id),
+    tokenHash: text('token_hash').notNull().unique(), // SHA-256 of URL token, hex
+    purpose: text('purpose').notNull().default('invite'), // 'invite' | 'reset'
+    invitedBy: text('invited_by').notNull().references(() => users.id),
+    expiresAt: text('expires_at').notNull(),
+    acceptedAt: text('accepted_at'), // null = pending
+    acceptedUserId: text('accepted_user_id').references(() => users.id),
+    revokedAt: text('revoked_at'), // null = not revoked
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => ({
+    emailIdx: index('invitations_email_idx').on(t.email),
+    expiresAtIdx: index('invitations_expires_at_idx').on(t.expiresAt),
+  })
+);
+
+// ─── Refresh Tokens ──────────────────────────────────────────────────────────
+export const refreshTokens = sqliteTable(
+  'refresh_tokens',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(), // SHA-256 hex of opaque token
+    expiresAt: text('expires_at').notNull(),
+    revokedAt: text('revoked_at'), // null = valid
+    replacedBy: text('replaced_by'), // refresh_tokens.id of next token
+    userAgent: text('user_agent'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => ({
+    userIdIdx: index('refresh_tokens_user_id_idx').on(t.userId),
+    expiresAtIdx: index('refresh_tokens_expires_at_idx').on(t.expiresAt),
+  })
+);
+
+export const rateLimitBuckets = sqliteTable(
+  'rate_limit_buckets',
+  {
+    key: text('key').primaryKey(),
+    count: integer('count').notNull().default(0),
+    windowStart: text('window_start').notNull(),
+  },
+  (t) => ({
+    windowStartIdx: index('rate_limit_buckets_window_start_idx').on(t.windowStart),
+  })
+);
+
 // ─── Relations ──────────────────────────────────────────────────────────────
-export const usersRelations = relations(users, ({ many }) => ({
+export const departmentsRelations = relations(departments, ({ many }) => ({
+  users: many(users),
+  spaces: many(spaces),
+  invitations: many(invitations),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  department: one(departments, { fields: [users.department], references: [departments.id] }),
   reservations: many(reservations),
   blockings: many(blockings),
   notifications: many(notifications),
   auditLogs: many(auditLogs),
   managedSpaces: many(spaceManagers, { relationName: 'manager' }),
   assignedManagers: many(spaceManagers, { relationName: 'assigner' }),
+  credentials: one(userCredentials),
+  invitationsSent: many(invitations, { relationName: 'inviter' }),
+  refreshTokens: many(refreshTokens),
 }));
 
-export const spacesRelations = relations(spaces, ({ many }) => ({
+export const spacesRelations = relations(spaces, ({ one, many }) => ({
+  department: one(departments, { fields: [spaces.department], references: [departments.id] }),
   equipment: many(equipment),
   reservations: many(reservations),
   blockings: many(blockings),
@@ -178,4 +281,18 @@ export const spaceManagersRelations = relations(spaceManagers, ({ one }) => ({
   space: one(spaces, { fields: [spaceManagers.spaceId], references: [spaces.id] }),
   user: one(users, { fields: [spaceManagers.userId], references: [users.id], relationName: 'manager' }),
   assigner: one(users, { fields: [spaceManagers.assignedBy], references: [users.id], relationName: 'assigner' }),
+}));
+
+export const userCredentialsRelations = relations(userCredentials, ({ one }) => ({
+  user: one(users, { fields: [userCredentials.userId], references: [users.id] }),
+}));
+
+export const invitationsRelations = relations(invitations, ({ one }) => ({
+  department: one(departments, { fields: [invitations.department], references: [departments.id] }),
+  inviter: one(users, { fields: [invitations.invitedBy], references: [users.id], relationName: 'inviter' }),
+  acceptedUser: one(users, { fields: [invitations.acceptedUserId], references: [users.id], relationName: 'acceptedUser' }),
+}));
+
+export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+  user: one(users, { fields: [refreshTokens.userId], references: [users.id] }),
 }));

@@ -4,18 +4,26 @@ compatibility_date = "2024-12-01"
 
 [env.dev]
 main = "src/index.dev.ts"
-vars = { ENVIRONMENT = "development", JWKS_URL = "http://localhost:8787/dev/jwks", JWT_ISSUER = "http://localhost:8787" }
+vars = { ENVIRONMENT = "development", JWKS_URL = "http://localhost:8787/dev/jwks", JWT_ISSUER = "http://localhost:8787", INVITE_BASE_URL = "http://localhost:5173", ADMIN_BASE_URL = "http://localhost:8787/admin" }
 
 [[env.dev.d1_databases]]
 binding = "DB"
 database_name = "ufcim-db"
 database_id = "6c2a2f98-6296-492d-b5e9-5c1db08385cb"
 
+[env.dev.triggers]
+crons = ["0 4 * * *"]   # 04:00 UTC daily
+
 [env.production]
 main = "src/index.ts"
-vars = { ENVIRONMENT = "production", JWKS_URL = "https://your-keycloak/realms/ufc/protocol/openid-connect/certs", JWT_ISSUER = "https://your-keycloak/realms/ufc" }
+# TODO: replace ufcim.pages.dev with the real Pages URL once deployed.
+# TODO: replace <your-subdomain> with your real workers.dev subdomain (wrangler whoami).
+vars = { ENVIRONMENT = "production", JWT_ISSUER = "ufcim-prototype", INVITE_BASE_URL = "https://ufcim.pages.dev", ADMIN_BASE_URL = "https://ufcim.<your-subdomain>.workers.dev/admin" }
 
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "ufcim-db"
 database_id = "6c2a2f98-6296-492d-b5e9-5c1db08385cb"
+
+[env.production.triggers]
+crons = ["0 4 * * *"]   # 04:00 UTC daily

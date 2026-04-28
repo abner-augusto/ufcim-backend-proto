@@ -1,4 +1,4 @@
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, isNull } from 'drizzle-orm';
 import { users, notifications } from '@/db/schema';
 import type { Database } from '@/db/client';
 import type { JwtPayload } from '@/types/auth';
@@ -31,7 +31,7 @@ export class UserService {
       .values({
         id: payload.sub,
         name: payload.name,
-        registration: payload.registration ?? payload.preferred_username,
+        registration: payload.registration ?? payload.preferred_username ?? null,
         role,
         department: payload.department ?? 'Unknown',
         email: payload.email,
@@ -60,9 +60,17 @@ export class UserService {
     return user;
   }
 
+  async getByEmail(email: string) {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+    return user ?? null;
+  }
+
   async getMeProfile(id: string) {
     const user = await this.db.query.users.findFirst({
       where: eq(users.id, id),
+      with: { department: true },
     });
     if (!user) throw new NotFoundError('User');
 
@@ -76,11 +84,16 @@ export class UserService {
         )
       );
 
-    return { ...user, unreadCount };
+    return {
+      ...user,
+      department: user.department?.name ?? user.department as unknown as string,
+      unreadCount,
+    };
   }
 
   async list(page: number, limit: number) {
     const data = await this.db.query.users.findMany({
+      where: isNull(users.deletedAt),
       orderBy: (u, { asc }) => [asc(u.name)],
       limit,
       offset: (page - 1) * limit,
@@ -88,8 +101,9 @@ export class UserService {
     return data;
   }
 
-  async listForAdmin(page: number, limit: number): Promise<PaginatedUsers> {
+  async listForAdmin(page: number, limit: number, includeDeleted = false): Promise<PaginatedUsers> {
     const allUsers = await this.db.query.users.findMany({
+      where: includeDeleted ? undefined : isNull(users.deletedAt),
       orderBy: (u, { asc }) => [asc(u.name)],
     });
 

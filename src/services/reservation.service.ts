@@ -1,10 +1,18 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 import { reservations, blockings, recurrences, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
 import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
+import { count } from 'drizzle-orm';
+
+const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
+  student: 5,
+  professor: 10,
+  staff: null,
+  maintenance: 0,
+};
 
 interface CreateReservationInput {
   spaceId: string;
@@ -64,9 +72,7 @@ export class ReservationService {
       input.endTime
     );
 
-    if (userRole === 'student') {
-      await this.enforceStudentLimit(userId);
-    }
+    await this.enforceActiveLimit(userId, userRole);
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -110,6 +116,8 @@ export class ReservationService {
     if (!['professor', 'staff'].includes(userRole)) {
       throw new ForbiddenError('Apenas professores e funcionários podem criar reservas recorrentes');
     }
+
+    await this.enforceActiveLimit(userId, userRole);
 
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
@@ -167,7 +175,7 @@ export class ReservationService {
     return { recurrenceId, created, skipped };
   }
 
-  async cancel(reservationId: string, userId: string, userRole: string) {
+  async cancel(reservationId: string, userId: string, userRole: string, cancelReason?: string) {
     const reservation = await this.findOrThrow(reservationId);
 
     if (reservation.status === 'canceled') {
@@ -185,23 +193,24 @@ export class ReservationService {
     const now = new Date().toISOString();
     const [updated] = await this.db
       .update(reservations)
-      .set({ status: 'canceled', updatedAt: now })
+      .set({ status: 'canceled', cancelReason: cancelReason ?? null, updatedAt: now })
       .where(eq(reservations.id, reservationId))
       .returning();
 
+    const reasonSuffix = cancelReason ? ` Motivo: ${cancelReason}` : '';
     await this.auditLog.log(
       userId,
       'cancel_reservation',
       reservationId,
       'reservation',
-      `Cancelou a reserva do espaço ${reservation.spaceId} em ${reservation.date} (${reservation.startTime}-${reservation.endTime})`
+      `Cancelou a reserva do espaço ${reservation.spaceId} em ${reservation.date} (${reservation.startTime}-${reservation.endTime})${reasonSuffix}`
     );
 
     if (reservation.userId !== userId) {
       await this.notification.create(
         reservation.userId,
         'Reserva cancelada',
-        `Sua reserva em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.`,
+        `Sua reserva em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.${reasonSuffix}`,
         'canceled'
       );
     }
@@ -209,7 +218,7 @@ export class ReservationService {
     return updated;
   }
 
-  async cancelSeries(recurrenceId: string, userId: string, userRole: string) {
+  async cancelSeries(recurrenceId: string, userId: string, userRole: string, cancelReason?: string) {
     if (userRole === 'student') {
       throw new ForbiddenError('Estudantes não podem cancelar séries de reservas recorrentes');
     }
@@ -227,33 +236,35 @@ export class ReservationService {
       throw new NotFoundError('Recurring reservation series');
     }
 
-    const activeReservations = seriesReservations.filter((reservation) => reservation.status === 'confirmed');
-    if (activeReservations.length === 0) {
-      throw new AppError(400, 'A série de reservas recorrentes já está cancelada', 'ALREADY_CANCELED');
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = seriesReservations.filter((r) => r.status === 'confirmed' && r.date >= today);
+    if (upcoming.length === 0) {
+      throw new AppError(400, 'A série de reservas recorrentes já está cancelada ou todas as ocorrências já passaram', 'ALREADY_CANCELED');
     }
 
     const now = new Date().toISOString();
     const updatedReservations = await this.db
       .update(reservations)
-      .set({ status: 'canceled', updatedAt: now })
-      .where(eq(reservations.recurrenceId, recurrenceId))
+      .set({ status: 'canceled', cancelReason: cancelReason ?? null, updatedAt: now })
+      .where(and(eq(reservations.recurrenceId, recurrenceId), gte(reservations.date, today)))
       .returning();
 
+    const reasonSuffix = cancelReason ? ` Motivo: ${cancelReason}` : '';
     await this.auditLog.log(
       userId,
       'cancel_recurring_reservation',
       recurrenceId,
       'reservation',
-      `Cancelou a série recorrente ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${activeReservations.length} reservas)`
+      `Cancelou a série recorrente ${seriesReservations[0]?.recurrence?.description ?? recurrenceId} (${upcoming.length} reservas)${reasonSuffix}`
     );
 
-    for (const reservation of activeReservations) {
+    for (const reservation of upcoming) {
       if (reservation.userId === userId) continue;
 
       await this.notification.create(
         reservation.userId,
         'Série de reservas recorrentes cancelada',
-        `Sua reserva recorrente em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.`,
+        `Sua reserva recorrente em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.${reasonSuffix}`,
         'canceled'
       );
     }
@@ -349,12 +360,26 @@ export class ReservationService {
     }
   }
 
-  private async enforceStudentLimit(userId: string) {
-    const active = await this.db.query.reservations.findFirst({
-      where: and(eq(reservations.userId, userId), eq(reservations.status, 'confirmed')),
-    });
-    if (active) {
-      throw new AppError(400, 'Estudantes só podem ter uma reserva ativa por vez', 'STUDENT_LIMIT');
+  private async enforceActiveLimit(userId: string, userRole: string) {
+    const limit = ACTIVE_RESERVATION_LIMITS[userRole] ?? null;
+    if (limit === null) return;
+
+    if (limit === 0) {
+      throw new ForbiddenError('Sua função não permite criar reservas');
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const [row] = await this.db
+      .select({ total: count() })
+      .from(reservations)
+      .where(and(eq(reservations.userId, userId), eq(reservations.status, 'confirmed'), gte(reservations.date, today)));
+
+    if ((row?.total ?? 0) >= limit) {
+      throw new AppError(
+        400,
+        `Limite de ${limit} reserva${limit === 1 ? '' : 's'} ativa${limit === 1 ? '' : 's'} atingido para o seu perfil`,
+        'RESERVATION_LIMIT'
+      );
     }
   }
 

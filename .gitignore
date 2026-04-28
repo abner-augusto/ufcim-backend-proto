@@ -59,3 +59,4 @@ Thumbs.db
 repomix.config.json
 repomix-output.xml
 .dev.vars.example
+.markdownlint.json
