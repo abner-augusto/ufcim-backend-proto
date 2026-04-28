@@ -43,6 +43,13 @@
       "when": 1777250930956,
       "tag": "0005_invitations_purpose",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1777403335936,
+      "tag": "0006_early_marvex",
+      "breakpoints": true
     }
   ]
 }
