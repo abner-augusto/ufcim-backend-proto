@@ -26,7 +26,10 @@ function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
     DB: {
       prepare: vi.fn().mockReturnValue({
-        bind: vi.fn().mockReturnValue({}),
+        bind: vi.fn().mockReturnValue({
+          first: vi.fn().mockResolvedValue({ count: 1 }),
+          run: vi.fn().mockResolvedValue({ meta: { changes: 0 } }),
+        }),
       }),
       batch: mockBatch,
     } as unknown as D1Database,
@@ -145,7 +148,10 @@ describe('POST /bootstrap/master-admin', () => {
   });
 
   it('normalizes mixed-case email to lowercase before storing', async () => {
-    const mockBind = vi.fn().mockReturnValue({});
+    const mockBind = vi.fn().mockReturnValue({
+      first: vi.fn().mockResolvedValue({ count: 1 }),
+      run: vi.fn().mockResolvedValue({ meta: { changes: 0 } }),
+    });
     const mockPrepare = vi.fn().mockReturnValue({ bind: mockBind });
     const app = makeApp();
     const mixedBody = JSON.stringify({

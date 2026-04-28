@@ -11,6 +11,9 @@ binding = "DB"
 database_name = "ufcim-db"
 database_id = "6c2a2f98-6296-492d-b5e9-5c1db08385cb"
 
+[env.dev.triggers]
+crons = ["0 4 * * *"]   # 04:00 UTC daily
+
 [env.production]
 main = "src/index.ts"
 vars = { ENVIRONMENT = "production", JWKS_URL = "https://your-keycloak/realms/ufc/protocol/openid-connect/certs", JWT_ISSUER = "ufcim-prototype", ADMIN_BASE_URL = "https://your-worker.workers.dev/admin" }
@@ -19,3 +22,6 @@ vars = { ENVIRONMENT = "production", JWKS_URL = "https://your-keycloak/realms/uf
 binding = "DB"
 database_name = "ufcim-db"
 database_id = "6c2a2f98-6296-492d-b5e9-5c1db08385cb"
+
+[env.production.triggers]
+crons = ["0 4 * * *"]   # 04:00 UTC daily

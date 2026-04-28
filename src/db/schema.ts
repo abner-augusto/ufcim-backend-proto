@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 import { relations, sql } from 'drizzle-orm';
 
 // ─── Departments ─────────────────────────────────────────────────────────────
@@ -185,6 +185,18 @@ export const refreshTokens = sqliteTable('refresh_tokens', {
   userAgent: text('user_agent'),
   createdAt: text('created_at').notNull(),
 });
+
+export const rateLimitBuckets = sqliteTable(
+  'rate_limit_buckets',
+  {
+    key: text('key').primaryKey(),
+    count: integer('count').notNull().default(0),
+    windowStart: text('window_start').notNull(),
+  },
+  (t) => ({
+    windowStartIdx: index('rate_limit_buckets_window_start_idx').on(t.windowStart),
+  })
+);
 
 // ─── Relations ──────────────────────────────────────────────────────────────
 export const departmentsRelations = relations(departments, ({ many }) => ({

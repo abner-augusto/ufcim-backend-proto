@@ -7,6 +7,7 @@ import { users } from '@/db/schema';
 import { hashPassword } from '@/lib/crypto';
 import { passwordPolicySchema } from '@/validators/auth.schema';
 import { validate } from '@/middleware/validation';
+import { rateLimit } from '@/middleware/rate-limit';
 import { ConflictError, UnauthorizedError } from '@/middleware/error-handler';
 
 const bootstrapSchema = z.object({
@@ -18,7 +19,7 @@ const bootstrapSchema = z.object({
 
 export const bootstrapRoutes = new Hono<AppEnv>();
 
-bootstrapRoutes.post('/master-admin', validate(bootstrapSchema), async (c) => {
+bootstrapRoutes.post('/master-admin', rateLimit({ namespace: 'bootstrap', max: 5, windowSeconds: 600 }), validate(bootstrapSchema), async (c) => {
   const expected = c.env.BOOTSTRAP_TOKEN;
   const provided = c.req.header('X-Bootstrap-Token');
 
