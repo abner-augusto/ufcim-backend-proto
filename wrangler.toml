@@ -16,9 +16,7 @@ crons = ["0 4 * * *"]   # 04:00 UTC daily
 
 [env.production]
 main = "src/index.ts"
-# TODO: replace ufcim.pages.dev with the real Pages URL once deployed.
-# TODO: replace <your-subdomain> with your real workers.dev subdomain (wrangler whoami).
-vars = { ENVIRONMENT = "production", JWT_ISSUER = "ufcim-prototype", INVITE_BASE_URL = "https://ufcim.pages.dev", ADMIN_BASE_URL = "https://ufcim.<your-subdomain>.workers.dev/admin" }
+vars = { ENVIRONMENT = "production", JWT_ISSUER = "ufcim-prototype", INVITE_BASE_URL = "https://ufcim-front3d.pages.dev/", ADMIN_BASE_URL = "https://ufcim-production.abner-hey.workers.dev/admin" }
 
 [[env.production.d1_databases]]
 binding = "DB"

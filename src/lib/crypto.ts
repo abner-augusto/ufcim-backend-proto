@@ -1,5 +1,6 @@
 // Format: "pbkdf2$<iterations>$<saltB64>$<hashB64>"
-// 600_000 iterations of PBKDF2-SHA-256, 16-byte salt, 32-byte derived key.
+// 100_000 iterations of PBKDF2-SHA-256, 16-byte salt, 32-byte derived key.
+// Note: Cloudflare Workers limits PBKDF2 to 100,000 iterations.
 export async function hashPassword(plaintext: string): Promise<string> {
   const salt = new Uint8Array(16);
   crypto.getRandomValues(salt);
@@ -13,14 +14,14 @@ export async function hashPassword(plaintext: string): Promise<string> {
   );
 
   const derived = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 600_000 },
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100_000 },
     keyMaterial,
     256
   );
 
   const saltB64 = btoa(String.fromCharCode(...salt));
   const hashB64 = btoa(String.fromCharCode(...new Uint8Array(derived)));
-  return `pbkdf2$600000$${saltB64}$${hashB64}`;
+  return `pbkdf2$100000$${saltB64}$${hashB64}`;
 }
 
 // Constant-time verification. Parses the encoded string, derives with the same params, compares.
