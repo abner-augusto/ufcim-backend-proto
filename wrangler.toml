@@ -2,6 +2,10 @@ name = "ufcim"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
+[observability.logs]
+enabled = false
+invocation_logs = true
+
 [env.dev]
 main = "src/index.dev.ts"
 vars = { ENVIRONMENT = "development", JWKS_URL = "http://localhost:8787/dev/jwks", JWT_ISSUER = "http://localhost:8787", INVITE_BASE_URL = "http://localhost:5173", ADMIN_BASE_URL = "http://localhost:8787/admin" }
