@@ -16,6 +16,7 @@ import { blockingRoutes } from '@/routes/blockings';
 import { notificationRoutes } from '@/routes/notifications';
 import { logRoutes } from '@/routes/logs';
 import { statsRoutes } from '@/routes/stats';
+import { reportRoutes } from '@/routes/reports';
 import { departmentRoutes } from '@/routes/departments';
 import { adminRoutes } from '@/routes/admin';
 import { authRoutes } from '@/routes/auth';
@@ -108,6 +109,7 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   api.route('/notifications', notificationRoutes);
   api.route('/logs', logRoutes);
   api.route('/stats', statsRoutes);
+  api.route('/reports', reportRoutes);
   api.route('/departments', departmentRoutes);
 
   app.route('/api/v1', api);
