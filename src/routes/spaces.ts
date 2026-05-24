@@ -114,15 +114,6 @@ spaceRoutes.get('/:id/report', async (c) => {
 
   const spaceId = c.req.param('id');
 
-  // Pre-load space to avoid an extra query inside getSpaceReport
-  const space = await db.query.spaces.findFirst({
-    where: eq(spaces.id, spaceId),
-    with: { department: true },
-  });
-  if (!space) {
-    return c.json({ error: 'Space não encontrado', code: 'NOT_FOUND' }, 404);
-  }
-
   const report = await service.getSpaceReport({
     spaceId,
     startDate,
@@ -134,17 +125,6 @@ spaceRoutes.get('/:id/report', async (c) => {
           ? 'staff' as UserRole
           : (extractRole(user) ?? 'student')
       ) as UserRole,
-    },
-    space: {
-      id: space.id,
-      name: space.name,
-      number: space.number,
-      block: space.block,
-      type: space.type,
-      capacity: space.capacity,
-      department: space.department,
-      closedFrom: (space as any).closedFrom,
-      closedTo: (space as any).closedTo,
     },
   });
 
