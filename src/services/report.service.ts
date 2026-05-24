@@ -11,6 +11,18 @@ interface SpaceReportInput {
   startDate: string;
   endDate: string;
   viewer: { userId: string; role: UserRole };
+  /** Pre-loaded space object — skips DB lookup when provided */
+  space?: {
+    id: string;
+    name: string;
+    number: string;
+    block: string;
+    type: string;
+    capacity: number | null;
+    department: unknown;
+    closedFrom?: string;
+    closedTo?: string;
+  };
 }
 
 interface SpaceReport {
@@ -112,12 +124,15 @@ export class ReportService {
       throw new AppError(400, 'O período máximo permitido é de 90 dias', 'RANGE_TOO_LARGE');
     }
 
-    // Get space
-    const space = await this.db.query.spaces.findFirst({
-      where: eq(spaces.id, spaceId),
-      with: { department: true },
-    });
-    if (!space) throw new NotFoundError('Space');
+    // Get space (use pre-loaded or fetch from DB)
+    let space: any = input.space ?? null;
+    if (!space) {
+      space = await this.db.query.spaces.findFirst({
+        where: eq(spaces.id, spaceId),
+        with: { department: true },
+      });
+      if (!space) throw new NotFoundError('Space');
+    }
 
     // Single query for all reservations in range
     const allReservations = await this.db.query.reservations.findMany({

@@ -211,6 +211,48 @@ describe('EquipmentReportService.listByEquipment', () => {
   });
 });
 
+describe('EquipmentReportService.listPending', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: EquipmentReportService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new EquipmentReportService(db);
+    db.query.equipmentReports.findMany.mockResolvedValue([]);
+  });
+
+  it('filters by status when provided', async () => {
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: '1', equipmentId: 'eq-1', severity: 'minor', status: 'pending', equipment: { spaceId: 's1' }, reporter: null, acknowledger: null },
+    ]);
+
+    const result = await service.listPending({ status: 'pending', page: 1, limit: 20 });
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('pending');
+  });
+
+  it('returns only reports matching the status filter', async () => {
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: '1', equipmentId: 'eq-1', severity: 'minor', status: 'pending', equipment: { spaceId: 's1' }, reporter: null, acknowledger: null },
+    ]);
+
+    const result = await service.listPending({ status: 'pending', page: 1, limit: 20 });
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('pending');
+  });
+
+  it('applies spaceId filter when provided', async () => {
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: '1', equipmentId: 'eq-1', severity: 'minor', status: 'pending', equipment: { spaceId: 's1' }, reporter: null, acknowledger: null },
+      { id: '2', equipmentId: 'eq-2', severity: 'major', status: 'pending', equipment: { spaceId: 's2' }, reporter: null, acknowledger: null },
+    ]);
+
+    const result = await service.listPending({ status: 'pending', spaceId: 's1', page: 1, limit: 20 });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('1');
+  });
+});
+
 describe('EquipmentReportService.listByUser', () => {
   let db: ReturnType<typeof createMockDb>;
   let service: EquipmentReportService;

@@ -34,7 +34,7 @@ equipmentRoutes.get('/reports/pending', rbac(['staff', 'maintenance']), async (c
   const service = new EquipmentReportService(db);
   const user = c.get('user');
 
-  const status = c.req.query('status');
+  const status = c.req.query('status') ?? 'pending';
   const spaceId = c.req.query('spaceId');
   const page = parseInt(c.req.query('page') ?? '1', 10);
   const limit = parseInt(c.req.query('limit') ?? '20', 10);

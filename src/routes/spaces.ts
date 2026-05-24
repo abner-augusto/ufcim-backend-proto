@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
+import { spaces } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { SpaceService } from '@/services/space.service';
 import { ReportService } from '@/services/report.service';
 import { AuditLogService } from '@/services/audit-log.service';
@@ -110,8 +112,19 @@ spaceRoutes.get('/:id/report', async (c) => {
     return c.json({ error: 'Datas devem estar no formato AAAA-MM-DD', code: 'VALIDATION_ERROR' }, 400);
   }
 
+  const spaceId = c.req.param('id');
+
+  // Pre-load space to avoid an extra query inside getSpaceReport
+  const space = await db.query.spaces.findFirst({
+    where: eq(spaces.id, spaceId),
+    with: { department: true },
+  });
+  if (!space) {
+    return c.json({ error: 'Space não encontrado', code: 'NOT_FOUND' }, 404);
+  }
+
   const report = await service.getSpaceReport({
-    spaceId: c.req.param('id'),
+    spaceId,
     startDate,
     endDate,
     viewer: {
@@ -121,6 +134,17 @@ spaceRoutes.get('/:id/report', async (c) => {
           ? 'staff' as UserRole
           : (extractRole(user) ?? 'student')
       ) as UserRole,
+    },
+    space: {
+      id: space.id,
+      name: space.name,
+      number: space.number,
+      block: space.block,
+      type: space.type,
+      capacity: space.capacity,
+      department: space.department,
+      closedFrom: (space as any).closedFrom,
+      closedTo: (space as any).closedTo,
     },
   });
 
