@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { SpaceService } from '@/services/space.service';
 import { ReportService } from '@/services/report.service';
 import { AuditLogService } from '@/services/audit-log.service';
+import { NotFoundError } from '@/middleware/error-handler';
 import { validate, validateQuery } from '@/middleware/validation';
 import { rbac, extractRole, isMasterAdmin } from '@/middleware/rbac';
 import { createSpaceSchema, updateSpaceSchema, spaceQuerySchema } from '@/validators/space.schema';
@@ -114,7 +115,17 @@ spaceRoutes.get('/:id/report', async (c) => {
 
   const spaceId = c.req.param('id');
 
+  // Pre-load space to eliminate redundant DB query inside the service
+  const space = await db.query.spaces.findFirst({
+    where: eq(spaces.id, spaceId),
+    with: { department: true },
+  });
+  if (!space) {
+    throw new NotFoundError('Space');
+  }
+
   const report = await service.getSpaceReport({
+    space,
     spaceId,
     startDate,
     endDate,
