@@ -1,4 +1,4 @@
-import { eq, and, gte, desc, lte } from 'drizzle-orm';
+import { eq, and, gte, desc, lte, isNull } from 'drizzle-orm';
 import { equipmentReports, equipment, users } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { AppError, NotFoundError, ConflictError, ForbiddenError } from '@/middleware/error-handler';
@@ -86,8 +86,8 @@ export class EquipmentReportService {
 
     const staffAndMaintenance = await this.db.query.users.findMany({
       where: and(
-        eq(users.disabledAt, null as unknown as string),
-        eq(users.deletedAt, null as unknown as string)
+        isNull(users.disabledAt),
+        isNull(users.deletedAt)
       ),
     });
 
@@ -100,7 +100,7 @@ export class EquipmentReportService {
         target.id,
         'Novo reporte de equipamento',
         message,
-        'equipment_report' as any
+        'equipment_report'
       );
     }
 
@@ -120,7 +120,7 @@ export class EquipmentReportService {
     const report = await this.db.query.equipmentReports.findFirst({
       where: eq(equipmentReports.id, reportId),
     });
-    if (!report) throw new NotFoundError('Equipment');
+    if (!report) throw new NotFoundError('Equipment Report');
 
     const now = new Date().toISOString();
     const [updated] = await this.db
@@ -145,7 +145,7 @@ export class EquipmentReportService {
       where: eq(equipmentReports.id, reportId),
       with: { equipment: true, reporter: true },
     });
-    if (!report) throw new NotFoundError('Equipment');
+    if (!report) throw new NotFoundError('Equipment Report');
 
     const now = new Date().toISOString();
     const [updated] = await this.db
@@ -161,7 +161,7 @@ export class EquipmentReportService {
         report.reportedBy,
         'Reporte resolvido',
         `O reporte sobre \"${equipName}\" foi marcado como resolvido.`,
-        'equipment_report' as any
+        'equipment_report'
       );
     }
 
@@ -180,7 +180,7 @@ export class EquipmentReportService {
     const report = await this.db.query.equipmentReports.findFirst({
       where: eq(equipmentReports.id, reportId),
     });
-    if (!report) throw new NotFoundError('Equipment');
+    if (!report) throw new NotFoundError('Equipment Report');
 
     const now = new Date().toISOString();
     const [updated] = await this.db

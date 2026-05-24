@@ -95,6 +95,9 @@ spaceRoutes.get('/:id/report', async (c) => {
   const db = createDb(c.env.DB);
   const service = new ReportService(db);
   const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Autenticação obrigatória', code: 'UNAUTHORIZED' }, 401);
+  }
 
   const startDate = c.req.query('startDate');
   const endDate = c.req.query('endDate');
