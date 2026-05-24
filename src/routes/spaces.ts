@@ -2,10 +2,12 @@ import { Hono } from 'hono';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
 import { SpaceService } from '@/services/space.service';
+import { AuditLogService } from '@/services/audit-log.service';
 import { validate, validateQuery } from '@/middleware/validation';
-import { rbac } from '@/middleware/rbac';
+import { rbac, extractRole, isMasterAdmin } from '@/middleware/rbac';
 import { createSpaceSchema, updateSpaceSchema, spaceQuerySchema } from '@/validators/space.schema';
 import type { z } from 'zod';
+import type { UserRole } from '@/types/auth';
 
 export const spaceRoutes = new Hono<AppEnv>();
 
@@ -55,7 +57,35 @@ spaceRoutes.get('/:id/availability', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
-  const availability = await service.getAvailability(c.req.param('id'), date);
+
+  // Extract viewer from auth context (if authenticated)
+  const user = c.get('user');
+  const viewer = user
+    ? {
+        userId: user.sub,
+        role: (
+          isMasterAdmin(user)
+            ? 'staff' as UserRole  // master admins get staff-level visibility
+            : (extractRole(user) ?? 'student')
+        ) as UserRole,
+      }
+    : undefined;
+
+  const availability = await service.getAvailability(c.req.param('id'), date, viewer);
+
+  // Audit log
+  if (viewer) {
+    const auditLog = new AuditLogService(db);
+    const occupiedCount = availability.filter(s => s.status === 'reserved' || s.status === 'blocked').length;
+    await auditLog.log(
+      viewer.userId,
+      'view_space_availability',
+      c.req.param('id'),
+      'space',
+      `Consultou disponibilidade em ${date} (${occupiedCount} slots ocupados)`
+    );
+  }
+
   return c.json(availability);
 });
 

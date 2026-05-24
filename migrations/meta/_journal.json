@@ -50,6 +50,13 @@
       "when": 1777403335936,
       "tag": "0006_early_marvex",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1779239571441,
+      "tag": "0007_colossal_omega_sentinel",
+      "breakpoints": true
     }
   ]
 }

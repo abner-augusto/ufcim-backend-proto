@@ -20,6 +20,7 @@ interface CreateReservationInput {
   startTime: string;
   endTime: string;
   purpose?: string;
+  description?: string; // optional free-text, max 100 chars
 }
 
 interface CreateRecurringInput {
@@ -89,6 +90,7 @@ export class ReservationService {
         endTime: input.endTime,
         status: 'confirmed',
         purpose: input.purpose ?? null,
+        description: input.description?.trim() || null,
         createdAt: now,
         updatedAt: now,
       })

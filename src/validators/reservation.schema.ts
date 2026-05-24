@@ -8,6 +8,7 @@ export const createReservationSchema = z
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,
     purpose: z.string().max(100).optional(),
+    description: z.string().trim().max(100).optional(),
   })
   .refine((data) => data.startTime < data.endTime, {
     message: 'O horário de término deve ser posterior ao horário de início',

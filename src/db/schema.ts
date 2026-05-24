@@ -88,6 +88,7 @@ export const reservations = sqliteTable('reservations', {
   recurrenceId: text('recurrence_id').references(() => recurrences.id),
   changeOrigin: text('change_origin'),
   purpose: text('purpose'),
+  description: text('description'), // optional free-text, max 100 chars
   cancelReason: text('cancel_reason'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
