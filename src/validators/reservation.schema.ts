@@ -23,7 +23,7 @@ export const createRecurringReservationSchema = z
     dayOfWeek: z.number().int().min(0).max(6), // 0 = Sunday
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,
-    description: z.string().min(1).max(200),
+    description: z.string().trim().max(100).optional(),
     purpose: z.string().max(100).optional(),
   })
   .refine((d) => new Date(d.endDate) > new Date(d.startDate), {
