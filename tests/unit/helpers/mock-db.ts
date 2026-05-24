@@ -41,6 +41,7 @@ export function createMockDb() {
       notifications: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       auditLogs:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       equipment:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      equipmentReports: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       recurrences:   { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       spaceManagers: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       departments:   { findFirst: vi.fn().mockResolvedValue({ id: 'iaud', name: 'IAUD', campus: 'Benfica' }), findMany: vi.fn().mockResolvedValue([]) },

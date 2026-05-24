@@ -67,6 +67,35 @@ export const equipment = sqliteTable('equipment', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// ─── Equipment Reports (reportes de equipamentos) ──────────────────────────
+export const equipmentReports = sqliteTable(
+  'equipment_reports',
+  {
+    id: text('id').primaryKey(),
+    equipmentId: text('equipment_id').notNull().references(() => equipment.id),
+    reportedBy: text('reported_by').notNull().references(() => users.id),
+    description: text('description').notNull(),
+    severity: text('severity').notNull(), // 'minor' | 'major' | 'blocking'
+    status: text('status').notNull(),      // 'pending' | 'acknowledged' | 'resolved' | 'dismissed'
+    acknowledgedBy: text('acknowledged_by').references(() => users.id),
+    acknowledgedAt: text('acknowledged_at'),
+    resolvedAt: text('resolved_at'),
+    dismissedReason: text('dismissed_reason'),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => ({
+    equipmentIdx: index('equipment_reports_equipment_idx').on(t.equipmentId),
+    statusIdx: index('equipment_reports_status_idx').on(t.status),
+    createdAtIdx: index('equipment_reports_created_at_idx').on(t.createdAt),
+  })
+);
+
+export const equipmentReportsRelations = relations(equipmentReports, ({ one }) => ({
+  equipment: one(equipment, { fields: [equipmentReports.equipmentId], references: [equipment.id] }),
+  reporter: one(users, { fields: [equipmentReports.reportedBy], references: [users.id], relationName: 'reporter' }),
+  acknowledger: one(users, { fields: [equipmentReports.acknowledgedBy], references: [users.id], relationName: 'acknowledger' }),
+}));
+
 // ─── Recurrences (recorrencias) ─────────────────────────────────────────────
 export const recurrences = sqliteTable('recurrences', {
   id: text('id').primaryKey(),
@@ -239,6 +268,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   credentials: one(userCredentials),
   invitationsSent: many(invitations, { relationName: 'inviter' }),
   refreshTokens: many(refreshTokens),
+  equipmentReports: many(equipmentReports, { relationName: 'reporter' }),
 }));
 
 export const spacesRelations = relations(spaces, ({ one, many }) => ({

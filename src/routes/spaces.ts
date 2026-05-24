@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
 import { SpaceService } from '@/services/space.service';
+import { ReportService } from '@/services/report.service';
 import { AuditLogService } from '@/services/audit-log.service';
 import { validate, validateQuery } from '@/middleware/validation';
 import { rbac, extractRole, isMasterAdmin } from '@/middleware/rbac';
@@ -87,6 +88,50 @@ spaceRoutes.get('/:id/availability', async (c) => {
   }
 
   return c.json(availability);
+});
+
+// GET /spaces/:id/report?startDate=...&endDate=...
+spaceRoutes.get('/:id/report', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new ReportService(db);
+  const user = c.get('user');
+
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+
+  if (!startDate || !endDate) {
+    return c.json({ error: 'startDate e endDate são obrigatórios', code: 'MISSING_DATE_RANGE' }, 400);
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    return c.json({ error: 'Datas devem estar no formato AAAA-MM-DD', code: 'VALIDATION_ERROR' }, 400);
+  }
+
+  const report = await service.getSpaceReport({
+    spaceId: c.req.param('id'),
+    startDate,
+    endDate,
+    viewer: {
+      userId: user.sub,
+      role: (
+        isMasterAdmin(user)
+          ? 'staff' as UserRole
+          : (extractRole(user) ?? 'student')
+      ) as UserRole,
+    },
+  });
+
+  // Audit log
+  const auditLog = new AuditLogService(db);
+  await auditLog.log(
+    user.sub,
+    'view_space_report',
+    c.req.param('id'),
+    'space',
+    `${startDate} a ${endDate}`
+  );
+
+  return c.json(report);
 });
 
 // PUT /spaces/:id — update space (staff only)
