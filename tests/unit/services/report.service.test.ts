@@ -23,19 +23,19 @@ describe('ReportService.getSpaceReport', () => {
     // No reservations or blockings by default
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
-  });
 
-  it('throws NotFoundError when space does not exist', async () => {
-    db.query.spaces.findFirst.mockResolvedValue(undefined);
-
-    await expect(
-      service.getSpaceReport({
-        spaceId: 'nonexistent',
-        startDate: '2026-06-01',
-        endDate: '2026-06-07',
-        viewer: { userId: 'user-1', role: 'staff' },
-      })
-    ).rejects.toThrow(NotFoundError);
+    // Default space object for calls that don't override
+    (service as any)._defaultSpace = {
+      id: SEED.space.id,
+      name: 'Sala de Aula A101',
+      number: SEED.space.number,
+      block: SEED.space.block,
+      type: SEED.space.type,
+      capacity: SEED.space.capacity,
+      department: { id: 'iaud', name: 'IAUD' },
+      closedFrom: '22:00',
+      closedTo: '07:00',
+    };
   });
 
   it('throws AppError for invalid date range (end before start)', async () => {
@@ -45,6 +45,7 @@ describe('ReportService.getSpaceReport', () => {
         startDate: '2026-06-10',
         endDate: '2026-06-01',
         viewer: { userId: 'user-1', role: 'staff' },
+        space: (service as any)._defaultSpace,
       })
     ).rejects.toThrow(AppError);
   });
@@ -56,6 +57,7 @@ describe('ReportService.getSpaceReport', () => {
         startDate: '2026-01-01',
         endDate: '2026-05-01', // ~121 days
         viewer: { userId: 'user-1', role: 'staff' },
+        space: (service as any)._defaultSpace,
       })
     ).rejects.toThrow(AppError);
   });
@@ -66,6 +68,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-07',
       viewer: { userId: 'user-1', role: 'staff' },
+      space: (service as any)._defaultSpace,
     });
 
     expect(report.space.id).toBe(SEED.space.id);
@@ -140,6 +143,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-07',
       viewer: { userId: 'viewer-1', role: 'staff' },
+      space: (service as any)._defaultSpace,
     });
 
     expect(report.summary.totalReservations).toBe(2);
@@ -178,6 +182,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-07',
       viewer: { userId: 'student-1', role: 'student' },
+      space: (service as any)._defaultSpace,
     });
 
     // Student should see only role label for other people's reservations
@@ -210,6 +215,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-07',
       viewer: { userId: 'student-self', role: 'student' },
+      space: (service as any)._defaultSpace,
     });
 
     expect(report.reservations[0].author.displayName).toBe('Pedro');
@@ -239,6 +245,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-07',
       viewer: { userId: 'viewer-1', role: 'staff' },
+      space: (service as any)._defaultSpace,
     });
 
     expect(report.summary.totalBlockings).toBe(1);
@@ -253,6 +260,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-05',
       viewer: { userId: 'user-1', role: 'staff' },
+      space: (service as any)._defaultSpace,
     });
 
     expect(report.dailySeries).toHaveLength(5);
@@ -266,6 +274,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-07',
       viewer: { userId: 'user-1', role: 'staff' },
+      space: (service as any)._defaultSpace,
     });
 
     // Should have operational hours (07:00 to 21:00 — closed from 22:00 to 07:00)
@@ -299,6 +308,7 @@ describe('ReportService.getSpaceReport', () => {
       startDate: '2026-06-01',
       endDate: '2026-06-03',
       viewer: { userId: 'user-1', role: 'staff' },
+      space: (service as any)._defaultSpace,
     });
 
     expect(report.summary.peakDay).not.toBeNull();
