@@ -1,0 +1,12 @@
+# UFCIM — local dev secrets (not committed)
+# Copy this file to .dev.vars and fill in values. Wrangler loads it
+# automatically when you run `npm run dev`.
+
+# HMAC secret used by src/services/auth.service.ts to sign local access
+# tokens (env.dev only — production uses Keycloak RS256). Any non-empty
+# string works for local development.
+JWT_SIGNING_SECRET=dev-only-secret-change-me
+
+# Optional. When set, POST /bootstrap requires this token to create the
+# first master-admin user. Leave unset to disable the bootstrap endpoint.
+BOOTSTRAP_TOKEN=dev-bootstrap-token

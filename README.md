@@ -195,30 +195,49 @@ vars = { ENVIRONMENT = "production", JWT_ISSUER = "ufcim-prototype", ... }
 
 ### Pré-requisitos
 - Node.js 18+
-- `wrangler` CLI
+- `wrangler` CLI (instalado como devDependency — basta `npm install`)
 
 ### Instalação
 
 ```bash
 npm install
-cp .dev.vars.example .dev.vars   # preencha os segredos
+cp .dev.vars.example .dev.vars   # preencha os segredos (JWT_SIGNING_SECRET é obrigatório)
 ```
 
 ### Banco de dados local
 
-```bash
-# Aplicar migration
-npx wrangler d1 execute ufcim-db --local --file=migrations/0000_lazy_wallow.sql
+O binding D1 (`DB`) é declarado por ambiente em `wrangler.toml`, então **toda chamada precisa de `--env dev`** (ou `--env production`) — sem o flag o wrangler não encontra o banco.
 
-# Popular com seed de desenvolvimento
-npx wrangler d1 execute ufcim-db --local --file=scripts/seed.sql
+```bash
+# 1) Aplicar a migration consolidada
+npx wrangler d1 execute ufcim-db --local --env dev --file=migrations/0000_init.sql
+
+# 2a) Seed baseline (departments + spaces + equipment do IAUD).
+#     Seguro de aplicar tanto em dev quanto em produção.
+npx wrangler d1 execute ufcim-db --local --env dev --file=scripts/seed.sql
+
+# 2b) Seed dev-only (usuários de teste + reservas e blockings de exemplo).
+#     NÃO aplique em produção — usuários reais vêm do Keycloak via syncUserMiddleware.
+npx wrangler d1 execute ufcim-db --local --env dev --file=scripts/seed_dev.sql
 ```
+
+Para resetar o estado local, delete `.wrangler/` e re-aplique migration + seeds.
+
+> **Histórico de migrations:** este projeto consolidou todas as migrations de desenvolvimento em `migrations/0000_init.sql` enquanto ainda é um protótipo (sem usuários reais em produção). Se for adicionar uma migration nova, rode `npm run db:generate` para que o drizzle-kit gere um arquivo incremental a partir do snapshot atual em `migrations/meta/`.
 
 ### Servidor de desenvolvimento
 
 ```bash
-npm run dev   # wrangler dev --env dev
+npm run dev   # wrangler dev --env dev (escuta em http://localhost:8787)
 ```
+
+Em dev, o `devAuthMiddleware` injeta automaticamente o usuário staff (`Carlos Oliveira`, `00000000-0000-0000-0000-000000000003`) em requisições **sem** header `Authorization`. Para testar outros papéis, gere um token assinado:
+
+```bash
+node scripts/generate-test-token.mjs professor   # student | professor | staff | maintenance
+```
+
+e envie `Authorization: Bearer <token>`.
 
 ### Testes
 
