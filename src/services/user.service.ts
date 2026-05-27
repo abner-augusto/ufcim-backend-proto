@@ -30,7 +30,7 @@ export class UserService {
       .insert(users)
       .values({
         id: payload.sub,
-        name: payload.name,
+        name: payload.name ?? payload.preferred_username ?? 'Usuário',
         registration: payload.registration ?? payload.preferred_username ?? null,
         role,
         department: payload.department ?? 'Unknown',
@@ -41,7 +41,7 @@ export class UserService {
       .onConflictDoUpdate({
         target: users.id,
         set: {
-          name: payload.name,
+          name: payload.name ?? payload.preferred_username ?? 'Usuário',
           email: payload.email,
           role,
           department: payload.department ?? 'Unknown',

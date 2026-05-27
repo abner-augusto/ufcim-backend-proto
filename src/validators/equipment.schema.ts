@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { uuidSchema } from './common.schema';
 
 export const equipmentStatusSchema = z.enum([
   'working',
@@ -14,7 +13,7 @@ export const equipmentAssetIdSchema = z
 
 export const createEquipmentSchema = z.object({
   assetId: equipmentAssetIdSchema,
-  spaceId: uuidSchema,
+  spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
   name: z.string().min(1).max(200),
   type: z.string().min(1).max(100),
   status: equipmentStatusSchema,

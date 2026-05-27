@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { uuidSchema, futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
+import { futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
 
 export const createReservationSchema = z
   .object({
-    spaceId: uuidSchema,
+    spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
     date: futureDateSchema,
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,
@@ -17,7 +17,7 @@ export const createReservationSchema = z
 
 export const createRecurringReservationSchema = z
   .object({
-    spaceId: uuidSchema,
+    spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
     startDate: futureDateSchema,
     endDate: futureDateSchema,
     dayOfWeek: z.number().int().min(0).max(6), // 0 = Sunday
