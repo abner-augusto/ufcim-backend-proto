@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, inArray, count } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray } from 'drizzle-orm';
 import { spaces, reservations, blockings } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError, AppError } from '@/middleware/error-handler';
@@ -378,7 +378,7 @@ export class ReportService {
     spaceId?: string;
     groupBy?: 'day' | 'week' | 'month';
   }) {
-    const { startDate, endDate, campus, department, spaceId, groupBy } = filters;
+    const { startDate, endDate, campus, department, spaceId } = filters;
 
     const spaceConditions: any[] = [];
     if (campus) spaceConditions.push(eq(spaces.campus, campus));
@@ -390,59 +390,119 @@ export class ReportService {
       with: { department: true },
     });
 
-    // For each space, count reservations in range
-    const spacesData = await Promise.all(
-      spaceList.map(async (s) => {
-        const resCount = await this.db
-          .select({ total: count() })
-          .from(reservations)
-          .where(
-            and(
-              eq(reservations.spaceId, s.id),
-              eq(reservations.status, 'confirmed'),
-              gte(reservations.date, startDate),
-              lte(reservations.date, endDate)
-            )
-          );
+    const spaceIds = spaceList.map((s) => s.id);
 
-        const blkCount = await this.db
-          .select({ total: count() })
-          .from(blockings)
-          .where(
-            and(
-              eq(blockings.spaceId, s.id),
-              eq(blockings.status, 'active'),
-              gte(blockings.date, startDate),
-              lte(blockings.date, endDate)
-            )
-          );
+    // Two bulk queries cover every space; we aggregate in memory below.
+    const allReservations = spaceIds.length
+      ? await this.db.query.reservations.findMany({
+          where: and(
+            inArray(reservations.spaceId, spaceIds),
+            eq(reservations.status, 'confirmed'),
+            gte(reservations.date, startDate),
+            lte(reservations.date, endDate)
+          ),
+        })
+      : [];
+    const allBlockings = spaceIds.length
+      ? await this.db.query.blockings.findMany({
+          where: and(
+            inArray(blockings.spaceId, spaceIds),
+            eq(blockings.status, 'active'),
+            gte(blockings.date, startDate),
+            lte(blockings.date, endDate)
+          ),
+        })
+      : [];
 
-        const deptName = typeof s.department === 'object' && s.department
-          ? (s.department as any).name ?? s.department
-          : s.department as unknown as string;
+    const slotKey = (sid: string, date: string) => `${sid}|${date}`;
+    const resBySpaceDate = new Map<string, Array<{ startTime: string; endTime: string }>>();
+    const blkBySpaceDate = new Map<string, Array<{ startTime: string; endTime: string }>>();
+    const resCountBySpace = new Map<string, number>();
+    const blkCountBySpace = new Map<string, number>();
+    const turnoCounts = { morning: 0, afternoon: 0, evening: 0 };
 
-        return {
-          id: s.id,
-          name: s.name,
-          number: s.number,
-          block: s.block,
-          type: s.type,
-          capacity: s.capacity,
-          department: deptName,
-          totalReservations: resCount[0]?.total ?? 0,
-          totalBlockings: blkCount[0]?.total ?? 0,
-        };
-      })
-    );
+    for (const r of allReservations) {
+      resCountBySpace.set(r.spaceId, (resCountBySpace.get(r.spaceId) ?? 0) + 1);
+      const k = slotKey(r.spaceId, r.date);
+      (resBySpaceDate.get(k) ?? resBySpaceDate.set(k, []).get(k)!).push({ startTime: r.startTime, endTime: r.endTime });
+      const hour = parseInt(r.startTime.split(':')[0], 10);
+      if (hour < 13) turnoCounts.morning++;
+      else if (hour < 19) turnoCounts.afternoon++;
+      else turnoCounts.evening++;
+    }
+    for (const b of allBlockings) {
+      blkCountBySpace.set(b.spaceId, (blkCountBySpace.get(b.spaceId) ?? 0) + 1);
+      const k = slotKey(b.spaceId, b.date);
+      (blkBySpaceDate.get(k) ?? blkBySpaceDate.set(k, []).get(k)!).push({ startTime: b.startTime, endTime: b.endTime });
+    }
 
-    const totalReservations = spacesData.reduce((sum, s) => sum + s.totalReservations, 0);
-    const totalSpaces = spacesData.length;
+    const dates = dateRange(startDate, endDate);
+    const spaceOccupied = new Map<string, number>();
+    const spaceOperational = new Map<string, number>();
+    const dailyOccupied: Record<string, number> = {};
+    const dailyOperational: Record<string, number> = {};
+    const dailyReservations: Record<string, number> = {};
+
+    for (const s of spaceList) {
+      const closedFrom = s.closedFrom ?? DEFAULT_CLOSED_FROM;
+      const closedTo = s.closedTo ?? DEFAULT_CLOSED_TO;
+      for (const date of dates) {
+        const dayRes = resBySpaceDate.get(slotKey(s.id, date)) ?? [];
+        const dayBlk = blkBySpaceDate.get(slotKey(s.id, date)) ?? [];
+        const slots = buildHourlyAvailability(closedFrom, closedTo, dayRes, dayBlk);
+        const operational = slots.filter((slot) => slot.status !== 'closed').length;
+        if (operational === 0) continue;
+        const occupied = slots.filter((slot) => slot.status === 'reserved' || slot.status === 'blocked').length;
+
+        spaceOperational.set(s.id, (spaceOperational.get(s.id) ?? 0) + operational);
+        spaceOccupied.set(s.id, (spaceOccupied.get(s.id) ?? 0) + occupied);
+        dailyOperational[date] = (dailyOperational[date] ?? 0) + operational;
+        dailyOccupied[date] = (dailyOccupied[date] ?? 0) + occupied;
+        dailyReservations[date] = (dailyReservations[date] ?? 0) + dayRes.length;
+      }
+    }
+
+    const rate = (occupied: number, operational: number) =>
+      operational > 0 ? Math.min(100, Math.round((occupied / operational) * 100)) : 0;
+
+    const spacesData = spaceList.map((s) => {
+      const deptName = typeof s.department === 'object' && s.department
+        ? (s.department as any).name ?? s.department
+        : s.department as unknown as string;
+      return {
+        id: s.id,
+        name: s.name,
+        number: s.number,
+        block: s.block,
+        type: s.type,
+        capacity: s.capacity,
+        department: deptName,
+        totalReservations: resCountBySpace.get(s.id) ?? 0,
+        totalBlockings: blkCountBySpace.get(s.id) ?? 0,
+        occupancyRate: rate(spaceOccupied.get(s.id) ?? 0, spaceOperational.get(s.id) ?? 0),
+      };
+    });
+
+    const daily = dates.map((date) => ({
+      date,
+      occupancyRate: rate(dailyOccupied[date] ?? 0, dailyOperational[date] ?? 0),
+      reservations: dailyReservations[date] ?? 0,
+    }));
+
+    const byTurno = [
+      { turno: 'Manhã', reservations: turnoCounts.morning },
+      { turno: 'Tarde', reservations: turnoCounts.afternoon },
+      { turno: 'Noite', reservations: turnoCounts.evening },
+    ];
+
+    const totalOccupied = [...spaceOccupied.values()].reduce((sum, v) => sum + v, 0);
+    const totalOperational = [...spaceOperational.values()].reduce((sum, v) => sum + v, 0);
 
     return {
       spaces: spacesData,
-      totalOccupancyRate: totalSpaces > 0
-        ? Math.round((totalReservations / (totalSpaces * 1)) * 100)
-        : 0,
+      totalOccupancyRate: rate(totalOccupied, totalOperational),
+      daily,
+      byTurno,
       period: { startDate, endDate },
     };
   }
