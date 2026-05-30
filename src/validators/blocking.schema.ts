@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { uuidSchema, futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
+import { futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
 
 export const blockTypeSchema = z.enum(['maintenance', 'administrative']);
 
 export const createBlockingSchema = z
   .object({
-    spaceId: uuidSchema,
+    spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
     date: futureDateSchema,
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,

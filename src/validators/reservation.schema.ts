@@ -1,13 +1,14 @@
 import { z } from 'zod';
-import { uuidSchema, futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
+import { futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
 
 export const createReservationSchema = z
   .object({
-    spaceId: uuidSchema,
+    spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
     date: futureDateSchema,
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,
     purpose: z.string().max(100).optional(),
+    description: z.string().trim().max(100).optional(),
   })
   .refine((data) => data.startTime < data.endTime, {
     message: 'O horário de término deve ser posterior ao horário de início',
@@ -16,13 +17,13 @@ export const createReservationSchema = z
 
 export const createRecurringReservationSchema = z
   .object({
-    spaceId: uuidSchema,
+    spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
     startDate: futureDateSchema,
     endDate: futureDateSchema,
     dayOfWeek: z.number().int().min(0).max(6), // 0 = Sunday
     startTime: hourlyTimeSchema,
     endTime: boundaryTimeSchema,
-    description: z.string().min(1).max(200),
+    description: z.string().trim().max(100).optional(),
     purpose: z.string().max(100).optional(),
   })
   .refine((d) => new Date(d.endDate) > new Date(d.startDate), {

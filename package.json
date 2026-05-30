@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "dev:admin": "node scripts/create-dev-admin.mjs"
   },
   "repository": {
     "type": "git",

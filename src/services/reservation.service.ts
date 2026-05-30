@@ -20,6 +20,7 @@ interface CreateReservationInput {
   startTime: string;
   endTime: string;
   purpose?: string;
+  description?: string; // optional free-text, max 100 chars
 }
 
 interface CreateRecurringInput {
@@ -29,7 +30,7 @@ interface CreateRecurringInput {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
-  description: string;
+  description?: string;
   purpose?: string;
 }
 
@@ -89,6 +90,7 @@ export class ReservationService {
         endTime: input.endTime,
         status: 'confirmed',
         purpose: input.purpose ?? null,
+        description: input.description?.trim() || null,
         createdAt: now,
         updatedAt: now,
       })
@@ -129,7 +131,7 @@ export class ReservationService {
 
     await this.db.insert(recurrences).values({
       id: recurrenceId,
-      description: input.description,
+      description: input.description ?? '',
       createdBy: userId,
       createdAt: now,
     });
@@ -154,6 +156,7 @@ export class ReservationService {
             status: 'confirmed',
             recurrenceId,
             purpose: input.purpose ?? null,
+            description: input.description ?? null,
             createdAt: now,
             updatedAt: now,
           })

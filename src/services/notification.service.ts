@@ -3,7 +3,7 @@ import { notifications } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ForbiddenError, NotFoundError } from '@/middleware/error-handler';
 
-type NotificationType = 'confirmed' | 'canceled' | 'modified' | 'overridden';
+type NotificationType = 'confirmed' | 'canceled' | 'modified' | 'overridden' | 'equipment_report';
 
 export class NotificationService {
   constructor(private db: Database) {}

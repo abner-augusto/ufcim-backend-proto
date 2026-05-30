@@ -4,7 +4,10 @@ import type { Database } from '@/db/client';
 import { AppError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { DepartmentService } from './department.service';
-import { buildHourlyAvailability, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
+import { SpaceManagerService } from './space-manager.service';
+import { buildHourlyAvailability, intervalsOverlap, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
+import { formatReservationAuthor } from '@/lib/reservation-privacy';
+import type { UserRole } from '@/types/auth';
 
 interface CreateSpaceInput {
   name: string;
@@ -142,12 +145,24 @@ export class SpaceService {
 
   /**
    * Computes slot availability for a given space and date.
-   * Queries both reservations and blockings tables — no stored status column.
+   * When a viewer is provided, enriches reserved/blocked slots with
+   * author details (privacy-filtered by role) and recurrence info.
    */
-  async getAvailability(spaceId: string, date: string) {
+  async getAvailability(
+    spaceId: string,
+    date: string,
+    viewer?: { userId: string; role: UserRole }
+  ) {
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, spaceId) });
     if (!space) throw new NotFoundError('Space');
 
+    // Check if viewer is a manager of this space
+    let isManager = false;
+    if (viewer) {
+      isManager = await new SpaceManagerService(this.db).isManager(viewer.userId, spaceId);
+    }
+
+    // Load reservations and blockings (with relations only when viewer present)
     const [confirmedReservations, activeBlockings] = await Promise.all([
       this.db.query.reservations.findMany({
         where: and(
@@ -155,6 +170,7 @@ export class SpaceService {
           eq(reservations.date, date),
           eq(reservations.status, 'confirmed')
         ),
+        ...(viewer ? { with: { user: true, recurrence: true } as const } : {}),
       }),
       this.db.query.blockings.findMany({
         where: and(
@@ -162,6 +178,7 @@ export class SpaceService {
           eq(blockings.date, date),
           eq(blockings.status, 'active')
         ),
+        ...(viewer ? { with: { creator: true } as const } : {}),
       }),
     ]);
 
@@ -178,12 +195,96 @@ export class SpaceService {
       }))
     );
 
+    // If space is not reservable, mark all open slots
     if (!space.reservable) {
-      return slots.map((slot) =>
+      const filtered = slots.map((slot) =>
         slot.status === 'closed' ? slot : { ...slot, status: 'not_reservable' as const }
       );
+      return this.enrichSlots(filtered, confirmedReservations, activeBlockings, viewer, isManager);
     }
 
-    return slots;
+    return this.enrichSlots(slots, confirmedReservations, activeBlockings, viewer, isManager);
+  }
+
+  /**
+   * Second pass: attach reservation/blocking detail to occupied slots.
+   */
+  private enrichSlots<T extends { startTime: string; endTime: string; status: string }>(
+    slots: T[],
+    confirmedReservations: Array<{
+      id: string;
+      userId: string;
+      startTime: string;
+      endTime: string;
+      purpose: string | null;
+      description: string | null;
+      recurrenceId: string | null;
+      user?: { id: string; name: string; role: string } | null;
+      recurrence?: { description: string } | null;
+    }>,
+    activeBlockings: Array<{
+      id: string;
+      startTime: string;
+      endTime: string;
+      blockType: string;
+      reason: string | null;
+      date: string;
+      creator?: { id: string; name: string; role: string } | null;
+    }>,
+    viewer?: { userId: string; role: UserRole },
+    isManager?: boolean
+  ) {
+    return slots.map((slot) => {
+      if (slot.status === 'reserved') {
+        const reservation = confirmedReservations.find(
+          (r) => intervalsOverlap(slot.startTime, slot.endTime, r.startTime, r.endTime)
+        );
+        if (reservation && viewer && reservation.user) {
+          const author = formatReservationAuthor(
+            { ownerId: reservation.userId, ownerName: reservation.user.name, ownerRole: reservation.user.role },
+            viewer,
+            { isManager }
+          );
+          const description = reservation.description ?? reservation.recurrence?.description ?? null;
+          return {
+            ...slot,
+            reservation: {
+              id: reservation.id,
+              purpose: reservation.purpose ?? 'other',
+              description,
+              isRecurring: !!reservation.recurrenceId,
+              isSelf: author.isSelf,
+              author: { displayName: author.displayName, role: author.role },
+            },
+          };
+        }
+      }
+
+      if (slot.status === 'blocked') {
+        const blocking = activeBlockings.find(
+          (b) => intervalsOverlap(slot.startTime, slot.endTime, b.startTime, b.endTime)
+        );
+        if (blocking && viewer && blocking.creator) {
+          const author = formatReservationAuthor(
+            { ownerId: blocking.creator.id, ownerName: blocking.creator.name, ownerRole: blocking.creator.role },
+            viewer,
+            { isManager }
+          );
+          return {
+            ...slot,
+            blocking: {
+              id: blocking.id,
+              blockType: blocking.blockType,
+              reason: blocking.reason,
+              rangeStartDate: blocking.date,
+              rangeEndDate: blocking.date,
+              author: { displayName: author.displayName, role: author.role },
+            },
+          };
+        }
+      }
+
+      return slot;
+    });
   }
 }

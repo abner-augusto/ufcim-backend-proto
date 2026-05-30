@@ -1,52 +1,317 @@
--- UFCIM seed data — run with:
---   npx wrangler d1 execute ufcim-db --local --file=scripts/seed.sql
---   npx wrangler d1 execute ufcim-db --remote --file=scripts/seed.sql
+-- UFCIM seed: baseline. Safe to apply against any environment (dev or prod).
+-- Contains only reference data the application cannot reconstruct on its own:
+--   • All 4 departments (referenced by users + spaces + invitations).
+--   • All IAUD spaces (campus Benfica) wired to the 3D-model pins.
+--   • IAUD equipment.
 --
--- Uses deterministic UUIDs so it is safe to run multiple times (INSERT OR IGNORE).
--- All UUIDs match the sub claims in scripts/generate-test-token.mjs.
+-- Real user accounts are provisioned by syncUserMiddleware on first login
+-- from Keycloak claims — do NOT seed users here. For dev-only test users and
+-- sample reservations/blockings, see scripts/seed_dev.sql.
+--
+-- Sources for IAUD spaces:
+--   manifest.json       → pin IDs, blocks, and floors
+--   pins_db_popup.json  → capacity, furniture, lighting, hvac, projectors
+--
+-- Safe to re-run: every INSERT uses OR IGNORE with deterministic UUIDs.
+-- Apply locally:
+--   npx wrangler d1 execute ufcim-db --local  --env dev        --file=scripts/seed.sql
+-- Apply remotely (prod-safe):
+--   npx wrangler d1 execute ufcim-db --remote --env production --file=scripts/seed.sql
 
--- ── Users ────────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO users (id, name, registration, role, department, email, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'João Silva',       '2023001001', 'student',     'Ciência da Computação', 'joao.silva@alu.ufc.br',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000002', 'Dra. Maria Costa', '1998010001', 'professor',   'Ciência da Computação', 'maria.costa@ufc.br',      '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000003', 'Carlos Oliveira',  '2010005001', 'staff',       'Administração',         'carlos.oliveira@ufc.br', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000004', 'Pedro Santos',     '2015002001', 'maintenance', 'Manutenção',            'pedro.santos@ufc.br',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+-- ── Departments ─────────────────────────────────────────────────────────────
+INSERT OR IGNORE INTO departments (id, name, campus, created_at, updated_at) VALUES
+  ('Instituto de Arquitetura e Design (IAUD)', 'Instituto de Arquitetura e Design',  'Benfica', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('Ciência da Computação',                    'Departamento de Computação',         'Pici',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('Administração',                            'Departamento de Administração',      'Benfica', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('Manutenção',                               'Superintendência de Infraestrutura', 'Pici',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 -- ── Spaces ───────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO spaces (id, number, type, block, campus, department, capacity, furniture, lighting, hvac, multimedia, closed_from, closed_to, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000011', 'A101', 'classroom',    'A', 'Pici', 'Ciência da Computação', 40, 'Mesas e cadeiras para 40 pessoas',  'Fluorescente',   'Ar condicionado split 18000 BTU', 'Projetor + tela retrátil', '22:00', '07:00', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000012', 'B205', 'study_room',   'B', 'Pici', 'Ciência da Computação', 10, 'Mesa de reunião redonda, 10 cadeiras', 'LED',          'Ar condicionado split 9000 BTU',  NULL,                       '22:00', '07:00', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000013', 'C301', 'meeting_room', 'C', 'Pici', 'Administração',         20, 'Mesa de conferência, 20 cadeiras',  'LED regulável',  'Ar condicionado split 12000 BTU', 'TV 65" + videoconferência', '22:00', '07:00', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+-- UUID scheme: a1a0XXYY-0000-4000-8000-000000000000 (valid v4 format)
+-- model_id matches the pin "id" field in manifest.json exactly.
 
--- ── Equipment ─────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO equipment (id, asset_id, space_id, name, type, status, notes, updated_by, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000021', '2020002658', '00000000-0000-0000-0000-000000000011', 'Projetor Epson PowerLite',      'projector', 'working', NULL, '00000000-0000-0000-0000-000000000003', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000022', '2020002659', '00000000-0000-0000-0000-000000000012', 'Ar Condicionado Midea 9000 BTU','hvac',      'working', NULL, '00000000-0000-0000-0000-000000000004', '2026-01-01T00:00:00.000Z');
+INSERT OR IGNORE INTO spaces
+  (id, name, number, type, block, campus, department, capacity, furniture, lighting, hvac, multimedia, model_id, closed_from, closed_to, created_at, updated_at)
+VALUES
 
--- ── Recurrences ───────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO recurrences (id, description, created_by, created_at) VALUES
-  ('00000000-0000-0000-0000-000000000051', 'Aula semanal de Engenharia de Software', '00000000-0000-0000-0000-000000000002', '2026-01-01T00:00:00.000Z');
+  -- ── Bloco 1 — Térreo ─────────────────────────────────────────────────────
+  ('a1a00001-0000-4000-8000-000000000000',
+   'Sala de Leitura', 'B1-01', 'study_room', 'Bloco 1', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   50, NULL, 'Natural + Led', NULL, NULL,
+   'Sala de Leitura (Biblioteca)',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
--- ── Reservations ──────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO reservations (id, space_id, user_id, date, time_slot, start_time, end_time, status, recurrence_id, change_origin, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000061', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-02', 'morning',   '09:00', '10:00', 'confirmed',  NULL,                                   NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000062', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-09', 'afternoon', '14:00', '15:00', 'confirmed',  '00000000-0000-0000-0000-000000000051', NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000063', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002', '2026-04-16', 'afternoon', '14:00', '15:00', 'confirmed',  '00000000-0000-0000-0000-000000000051', NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000064', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000001', '2026-04-03', 'evening',   '19:00', '20:00', 'canceled',   NULL,                                   NULL,        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+  ('a1a00002-0000-4000-8000-000000000000',
+   'LEAU', 'B1-02', 'study_room', 'Bloco 1', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'LEAU',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
--- ── Blockings ─────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO blockings (id, space_id, created_by, date, time_slot, start_time, end_time, reason, block_type, status, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000071', '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000003', '2026-04-02', 'afternoon', '15:00', '17:00', 'Reunião do conselho departamental', 'administrative', 'active',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000072', '00000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000004', '2026-04-05', 'morning',   '08:00', '10:00', 'Troca de unidade de ar condicionado', 'maintenance',   'active',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000073', '00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000003', '2026-03-29', 'morning',   '08:00', '09:00', 'Bloqueio removido de teste',          'administrative', 'removed', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+  ('a1a00003-0000-4000-8000-000000000000',
+   'Administração', 'B1-03', 'meeting_room', 'Bloco 1', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   10, NULL, NULL, NULL, NULL,
+   'Administração',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
--- ── Notifications ─────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO notifications (id, user_id, title, message, type, read, created_at) VALUES
-  ('00000000-0000-0000-0000-000000000081', '00000000-0000-0000-0000-000000000002', 'Reserva confirmada', 'Sua reserva da sala A101 foi confirmada.', 'confirmed', 0, '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000082', '00000000-0000-0000-0000-000000000001', 'Reserva cancelada',  'Sua reserva futura da sala B205 foi cancelada.', 'canceled', 1, '2026-01-01T00:00:00.000Z');
+  ('a1a00004-0000-4000-8000-000000000000',
+   'LABCAD', 'B1-04', 'study_room', 'Bloco 1', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'LABCAD',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
--- ── Audit Logs ────────────────────────────────────────────────────────────────
-INSERT OR IGNORE INTO audit_logs (id, user_id, action_type, reference_id, reference_type, timestamp, details) VALUES
-  ('00000000-0000-0000-0000-000000000091', '00000000-0000-0000-0000-000000000003', 'create_space',       '00000000-0000-0000-0000-000000000011', 'space',       '2026-01-01T00:00:00.000Z', 'Created space A101'),
-  ('00000000-0000-0000-0000-000000000092', '00000000-0000-0000-0000-000000000002', 'create_reservation', '00000000-0000-0000-0000-000000000061', 'reservation', '2026-01-01T00:00:00.000Z', 'Reserved space A101 on 2026-04-02 (morning)'),
-  ('00000000-0000-0000-0000-000000000093', '00000000-0000-0000-0000-000000000004', 'create_blocking',    '00000000-0000-0000-0000-000000000072', 'blocking',    '2026-01-01T00:00:00.000Z', 'Blocked space B205 on 2026-04-05 (morning)');
+  ('a1a00005-0000-4000-8000-000000000000',
+   'Atelier Digital', 'B1-05', 'study_room', 'Bloco 1', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'Atelier Digital',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00006-0000-4000-8000-000000000000',
+   'Acervo', 'B1-06', 'study_room', 'Bloco 1', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   100, NULL, NULL, NULL, NULL,
+   'Acervo (Bibilioteca)',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00007-0000-4000-8000-000000000000',
+   'Adm. Biblioteca', 'B1-07', 'meeting_room', 'Bloco 1', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   10, NULL, NULL, NULL, NULL,
+   'Administrativo (Biblioteca)',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  -- ── Bloco 2 — Térreo ─────────────────────────────────────────────────────
+  ('a1a00008-0000-4000-8000-000000000000',
+   'Sala 01', 'B2-01', 'classroom', 'Bloco 2', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   36,
+   'Cadeira (35), Cadeira Professor (1), Mesa (18), Mesa Professor (1), Quadro Branco (2)',
+   'Natural + Led', 'Ar condicionado split (2 unidades)', NULL,
+   'Sala 01',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00009-0000-4000-8000-000000000000',
+   'Auditório', 'B2-02', 'hall', 'Bloco 2', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   100, NULL, NULL, NULL, NULL,
+   'Auditório',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00010-0000-4000-8000-000000000000',
+   'Sala 03', 'B2-03', 'classroom', 'Bloco 2', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   36,
+   'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (1)',
+   'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
+   'Sala 03',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00011-0000-4000-8000-000000000000',
+   'Lehab', 'B2-04', 'study_room', 'Bloco 2', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'Lehab',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00012-0000-4000-8000-000000000000',
+   'Loja 01', 'B2-05', 'study_room', 'Bloco 2', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   10, NULL, NULL, NULL, NULL,
+   'Loja 01',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  -- ── Bloco 3 — Térreo ─────────────────────────────────────────────────────
+  ('a1a00013-0000-4000-8000-000000000000',
+   'Sala 05', 'B3-05', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   36,
+   'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (1)',
+   'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
+   'Sala 05',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00014-0000-4000-8000-000000000000',
+   'Sala 06', 'B3-06', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   36,
+   'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (2)',
+   'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
+   'Sala 06',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00015-0000-4000-8000-000000000000',
+   'Sala 07', 'B3-07', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   36,
+   'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (2)',
+   'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
+   'Sala 07',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00016-0000-4000-8000-000000000000',
+   'Sala 08', 'B3-08', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   36,
+   'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (1)',
+   'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
+   'Sala 08',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00017-0000-4000-8000-000000000000',
+   'Centro Acadêmico', 'B3-CA', 'meeting_room', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'Centro Acadêmico',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  -- ── Bloco 3 — 1º Pavimento ────────────────────────────────────────────────
+  ('a1a00018-0000-4000-8000-000000000000',
+   'Sala 12', 'B3-12', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   36, NULL, NULL, NULL, NULL,
+   'Sala 12 (manutenção)',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00019-0000-4000-8000-000000000000',
+   'Sala 11', 'B3-11', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   46,
+   'Cadeira (45), Cadeira Professor (1), Mesa (30), Mesa Professor (1), Quadro Branco (1)',
+   'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
+   'Sala 11',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00020-0000-4000-8000-000000000000',
+   'Sala 10', 'B3-10', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   46,
+   'Cadeira (45), Cadeira Professor (1), Mesa (30), Mesa Professor (1), Quadro Branco (1)',
+   'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
+   'Sala 10',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00021-0000-4000-8000-000000000000',
+   'Sala 09', 'B3-09', 'classroom', 'Bloco 3', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   46,
+   'Cadeira (45), Cadeira Professor (1), Mesa (30), Mesa Professor (1), Quadro Branco (1)',
+   'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
+   'Sala 09',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  -- ── Bloco 4 — Térreo ─────────────────────────────────────────────────────
+  ('a1a00022-0000-4000-8000-000000000000',
+   'Cantina', 'B4-01', 'meeting_room', 'Bloco 4', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   50, NULL, NULL, NULL, NULL,
+   'Cantina',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00023-0000-4000-8000-000000000000',
+   'BHO Masculino', 'B4-02', 'meeting_room', 'Bloco 4', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   10, NULL, NULL, NULL, NULL,
+   'BHO Masculino',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00024-0000-4000-8000-000000000000',
+   'BHO Feminino', 'B4-03', 'meeting_room', 'Bloco 4', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   10, NULL, NULL, NULL, NULL,
+   'BHO Feminino',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00025-0000-4000-8000-000000000000',
+   'Sala Professores', 'B4-04', 'meeting_room', 'Bloco 4', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   15, NULL, NULL, NULL, NULL,
+   'Sala Professores',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  -- ── Pavilhão — Térreo ────────────────────────────────────────────────────
+  ('a1a00026-0000-4000-8000-000000000000',
+   'LED', 'PV-01', 'study_room', 'Pavilhão', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'LED',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00027-0000-4000-8000-000000000000',
+   'Sala 13', 'PV-13', 'classroom', 'Pavilhão', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20,
+   'Cadeira (20), Mesa (10), Quadro Branco (1)',
+   'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
+   'Sala 13',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  ('a1a00028-0000-4000-8000-000000000000',
+   'Oficina Digital', 'PV-02', 'study_room', 'Pavilhão', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'Oficina Digital',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
+
+  -- ── Pavilhão — 1º Pavimento ───────────────────────────────────────────────
+  ('a1a00029-0000-4000-8000-000000000000',
+   'Atelier Digital 1', 'PV-03', 'study_room', 'Pavilhão', 'Benfica',
+   'Instituto de Arquitetura e Design (IAUD)',
+   20, NULL, NULL, NULL, NULL,
+   'Atelier digital 1',
+   '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z');
+
+-- ── Equipment ────────────────────────────────────────────────────────────────
+-- Only inserted for rooms present in pins_db_popup.json.
+-- Asset IDs use the IAUD- prefix. updated_by is NULL (no IAUD staff user seeded).
+-- UUID scheme: e9e0XXYY-0000-4000-8000-000000000000
+
+INSERT OR IGNORE INTO equipment
+  (id, asset_id, space_id, name, type, status, notes, updated_by, updated_at)
+VALUES
+
+  -- Sala 01 — 2 AC, 0 projectors
+  ('e9e00001-0000-4000-8000-000000000000', 'IAUD-AC-001',   'a1a00008-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00002-0000-4000-8000-000000000000', 'IAUD-AC-002',   'a1a00008-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 03 — 1 AC, 1 projector
+  ('e9e00003-0000-4000-8000-000000000000', 'IAUD-AC-003',   'a1a00010-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00004-0000-4000-8000-000000000000', 'IAUD-PROJ-001', 'a1a00010-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 05 — 1 AC, 1 projector
+  ('e9e00005-0000-4000-8000-000000000000', 'IAUD-AC-004',   'a1a00013-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00006-0000-4000-8000-000000000000', 'IAUD-PROJ-002', 'a1a00013-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 06 — 1 AC, 1 projector
+  ('e9e00007-0000-4000-8000-000000000000', 'IAUD-AC-005',   'a1a00014-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00008-0000-4000-8000-000000000000', 'IAUD-PROJ-003', 'a1a00014-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 07 — 1 AC, 1 projector
+  ('e9e00009-0000-4000-8000-000000000000', 'IAUD-AC-006',   'a1a00015-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00010-0000-4000-8000-000000000000', 'IAUD-PROJ-004', 'a1a00015-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 08 — 1 AC, 1 projector
+  ('e9e00011-0000-4000-8000-000000000000', 'IAUD-AC-007',   'a1a00016-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00012-0000-4000-8000-000000000000', 'IAUD-PROJ-005', 'a1a00016-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 09 — 2 AC, 1 projector
+  ('e9e00013-0000-4000-8000-000000000000', 'IAUD-AC-008',   'a1a00021-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00014-0000-4000-8000-000000000000', 'IAUD-AC-009',   'a1a00021-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00015-0000-4000-8000-000000000000', 'IAUD-PROJ-006', 'a1a00021-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 10 — 2 AC, 1 projector
+  ('e9e00016-0000-4000-8000-000000000000', 'IAUD-AC-010',   'a1a00020-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00017-0000-4000-8000-000000000000', 'IAUD-AC-011',   'a1a00020-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00018-0000-4000-8000-000000000000', 'IAUD-PROJ-007', 'a1a00020-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 11 — 2 AC, 1 projector
+  ('e9e00019-0000-4000-8000-000000000000', 'IAUD-AC-012',   'a1a00019-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00020-0000-4000-8000-000000000000', 'IAUD-AC-013',   'a1a00019-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00021-0000-4000-8000-000000000000', 'IAUD-PROJ-008', 'a1a00019-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Sala 13 — 2 AC, 1 projector
+  ('e9e00022-0000-4000-8000-000000000000', 'IAUD-AC-014',   'a1a00027-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00023-0000-4000-8000-000000000000', 'IAUD-AC-015',   'a1a00027-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00024-0000-4000-8000-000000000000', 'IAUD-PROJ-009', 'a1a00027-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z');

@@ -56,9 +56,18 @@ describe('assignManagerSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects non-UUID spaceId', () => {
+  it('accepts non-UUID spaceId (validation relaxed to non-empty for seed data)', () => {
     const result = assignManagerSchema.safeParse({
       spaceId: 'not-a-uuid',
+      userId: VALID_USER_ID,
+      role: 'coordinator',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty spaceId', () => {
+    const result = assignManagerSchema.safeParse({
+      spaceId: '',
       userId: VALID_USER_ID,
       role: 'coordinator',
     });

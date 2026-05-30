@@ -59,7 +59,6 @@ Thumbs.db
 # Repomix
 repomix.config.json
 repomix-output.xml
-.dev.vars.example
 .markdownlint.json
 
 # LLM tool files

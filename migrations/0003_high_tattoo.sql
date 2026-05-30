@@ -1,1 +1,0 @@
-ALTER TABLE `spaces` ADD `reservable` integer DEFAULT true NOT NULL;
