@@ -132,8 +132,13 @@ describe('createRecurringReservationSchema', () => {
     expect(createRecurringReservationSchema.safeParse({ ...base, dayOfWeek: -1 }).success).toBe(false);
   });
 
-  it('rejects empty description', () => {
-    expect(createRecurringReservationSchema.safeParse({ ...base, description: '' }).success).toBe(false);
+  it('accepts empty description (optional, no minimum length)', () => {
+    expect(createRecurringReservationSchema.safeParse({ ...base, description: '' }).success).toBe(true);
+  });
+
+  it('accepts recurring payload without description', () => {
+    const { description: _description, ...withoutDescription } = base;
+    expect(createRecurringReservationSchema.safeParse(withoutDescription).success).toBe(true);
   });
 
   it('accepts optional purpose field in recurring payload', () => {

@@ -8,9 +8,10 @@ import {
 } from '@/lib/crypto';
 
 describe('hashPassword', () => {
-  it('produces a pbkdf2 encoded string with 600000 iterations', async () => {
+  it('produces a pbkdf2 encoded string with 100000 iterations', async () => {
+    // 100k is the max PBKDF2 iteration count allowed by Cloudflare Workers.
     const hash = await hashPassword('mysecretpassword');
-    expect(hash).toMatch(/^pbkdf2\$600000\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/);
+    expect(hash).toMatch(/^pbkdf2\$100000\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/);
   });
 
   it('produces different outputs for the same plaintext (unique salts)', async () => {
