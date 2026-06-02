@@ -14,7 +14,7 @@
  *   UFCIM_ADMIN_EMAIL       default admin@ufcim.dev
  *   UFCIM_ADMIN_PASSWORD    default Admin@dev1234         (min 10 chars, ≥1 letter + ≥1 digit)
  *   UFCIM_ADMIN_NAME        default Master Admin
- *   UFCIM_ADMIN_DEPARTMENT  default Instituto de Arquitetura, Urbanismo e Design (IAUD)  (MUST be an existing departments.id slug)
+ *   UFCIM_ADMIN_DEPARTMENT  default iaud  (MUST be an existing departments.id slug)
  *
  * Local:
  *   npm run dev:admin
@@ -42,7 +42,7 @@ const config = {
   admin: {
     email: process.env.UFCIM_ADMIN_EMAIL ?? 'admin@ufcim.dev',
     name: process.env.UFCIM_ADMIN_NAME ?? 'Master Admin',
-    department: process.env.UFCIM_ADMIN_DEPARTMENT ?? 'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
+    department: process.env.UFCIM_ADMIN_DEPARTMENT ?? 'iaud',
     password: process.env.UFCIM_ADMIN_PASSWORD ?? DEV_DEFAULTS.password,
   },
 };

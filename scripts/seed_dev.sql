@@ -18,10 +18,10 @@
 -- devAuthMiddleware auto-injects user …0003 (Carlos Oliveira / staff) when
 -- no Authorization header is sent.
 INSERT OR IGNORE INTO users (id, name, registration, role, department, email, created_at, updated_at) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'João Silva',        '2023001001', 'student',     'Ciência da Computação', 'joao.silva@alu.ufc.br',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000002', 'Dra. Maria Costa',  '1998010001', 'professor',   'Ciência da Computação', 'maria.costa@ufc.br',     '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000003', 'Carlos Oliveira',   '2010005001', 'staff',       'Administração',         'carlos.oliveira@ufc.br', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-  ('00000000-0000-0000-0000-000000000004', 'Pedro Santos',      '2015002001', 'maintenance', 'Manutenção',            'pedro.santos@ufc.br',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+  ('00000000-0000-0000-0000-000000000001', 'João Silva',        '2023001001', 'student',     'dc',  'joao.silva@alu.ufc.br',  '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000002', 'Dra. Maria Costa',  '1998010001', 'professor',   'dc',  'maria.costa@ufc.br',     '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000003', 'Carlos Oliveira',   '2010005001', 'staff',       'adm', 'carlos.oliveira@ufc.br', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('00000000-0000-0000-0000-000000000004', 'Pedro Santos',      '2015002001', 'maintenance', 'si',  'pedro.santos@ufc.br',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
 
 -- ── Sample recurrence (weekly class in Sala 01, Bloco 2) ────────────────────
 INSERT OR IGNORE INTO recurrences (id, description, created_by, created_at) VALUES

@@ -35,7 +35,7 @@ if (PASSWORD.length < 10 || !/[A-Za-z]/.test(PASSWORD) || !/[0-9]/.test(PASSWORD
 
 // department values must be existing departments.id slugs (see scripts/seed.sql).
 // The closed POC only covers IAUD, so every test account lives in that department.
-const IAUD = 'Instituto de Arquitetura, Urbanismo e Design (IAUD)';
+const IAUD = 'iaud';
 const TEST_USERS = [
   { id: '00000000-0000-0000-0000-0000000000a1', email: 'aluno@teste.com',       name: 'Aluno Teste',       role: 'student',     department: IAUD },
   { id: '00000000-0000-0000-0000-0000000000a2', email: 'professor@teste.com',   name: 'Professor Teste',   role: 'professor',   department: IAUD },

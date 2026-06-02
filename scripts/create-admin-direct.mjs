@@ -14,8 +14,7 @@
  *   UFCIM_ADMIN_EMAIL       required for remote; default admin@ufcim.dev (local)
  *   UFCIM_ADMIN_PASSWORD    required for remote; default Admin@dev1234   (local)
  *   UFCIM_ADMIN_NAME        default Master Admin
- *   UFCIM_ADMIN_DEPARTMENT  default Instituto de Arquitetura, Urbanismo e Design (IAUD)
- *                           (MUST be an existing departments.id slug)
+ *   UFCIM_ADMIN_DEPARTMENT  default iaud  (MUST be an existing departments.id slug)
  *
  * Usage:
  *   node scripts/create-admin-direct.mjs
@@ -35,7 +34,7 @@ const admin = {
   email: process.env.UFCIM_ADMIN_EMAIL ?? 'admin@ufcim.dev',
   password: process.env.UFCIM_ADMIN_PASSWORD ?? 'Admin@dev1234',
   name: process.env.UFCIM_ADMIN_NAME ?? 'Master Admin',
-  department: process.env.UFCIM_ADMIN_DEPARTMENT ?? 'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
+  department: process.env.UFCIM_ADMIN_DEPARTMENT ?? 'iaud',
 };
 
 // Mirror the app's password policy (src/validators/auth.schema.ts).
