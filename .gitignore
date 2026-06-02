@@ -61,6 +61,11 @@ repomix.config.json
 repomix-output.xml
 .markdownlint.json
 
+# Generated test-user seed (credential hashes) — regenerate via scripts/seed-test-users.mjs
+scripts/seed_test_users.sql
+# Generated master-admin seed (credential hash) — regenerate via scripts/create-admin-direct.mjs
+scripts/seed_master_admin.sql
+
 # LLM tool files
 CLAUDE.md
 CONVENTIONS.md

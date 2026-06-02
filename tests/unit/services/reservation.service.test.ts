@@ -42,6 +42,25 @@ describe('ReservationService.create', () => {
     ).rejects.toThrow(ForbiddenError);
   });
 
+  it('throws ForbiddenError when professor tries to reserve outside their department', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space); // dept: Ciência da Computação
+
+    await expect(
+      service.create(OTHER_USER_ID, 'professor', 'Administração', { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('allows staff to reserve outside their department', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space); // dept: Ciência da Computação
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+
+    await expect(
+      service.create(OTHER_USER_ID, 'staff', 'Administração', { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+    ).resolves.toMatchObject({ id: SEED.reservation.id });
+  });
+
   it('throws ConflictError when a reservation overlaps the requested time range', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([SEED.reservation]);
@@ -224,7 +243,7 @@ describe('ReservationService.createRecurring', () => {
 
   it('throws ForbiddenError for student role', async () => {
     await expect(
-      service.createRecurring(USER_ID, 'student', {
+      service.createRecurring(USER_ID, 'student', SEED.space.department, {
         spaceId: SPACE_ID,
         startDate: '2099-06-02',
         endDate: '2099-06-30',
@@ -238,7 +257,23 @@ describe('ReservationService.createRecurring', () => {
 
   it('throws ForbiddenError for maintenance role', async () => {
     await expect(
-      service.createRecurring(USER_ID, 'maintenance', {
+      service.createRecurring(USER_ID, 'maintenance', SEED.space.department, {
+        spaceId: SPACE_ID,
+        startDate: '2099-06-02',
+        endDate: '2099-06-30',
+        dayOfWeek: 1,
+        startTime: START_TIME,
+        endTime: END_TIME,
+        description: 'Weekly',
+      })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('throws ForbiddenError when professor creates a recurring series outside their department', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space); // dept: Ciência da Computação
+
+    await expect(
+      service.createRecurring(OTHER_USER_ID, 'professor', 'Administração', {
         spaceId: SPACE_ID,
         startDate: '2099-06-02',
         endDate: '2099-06-30',
@@ -254,7 +289,7 @@ describe('ReservationService.createRecurring', () => {
     db.query.spaces.findFirst.mockResolvedValue(undefined);
 
     await expect(
-      service.createRecurring(OTHER_USER_ID, 'professor', {
+      service.createRecurring(OTHER_USER_ID, 'professor', SEED.space.department, {
         spaceId: SPACE_ID,
         startDate: '2099-06-02',
         endDate: '2099-06-30',
@@ -272,7 +307,7 @@ describe('ReservationService.createRecurring', () => {
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
 
-    const result = await service.createRecurring(OTHER_USER_ID, 'professor', {
+    const result = await service.createRecurring(OTHER_USER_ID, 'professor', SEED.space.department, {
       spaceId: SPACE_ID,
       startDate: '2099-06-02', // Monday
       endDate: '2099-06-16',   // 3 Mondays: 2, 9, 16
@@ -295,7 +330,7 @@ describe('ReservationService.createRecurring', () => {
       .mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
 
-    const result = await service.createRecurring(OTHER_USER_ID, 'professor', {
+    const result = await service.createRecurring(OTHER_USER_ID, 'professor', SEED.space.department, {
       spaceId: SPACE_ID,
       startDate: '2099-06-02',
       endDate: '2099-06-16',

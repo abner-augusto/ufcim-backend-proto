@@ -208,17 +208,19 @@ cp .dev.vars.example .dev.vars   # preencha os segredos (JWT_SIGNING_SECRET é o
 
 O binding D1 (`DB`) é declarado por ambiente em `wrangler.toml`, então **toda chamada precisa de `--env dev`** (ou `--env production`) — sem o flag o wrangler não encontra o banco.
 
+> **Bancos separados:** `env.dev` usa o banco `ufcim-db-dev` e `env.production` usa `ufcim-db` — são instâncias D1 distintas. Use o nome correto no comando (`ufcim-db-dev` para dev, `ufcim-db` para produção). O `wrangler dev` local mantém uma cópia SQLite própria em `.wrangler/`, isolada de produção.
+
 ```bash
 # 1) Aplicar a migration consolidada
-npx wrangler d1 execute ufcim-db --local --env dev --file=migrations/0000_init.sql
+npx wrangler d1 execute ufcim-db-dev --local --env dev --file=migrations/0000_init.sql
 
 # 2a) Seed baseline (departments + spaces + equipment do IAUD).
 #     Seguro de aplicar tanto em dev quanto em produção.
-npx wrangler d1 execute ufcim-db --local --env dev --file=scripts/seed.sql
+npx wrangler d1 execute ufcim-db-dev --local --env dev --file=scripts/seed.sql
 
 # 2b) Seed dev-only (usuários de teste + reservas e blockings de exemplo).
 #     NÃO aplique em produção — usuários reais vêm do Keycloak via syncUserMiddleware.
-npx wrangler d1 execute ufcim-db --local --env dev --file=scripts/seed_dev.sql
+npx wrangler d1 execute ufcim-db-dev --local --env dev --file=scripts/seed_dev.sql
 ```
 
 Para resetar o estado local, delete `.wrangler/` e re-aplique migration + seeds.

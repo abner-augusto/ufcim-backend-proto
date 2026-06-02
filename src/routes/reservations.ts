@@ -46,7 +46,12 @@ reservationRoutes.post(
     const user = c.get('user');
     const body = c.get('validatedBody') as z.infer<typeof createRecurringReservationSchema>;
 
-    const result = await service.createRecurring(user.sub, extractRole(user) ?? 'professor', body);
+    const result = await service.createRecurring(
+      user.sub,
+      extractRole(user) ?? 'professor',
+      user.department ?? 'Unknown',
+      body
+    );
     return c.json(result, 201);
   }
 );

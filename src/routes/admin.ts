@@ -1205,7 +1205,7 @@ async function renderDepartmentsView(
             hx-post="/admin/actions/departments"
             hx-target="#admin-content" hx-swap="innerHTML">
             ${renderInput('id', 'ID (slug)', 'text', '', false, '', 'ex.: iaud')}
-            ${renderInput('name', 'Nome completo', 'text', '', false, '', 'ex.: Instituto de Arquitetura e Design (IAUD)')}
+            ${renderInput('name', 'Nome completo', 'text', '', false, '', 'ex.: Instituto de Arquitetura, Urbanismo e Design (IAUD)')}
             ${renderInput('campus', 'Campus', 'text', '', false, '', 'ex.: Benfica')}
             <button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Criar</button>
           </form>

@@ -20,7 +20,7 @@
 
 -- ── Departments ─────────────────────────────────────────────────────────────
 INSERT OR IGNORE INTO departments (id, name, campus, created_at, updated_at) VALUES
-  ('Instituto de Arquitetura e Design (IAUD)', 'Instituto de Arquitetura e Design',  'Benfica', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+  ('Instituto de Arquitetura, Urbanismo e Design (IAUD)', 'Instituto de Arquitetura, Urbanismo e Design',  'Benfica', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
   ('Ciência da Computação',                    'Departamento de Computação',         'Pici',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
   ('Administração',                            'Departamento de Administração',      'Benfica', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
   ('Manutenção',                               'Superintendência de Infraestrutura', 'Pici',    '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
@@ -36,49 +36,49 @@ VALUES
   -- ── Bloco 1 — Térreo ─────────────────────────────────────────────────────
   ('a1a00001-0000-4000-8000-000000000000',
    'Sala de Leitura', 'B1-01', 'study_room', 'Bloco 1', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    50, NULL, 'Natural + Led', NULL, NULL,
    'Sala de Leitura (Biblioteca)',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00002-0000-4000-8000-000000000000',
    'LEAU', 'B1-02', 'study_room', 'Bloco 1', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'LEAU',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00003-0000-4000-8000-000000000000',
    'Administração', 'B1-03', 'meeting_room', 'Bloco 1', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    10, NULL, NULL, NULL, NULL,
    'Administração',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00004-0000-4000-8000-000000000000',
    'LABCAD', 'B1-04', 'study_room', 'Bloco 1', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'LABCAD',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00005-0000-4000-8000-000000000000',
    'Atelier Digital', 'B1-05', 'study_room', 'Bloco 1', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'Atelier Digital',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00006-0000-4000-8000-000000000000',
    'Acervo', 'B1-06', 'study_room', 'Bloco 1', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    100, NULL, NULL, NULL, NULL,
    'Acervo (Bibilioteca)',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00007-0000-4000-8000-000000000000',
    'Adm. Biblioteca', 'B1-07', 'meeting_room', 'Bloco 1', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    10, NULL, NULL, NULL, NULL,
    'Administrativo (Biblioteca)',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
@@ -86,7 +86,7 @@ VALUES
   -- ── Bloco 2 — Térreo ─────────────────────────────────────────────────────
   ('a1a00008-0000-4000-8000-000000000000',
    'Sala 01', 'B2-01', 'classroom', 'Bloco 2', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    36,
    'Cadeira (35), Cadeira Professor (1), Mesa (18), Mesa Professor (1), Quadro Branco (2)',
    'Natural + Led', 'Ar condicionado split (2 unidades)', NULL,
@@ -95,14 +95,14 @@ VALUES
 
   ('a1a00009-0000-4000-8000-000000000000',
    'Auditório', 'B2-02', 'hall', 'Bloco 2', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    100, NULL, NULL, NULL, NULL,
    'Auditório',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00010-0000-4000-8000-000000000000',
    'Sala 03', 'B2-03', 'classroom', 'Bloco 2', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    36,
    'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (1)',
    'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
@@ -111,14 +111,14 @@ VALUES
 
   ('a1a00011-0000-4000-8000-000000000000',
    'Lehab', 'B2-04', 'study_room', 'Bloco 2', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'Lehab',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00012-0000-4000-8000-000000000000',
    'Loja 01', 'B2-05', 'study_room', 'Bloco 2', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    10, NULL, NULL, NULL, NULL,
    'Loja 01',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
@@ -126,7 +126,7 @@ VALUES
   -- ── Bloco 3 — Térreo ─────────────────────────────────────────────────────
   ('a1a00013-0000-4000-8000-000000000000',
    'Sala 05', 'B3-05', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    36,
    'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (1)',
    'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
@@ -135,7 +135,7 @@ VALUES
 
   ('a1a00014-0000-4000-8000-000000000000',
    'Sala 06', 'B3-06', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    36,
    'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (2)',
    'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
@@ -144,7 +144,7 @@ VALUES
 
   ('a1a00015-0000-4000-8000-000000000000',
    'Sala 07', 'B3-07', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    36,
    'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (2)',
    'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
@@ -153,7 +153,7 @@ VALUES
 
   ('a1a00016-0000-4000-8000-000000000000',
    'Sala 08', 'B3-08', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    36,
    'Cadeira (35), Cadeira Professor (1), Mesa (20), Mesa Professor (1), Quadro Branco (1)',
    'Natural + Led', 'Ar condicionado split (1 unidade)', 'Projetor + tela',
@@ -162,7 +162,7 @@ VALUES
 
   ('a1a00017-0000-4000-8000-000000000000',
    'Centro Acadêmico', 'B3-CA', 'meeting_room', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'Centro Acadêmico',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
@@ -170,14 +170,14 @@ VALUES
   -- ── Bloco 3 — 1º Pavimento ────────────────────────────────────────────────
   ('a1a00018-0000-4000-8000-000000000000',
    'Sala 12', 'B3-12', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    36, NULL, NULL, NULL, NULL,
    'Sala 12 (manutenção)',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00019-0000-4000-8000-000000000000',
    'Sala 11', 'B3-11', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    46,
    'Cadeira (45), Cadeira Professor (1), Mesa (30), Mesa Professor (1), Quadro Branco (1)',
    'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
@@ -186,7 +186,7 @@ VALUES
 
   ('a1a00020-0000-4000-8000-000000000000',
    'Sala 10', 'B3-10', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    46,
    'Cadeira (45), Cadeira Professor (1), Mesa (30), Mesa Professor (1), Quadro Branco (1)',
    'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
@@ -195,7 +195,7 @@ VALUES
 
   ('a1a00021-0000-4000-8000-000000000000',
    'Sala 09', 'B3-09', 'classroom', 'Bloco 3', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    46,
    'Cadeira (45), Cadeira Professor (1), Mesa (30), Mesa Professor (1), Quadro Branco (1)',
    'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
@@ -205,28 +205,28 @@ VALUES
   -- ── Bloco 4 — Térreo ─────────────────────────────────────────────────────
   ('a1a00022-0000-4000-8000-000000000000',
    'Cantina', 'B4-01', 'meeting_room', 'Bloco 4', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    50, NULL, NULL, NULL, NULL,
    'Cantina',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00023-0000-4000-8000-000000000000',
    'BHO Masculino', 'B4-02', 'meeting_room', 'Bloco 4', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    10, NULL, NULL, NULL, NULL,
    'BHO Masculino',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00024-0000-4000-8000-000000000000',
    'BHO Feminino', 'B4-03', 'meeting_room', 'Bloco 4', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    10, NULL, NULL, NULL, NULL,
    'BHO Feminino',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00025-0000-4000-8000-000000000000',
    'Sala Professores', 'B4-04', 'meeting_room', 'Bloco 4', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    15, NULL, NULL, NULL, NULL,
    'Sala Professores',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
@@ -234,14 +234,14 @@ VALUES
   -- ── Pavilhão — Térreo ────────────────────────────────────────────────────
   ('a1a00026-0000-4000-8000-000000000000',
    'LED', 'PV-01', 'study_room', 'Pavilhão', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'LED',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00027-0000-4000-8000-000000000000',
    'Sala 13', 'PV-13', 'classroom', 'Pavilhão', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20,
    'Cadeira (20), Mesa (10), Quadro Branco (1)',
    'Natural + Led', 'Ar condicionado split (2 unidades)', 'Projetor + tela',
@@ -250,7 +250,7 @@ VALUES
 
   ('a1a00028-0000-4000-8000-000000000000',
    'Oficina Digital', 'PV-02', 'study_room', 'Pavilhão', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'Oficina Digital',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
@@ -258,7 +258,7 @@ VALUES
   -- ── Pavilhão — 1º Pavimento ───────────────────────────────────────────────
   ('a1a00029-0000-4000-8000-000000000000',
    'Atelier Digital 1', 'PV-03', 'study_room', 'Pavilhão', 'Benfica',
-   'Instituto de Arquitetura e Design (IAUD)',
+   'Instituto de Arquitetura, Urbanismo e Design (IAUD)',
    20, NULL, NULL, NULL, NULL,
    'Atelier digital 1',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z');

@@ -61,9 +61,7 @@ export class ReservationService {
       throw new ConflictError('Este espaço não está disponível para reservas');
     }
 
-    if (userRole === 'student' && space.department !== userDept) {
-      throw new ForbiddenError('Estudantes só podem reservar espaços do próprio departamento');
-    }
+    this.assertDepartmentAccess(userRole, userDept, space.department);
 
     await this.checkSlotAvailability(
       space,
@@ -114,7 +112,7 @@ export class ReservationService {
     return reservation;
   }
 
-  async createRecurring(userId: string, userRole: string, input: CreateRecurringInput) {
+  async createRecurring(userId: string, userRole: string, userDept: string, input: CreateRecurringInput) {
     if (!['professor', 'staff'].includes(userRole)) {
       throw new ForbiddenError('Apenas professores e funcionários podem criar reservas recorrentes');
     }
@@ -123,6 +121,8 @@ export class ReservationService {
 
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
+
+    this.assertDepartmentAccess(userRole, userDept, space.department);
 
     const dates = this.generateRecurringDates(input.startDate, input.endDate, input.dayOfWeek);
 
@@ -328,6 +328,16 @@ export class ReservationService {
   }
 
   // ─── Private helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Students and professors may only reserve spaces of their own department.
+   * Staff (funcionário) are exempt; maintenance cannot reserve at all.
+   */
+  private assertDepartmentAccess(userRole: string, userDept: string, spaceDept: string) {
+    if ((userRole === 'student' || userRole === 'professor') && spaceDept !== userDept) {
+      throw new ForbiddenError('Você só pode reservar espaços do próprio departamento');
+    }
+  }
 
   private async checkSlotAvailability(
     space: { closedFrom: string; closedTo: string },
