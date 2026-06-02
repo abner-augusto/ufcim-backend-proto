@@ -280,27 +280,19 @@ adminRoutes.post('/actions/invitations', async (c) => {
 adminRoutes.delete('/actions/invitations/:id', async (c) => {
   const db = createDb(c.env.DB);
   const service = new InvitationService(db, c.env);
-  try {
-    await service.revoke(getActingUserId(c), c.req.param('id'));
-    return c.html(await renderInvitationsView(c, { message: 'Convite revogado.' }));
-  } catch (err) {
-    return c.html(await renderInvitationsView(c, { message: err instanceof Error ? err.message : 'Erro ao revogar convite' }));
-  }
+  await service.revoke(getActingUserId(c), c.req.param('id'));
+  return c.html(await renderInvitationsView(c, { message: 'Convite revogado.' }));
 });
 
 adminRoutes.post('/actions/invitations/:id/resend', async (c) => {
   const db = createDb(c.env.DB);
   const service = new InvitationService(db, c.env);
-  try {
-    const { invitation, url } = await service.resend(getActingUserId(c), c.req.param('id'));
-    return c.html(await renderInvitationsView(c, {
-      message: `Link reenviado para ${invitation.email}.`,
-      highlightUrl: url,
-      highlightInvitationId: invitation.id,
-    }));
-  } catch (err) {
-    return c.html(await renderInvitationsView(c, { message: err instanceof Error ? err.message : 'Erro ao reenviar convite' }));
-  }
+  const { invitation, url } = await service.resend(getActingUserId(c), c.req.param('id'));
+  return c.html(await renderInvitationsView(c, {
+    message: `Link reenviado para ${invitation.email}.`,
+    highlightUrl: url,
+    highlightInvitationId: invitation.id,
+  }));
 });
 
 adminRoutes.patch('/actions/users/:id/role', async (c) => {
@@ -308,12 +300,8 @@ adminRoutes.patch('/actions/users/:id/role', async (c) => {
   const newRole = stringValue(body.role);
   const db = createDb(c.env.DB);
   const service = new UserAdminService(db, c.env);
-  try {
-    await service.changeRole(getActingUserId(c), c.req.param('id'), newRole as Parameters<UserAdminService['changeRole']>[2]);
-    return c.html(await renderUsersView(c, { message: 'Papel atualizado.' }));
-  } catch (err) {
-    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao alterar papel' }));
-  }
+  await service.changeRole(getActingUserId(c), c.req.param('id'), newRole as Parameters<UserAdminService['changeRole']>[2]);
+  return c.html(await renderUsersView(c, { message: 'Papel atualizado.' }));
 });
 
 adminRoutes.patch('/actions/users/:id/disable', async (c) => {
@@ -321,45 +309,29 @@ adminRoutes.patch('/actions/users/:id/disable', async (c) => {
   const disabled = body.disabled === 'true';
   const db = createDb(c.env.DB);
   const service = new UserAdminService(db, c.env);
-  try {
-    await service.setDisabled(getActingUserId(c), c.req.param('id'), disabled);
-    return c.html(await renderUsersView(c, { message: disabled ? 'Conta desativada.' : 'Conta reativada.' }));
-  } catch (err) {
-    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao alterar status' }));
-  }
+  await service.setDisabled(getActingUserId(c), c.req.param('id'), disabled);
+  return c.html(await renderUsersView(c, { message: disabled ? 'Conta desativada.' : 'Conta reativada.' }));
 });
 
 adminRoutes.post('/actions/users/:id/reset-password', async (c) => {
   const db = createDb(c.env.DB);
   const service = new UserAdminService(db, c.env);
-  try {
-    const { url } = await service.resetPassword(getActingUserId(c), c.req.param('id'));
-    return c.html(await renderUsersView(c, { message: 'Link de redefinição gerado.', highlightUrl: url, highlightUserId: c.req.param('id') }));
-  } catch (err) {
-    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao gerar link de redefinição' }));
-  }
+  const { url } = await service.resetPassword(getActingUserId(c), c.req.param('id'));
+  return c.html(await renderUsersView(c, { message: 'Link de redefinição gerado.', highlightUrl: url, highlightUserId: c.req.param('id') }));
 });
 
 adminRoutes.delete('/actions/users/:id/sessions', async (c) => {
   const db = createDb(c.env.DB);
   const service = new UserAdminService(db, c.env);
-  try {
-    const { revoked } = await service.revokeAllSessions(getActingUserId(c), c.req.param('id'));
-    return c.html(await renderUsersView(c, { message: `${revoked} sessão(ões) encerrada(s).` }));
-  } catch (err) {
-    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao encerrar sessões' }));
-  }
+  const { revoked } = await service.revokeAllSessions(getActingUserId(c), c.req.param('id'));
+  return c.html(await renderUsersView(c, { message: `${revoked} sessão(ões) encerrada(s).` }));
 });
 
 adminRoutes.delete('/actions/users/:id', async (c) => {
   const db = createDb(c.env.DB);
   const service = new UserAdminService(db, c.env);
-  try {
-    await service.softDelete(getActingUserId(c), c.req.param('id'));
-    return c.html(await renderUsersView(c, { message: 'Usuário excluído.' }));
-  } catch (err) {
-    return c.html(await renderUsersView(c, { message: err instanceof Error ? err.message : 'Erro ao excluir usuário' }));
-  }
+  await service.softDelete(getActingUserId(c), c.req.param('id'));
+  return c.html(await renderUsersView(c, { message: 'Usuário excluído.' }));
 });
 
 adminRoutes.post('/actions/spaces/:spaceId/managers', async (c) => {
@@ -370,12 +342,8 @@ adminRoutes.post('/actions/spaces/:spaceId/managers', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new SpaceManagerService(db);
-  try {
-    await service.assign(getActingUserId(c), { spaceId, userId: parsed.data.userId, role: parsed.data.role });
-    return c.html(await renderSpacesView(c, { message: 'Gestor atribuído com sucesso', selectedSpaceId: spaceId }));
-  } catch (err) {
-    return c.html(await renderSpacesView(c, { message: err instanceof Error ? err.message : 'Erro ao atribuir gestor', selectedSpaceId: spaceId }));
-  }
+  await service.assign(getActingUserId(c), { spaceId, userId: parsed.data.userId, role: parsed.data.role });
+  return c.html(await renderSpacesView(c, { message: 'Gestor atribuído com sucesso', selectedSpaceId: spaceId }));
 });
 
 adminRoutes.delete('/actions/spaces/:spaceId/managers/:userId', async (c) => {
@@ -383,10 +351,6 @@ adminRoutes.delete('/actions/spaces/:spaceId/managers/:userId', async (c) => {
   const userId = c.req.param('userId');
   const db = createDb(c.env.DB);
   const service = new SpaceManagerService(db);
-  try {
-    await service.remove(getActingUserId(c), spaceId, userId);
-    return c.html(await renderSpacesView(c, { message: 'Gestor removido com sucesso', selectedSpaceId: spaceId }));
-  } catch (err) {
-    return c.html(await renderSpacesView(c, { message: err instanceof Error ? err.message : 'Erro ao remover gestor', selectedSpaceId: spaceId }));
-  }
+  await service.remove(getActingUserId(c), spaceId, userId);
+  return c.html(await renderSpacesView(c, { message: 'Gestor removido com sucesso', selectedSpaceId: spaceId }));
 });
