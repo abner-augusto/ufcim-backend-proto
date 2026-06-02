@@ -16,6 +16,9 @@ export const globalErrorHandler: ErrorHandler<AppEnv> = (err, c) => {
   if (!isProd) logRecord.stack = err.stack;
   console.error(JSON.stringify(logRecord));
 
+  // Public API: intentional AppErrors expose their message; unexpected 500s are
+  // masked in production to avoid leaking internals. The admin dashboard surfaces
+  // full detail separately (renderActionError) since it's master-admin-only.
   if (err instanceof AppError) {
     return c.json(
       { error: err.message, code: err.code },

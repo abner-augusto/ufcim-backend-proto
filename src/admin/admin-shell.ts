@@ -84,12 +84,23 @@ export function renderAdminShell(currentPath: string, environment: 'development'
         const token = sessionStorage.getItem('ufcim_admin_token');
         if (token) event.detail.headers['Authorization'] = 'Bearer ' + token;
       });
-      // On 401/403, bounce to login
-      document.body.addEventListener('htmx:responseError', (event) => {
-        if (event.detail.xhr.status === 401 || event.detail.xhr.status === 403) {
+      // 401/403 → session/permission problem, bounce to login.
+      // Other error statuses (404/409/422/500…) carry a server-rendered error
+      // panel (text/html); allow HTMX to swap it in so the failure is visible.
+      document.body.addEventListener('htmx:beforeSwap', (event) => {
+        const xhr = event.detail.xhr;
+        if (xhr.status === 401 || xhr.status === 403) {
           sessionStorage.removeItem('ufcim_admin_token');
           sessionStorage.removeItem('ufcim_admin_refresh');
           window.location.href = '/admin/login';
+          return;
+        }
+        if (xhr.status >= 400) {
+          const contentType = xhr.getResponseHeader('Content-Type') || '';
+          if (contentType.includes('text/html')) {
+            event.detail.shouldSwap = true;
+            event.detail.isError = false;
+          }
         }
       });
     </script>

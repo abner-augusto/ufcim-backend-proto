@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
 import { z } from 'zod';
 import type { AppEnv } from '@/types/env';
+import { AppError } from '@/middleware/error-handler';
 import { createDb } from '@/db/client';
 import { SpaceService } from '@/services/space.service';
 import { SpaceManagerService } from '@/services/space-manager.service';
@@ -60,6 +62,34 @@ function getActingUserId(c: AdminContext): string {
   return c.get('user').sub;
 }
 
+// Error boundary for the dashboard's HTMX flow. Action/partial handlers below
+// can throw freely (NotFoundError, ConflictError, etc.); instead of the JSON
+// error that HTMX would silently discard, this renders a verbose error panel
+// that swaps into #admin-content. Runs after auth (mounted on the parent), so
+// 401/403 still propagate as JSON and the client redirects to login.
+adminRoutes.use('*', async (c, next) => {
+  try {
+    await next();
+  } catch (err) {
+    const status = err instanceof AppError ? err.statusCode : 500;
+    // Auth failures bubble to the global handler so the client bounces to login.
+    if (status === 401 || status === 403) throw err;
+    // Non-HTMX callers (direct hits) get the standard JSON error.
+    if (c.req.header('HX-Request') !== 'true') throw err;
+
+    console.error(JSON.stringify({
+      scope: 'admin',
+      msg: err instanceof Error ? err.message : String(err),
+      name: err instanceof Error ? err.name : 'Error',
+      code: err instanceof AppError ? err.code : 'INTERNAL_ERROR',
+      status,
+      path: c.req.path,
+      method: c.req.method,
+    }));
+
+    return c.html(renderActionError(c, err), status as ContentfulStatusCode);
+  }
+});
 
 adminRoutes.get('/partials/dashboard', async (c) => {
   const db = createDb(c.env.DB);
@@ -167,12 +197,10 @@ adminRoutes.put('/actions/spaces/:id', async (c) => {
 adminRoutes.delete('/actions/spaces/:id', async (c) => {
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
-  try {
-    await service.delete(c.req.param('id'), getActingUserId(c));
-    return c.html(await renderSpacesView(c, { message: 'Espaço removido com sucesso' }));
-  } catch (err) {
-    return c.html(await renderSpacesView(c, { message: err instanceof Error ? err.message : 'Erro ao remover espaço' }));
-  }
+  // Errors (e.g. space in use) propagate to the admin error boundary, which
+  // renders a verbose red panel — instead of a green "success" message.
+  await service.delete(c.req.param('id'), getActingUserId(c));
+  return c.html(await renderSpacesView(c, { message: 'Espaço removido com sucesso' }));
 });
 
 adminRoutes.patch('/actions/reservations/series/:id/cancel', async (c) => {
@@ -1560,6 +1588,60 @@ function renderMessage(message?: string) {
   return `
     <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
       ${escapeHtml(message)}
+    </div>
+  `;
+}
+
+/**
+ * Verbose error panel for the admin HTMX flow. Shows the human message, the
+ * status + code classification, the originating endpoint (method + path), and —
+ * outside production — the error name and a collapsible stack trace. Includes a
+ * button to reload the section the user was on (derived from HX-Current-URL).
+ */
+function renderActionError(c: AdminContext, err: unknown) {
+  const isProd = c.env.ENVIRONMENT === 'production';
+  const isApp = err instanceof AppError;
+  const status = isApp ? err.statusCode : 500;
+  const code = isApp ? (err.code ?? 'ERROR') : 'INTERNAL_ERROR';
+  const message = err instanceof Error ? err.message : String(err);
+  const name = err instanceof Error ? err.name : 'Error';
+  const stack = err instanceof Error ? err.stack : undefined;
+  const origin = `${c.req.method} ${c.req.path}`;
+
+  let reloadPartial = '/admin/partials/dashboard';
+  const currentUrl = c.req.header('HX-Current-URL');
+  if (currentUrl) {
+    try {
+      const path = new URL(currentUrl).pathname.replace(/\/$/, '');
+      reloadPartial = path === '' || path === '/admin'
+        ? '/admin/partials/dashboard'
+        : `/admin/partials${path.slice('/admin'.length)}`;
+    } catch {
+      // malformed header — keep the dashboard default
+    }
+  }
+
+  return `
+    <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-800">
+      <div class="flex items-center justify-between gap-3">
+        <div class="font-semibold">Erro ${status} · ${escapeHtml(code)}</div>
+        <button
+          hx-get="${escapeAttribute(reloadPartial)}"
+          hx-target="#admin-content"
+          hx-swap="innerHTML"
+          class="rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
+        >
+          Recarregar seção
+        </button>
+      </div>
+      <p class="mt-2 leading-6">${escapeHtml(message)}</p>
+      <p class="mt-2 text-xs text-rose-600">Origem: <code>${escapeHtml(origin)}</code>${isProd ? '' : ` · ${escapeHtml(name)}`}</p>
+      ${!isProd && stack
+        ? `<details class="mt-2">
+            <summary class="cursor-pointer text-xs text-rose-600">Stack trace</summary>
+            <pre class="mt-2 overflow-auto rounded-lg bg-rose-100/60 p-3 text-xs leading-5 text-rose-900">${escapeHtml(stack)}</pre>
+          </details>`
+        : ''}
     </div>
   `;
 }
