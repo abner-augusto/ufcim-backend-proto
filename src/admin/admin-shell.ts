@@ -45,7 +45,7 @@ export function renderAdminShell(currentPath: string, environment: 'development'
             <p class="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">UFCIM</p>
             <h1 class="mt-2 text-3xl font-semibold tracking-tight">Painel de Administração</h1>
             <p class="mt-2 text-sm text-slate-600">
-              Painel interno de operações servido a partir do mesmo aplicativo Hono e backado por um D1 local durante o desenvolvimento.
+              Painel interno de operações da plataforma UFCIM, servido pelo mesmo aplicativo Hono que atende à API.
             </p>
           </div>
           <div class="flex flex-col items-end gap-3">
@@ -128,31 +128,15 @@ export function renderAdminShell(currentPath: string, environment: 'development'
       };
 
       window.dashboardStats = function dashboardStats() {
+        // The dashboard partial injects the stats server-side via x-init; this
+        // just provides the reactive state the x-text bindings read.
         return {
           loading: true,
-          error: null,
           stats: {
             totalSpaces: 0,
             activeReservationsToday: 0,
             activeBlockings: 0,
             totalUsers: 0,
-          },
-          async load() {
-            this.loading = true;
-            this.error = null;
-
-            try {
-              const response = await fetch('/api/v1/stats');
-              if (!response.ok) {
-                throw new Error('Falha ao carregar estatísticas do painel');
-              }
-
-              this.stats = await response.json();
-            } catch (error) {
-              this.error = error instanceof Error ? error.message : 'Erro desconhecido';
-            } finally {
-              this.loading = false;
-            }
           },
         };
       };
