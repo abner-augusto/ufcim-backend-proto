@@ -219,6 +219,28 @@ export const invitations = sqliteTable(
   })
 );
 
+// ─── Invitation Requests (public self-service) ───────────────────────────────
+// A guest asks for access (name + e-mail); an admin reviews and, on approval,
+// chooses role + department and a real `invitations` row is created. Kept in a
+// separate table so `invitations` can keep token_hash / invited_by NOT NULL.
+export const invitationRequests = sqliteTable(
+  'invitation_requests',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    status: text('status').notNull().default('pending'), // 'pending' | 'approved' | 'rejected'
+    createdAt: text('created_at').notNull(),
+    reviewedAt: text('reviewed_at'), // null = not yet reviewed
+    reviewedBy: text('reviewed_by').references(() => users.id),
+    invitationId: text('invitation_id').references(() => invitations.id), // set when approved
+  },
+  (t) => ({
+    emailIdx: index('invitation_requests_email_idx').on(t.email),
+    statusIdx: index('invitation_requests_status_idx').on(t.status),
+  })
+);
+
 // ─── Refresh Tokens ──────────────────────────────────────────────────────────
 export const refreshTokens = sqliteTable(
   'refresh_tokens',

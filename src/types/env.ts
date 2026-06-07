@@ -15,6 +15,8 @@ export type Env = {
   EMAIL_FROM?: string;
   /** Comma-separated allow-list of e-mail domains for invitations (e.g. "ufc.br,alu.ufc.br"). Empty/unset = no restriction. */
   ALLOWED_EMAIL_DOMAINS?: string;
+  /** Cloudflare Turnstile secret. When unset, the captcha check is skipped (dev). */
+  TURNSTILE_SECRET_KEY?: string;
   ENVIRONMENT: 'development' | 'staging' | 'production';
 };
 

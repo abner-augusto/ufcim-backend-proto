@@ -7,6 +7,7 @@ import { AppError, ConflictError, NotFoundError } from '@/middleware/error-handl
 import { AuditLogService } from '@/services/audit-log.service';
 import { DepartmentService } from '@/services/department.service';
 import { EmailService, type EmailResult } from '@/services/email.service';
+import { assertAllowedDomain } from '@/lib/email-domain';
 import { generateOpaqueToken, sha256Hex } from '@/lib/crypto';
 
 type Invitation = typeof invitations.$inferSelect;
@@ -33,27 +34,6 @@ export class InvitationService {
     this.email = new EmailService(env);
   }
 
-  /** Parsed, lowercased allow-list from env. Empty array = no restriction. */
-  private allowedDomains(): string[] {
-    return (this.env.ALLOWED_EMAIL_DOMAINS ?? '')
-      .split(',')
-      .map((d) => d.trim().toLowerCase())
-      .filter(Boolean);
-  }
-
-  private assertAllowedDomain(email: string): void {
-    const allowed = this.allowedDomains();
-    if (allowed.length === 0) return; // no restriction configured
-    const domain = email.slice(email.lastIndexOf('@') + 1);
-    if (!allowed.includes(domain)) {
-      throw new AppError(
-        422,
-        `E-mail de domínio "${domain}" não é permitido. Domínios aceitos: ${allowed.join(', ')}.`,
-        'EMAIL_DOMAIN_NOT_ALLOWED'
-      );
-    }
-  }
-
   private buildInviteUrl(token: string): string {
     if (!this.env.INVITE_BASE_URL) {
       throw new Error(
@@ -76,7 +56,7 @@ export class InvitationService {
     const { inviterId, name, role, department, registration, ttlHours = 72, purpose = 'invite' } = input;
     const email = input.email.trim().toLowerCase();
 
-    this.assertAllowedDomain(email);
+    assertAllowedDomain(this.env, email);
 
     const deptService = new DepartmentService(this.db);
     if (!(await deptService.validateId(department))) {

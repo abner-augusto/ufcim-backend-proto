@@ -117,7 +117,7 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   app.get('/admin/login', (c) => c.html(renderAdminLogin()));
 
   // Shell pages are pure HTML skeletons — auth happens via HTMX Bearer headers on partials.
-  const adminPages = ['/admin', '/admin/spaces', '/admin/reservations', '/admin/blockings', '/admin/equipment', '/admin/users', '/admin/invitations', '/admin/departments', '/admin/logs'] as const;
+  const adminPages = ['/admin', '/admin/spaces', '/admin/reservations', '/admin/blockings', '/admin/equipment', '/admin/users', '/admin/invitations', '/admin/invitation-requests', '/admin/departments', '/admin/logs'] as const;
   for (const path of adminPages) {
     app.get(path, (c) => c.html(renderAdminShell(path, c.env.ENVIRONMENT)));
   }

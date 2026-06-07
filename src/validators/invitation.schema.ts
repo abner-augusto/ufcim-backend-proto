@@ -7,3 +7,9 @@ export const createInvitationSchema = z.object({
   department: z.string().min(1).max(50),
   registration: z.string().min(1).optional(),
 });
+
+export const approveInvitationRequestSchema = z.object({
+  role: z.enum(['student', 'professor', 'staff', 'maintenance']),
+  department: z.string().min(1).max(50),
+  registration: z.string().min(1).optional(),
+});

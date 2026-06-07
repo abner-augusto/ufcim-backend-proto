@@ -22,3 +22,9 @@ export const passwordPolicySchema = z
 export const acceptInvitationSchema = z.object({
   password: passwordPolicySchema,
 });
+
+export const requestInvitationSchema = z.object({
+  name: z.string().min(2, 'Informe seu nome completo'),
+  email: z.string().email('E-mail inválido').transform((s) => s.trim().toLowerCase()),
+  turnstileToken: z.string().optional(),
+});

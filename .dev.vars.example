@@ -17,3 +17,8 @@ BOOTSTRAP_TOKEN=dev-bootstrap-token
 # https://resend.com/api-keys. In deployed workers, set it as a Secret via the
 # Cloudflare dashboard (Workers & Pages → worker → Settings → Variables and Secrets).
 RESEND_API_KEY=
+
+# Cloudflare Turnstile secret key, used by src/services/turnstile.service.ts to
+# verify the captcha on the public POST /auth/request-invitation endpoint. Leave
+# empty to skip verification (local dev). Set as a Secret in deployed workers.
+TURNSTILE_SECRET_KEY=
