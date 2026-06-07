@@ -12,7 +12,7 @@ export function createDevelopmentUser(issuer: string): JwtPayload {
     name: 'Carlos Oliveira',
     preferred_username: '2010005001',
     registration: '2010005001',
-    department: 'Administração',
+    department: 'adm',
     realm_access: { roles: ['ufcim-staff'] },
     iss: issuer,
     exp: Math.floor(Date.now() / 1000) + 60 * 60,
