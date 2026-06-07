@@ -76,9 +76,9 @@ authRoutes.post('/invitations/:token/accept', rateLimit({ namespace: 'invite-acc
   const db = createDb(c.env.DB);
   const service = new AuthService(db, c.env);
   const token = c.req.param('token');
-  const body = c.get('validatedBody') as { password: string };
+  const body = c.get('validatedBody') as { password: string; registration?: string };
   const userAgent = c.req.header('User-Agent')?.slice(0, 200);
 
-  const result = await service.acceptInvitation({ token, password: body.password, userAgent });
+  const result = await service.acceptInvitation({ token, password: body.password, registration: body.registration, userAgent });
   return c.json(result, 201);
 });

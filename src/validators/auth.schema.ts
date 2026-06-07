@@ -21,6 +21,7 @@ export const passwordPolicySchema = z
 
 export const acceptInvitationSchema = z.object({
   password: passwordPolicySchema,
+  registration: z.string().optional(),
 });
 
 export const requestInvitationSchema = z.object({
