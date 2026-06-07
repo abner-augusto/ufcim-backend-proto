@@ -13,6 +13,8 @@ export type Env = {
   RESEND_API_KEY?: string;
   /** From header for outbound e-mail, e.g. "UFCIM <noreply@ufcim.integrarte.arq.br>". */
   EMAIL_FROM?: string;
+  /** Comma-separated allow-list of e-mail domains for invitations (e.g. "ufc.br,alu.ufc.br"). Empty/unset = no restriction. */
+  ALLOWED_EMAIL_DOMAINS?: string;
   ENVIRONMENT: 'development' | 'staging' | 'production';
 };
 

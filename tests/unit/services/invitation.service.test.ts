@@ -148,6 +148,51 @@ describe('InvitationService.create', () => {
   });
 });
 
+// ─── Domain allow-list ───────────────────────────────────────────────────────────
+
+describe('InvitationService.create — domain allow-list', () => {
+  const ENV_WITH_DOMAINS: Env = { ...TEST_ENV, ALLOWED_EMAIL_DOMAINS: 'ufc.br,alu.ufc.br' };
+
+  it('rejects an e-mail outside the allow-list', async () => {
+    const db = createMockDb();
+    const service = new InvitationService(db as never, ENV_WITH_DOMAINS);
+
+    await expect(service.create({
+      inviterId: 'actor-1',
+      email: 'someone@gmail.com',
+      name: 'Outsider',
+      role: 'student',
+      department: 'CC',
+    })).rejects.toThrow('não é permitido');
+  });
+
+  it('accepts an e-mail inside the allow-list', async () => {
+    const db = createMockDb();
+    const service = new InvitationService(db as never, ENV_WITH_DOMAINS);
+
+    await expect(service.create({
+      inviterId: 'actor-1',
+      email: 'aluno@alu.ufc.br',
+      name: 'Aluno',
+      role: 'student',
+      department: 'CC',
+    })).resolves.toBeDefined();
+  });
+
+  it('imposes no restriction when ALLOWED_EMAIL_DOMAINS is unset', async () => {
+    const db = createMockDb();
+    const service = new InvitationService(db as never, TEST_ENV);
+
+    await expect(service.create({
+      inviterId: 'actor-1',
+      email: 'anyone@example.com',
+      name: 'Anyone',
+      role: 'student',
+      department: 'CC',
+    })).resolves.toBeDefined();
+  });
+});
+
 // ─── List ──────────────────────────────────────────────────────────────────────
 
 describe('InvitationService.list', () => {

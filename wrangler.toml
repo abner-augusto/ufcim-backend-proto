@@ -19,7 +19,7 @@ head_sampling_rate = 1
 
 [env.dev]
 main = "src/index.dev.ts"
-vars = { ENVIRONMENT = "development", JWKS_URL = "http://localhost:8787/dev/jwks", JWT_ISSUER = "http://localhost:8787", INVITE_BASE_URL = "http://localhost:5173", ADMIN_BASE_URL = "http://localhost:8787/admin", EMAIL_FROM = "UFCIM <noreply@ufcim.integrarte.arq.br>" }
+vars = { ENVIRONMENT = "development", JWKS_URL = "http://localhost:8787/dev/jwks", JWT_ISSUER = "http://localhost:8787", INVITE_BASE_URL = "http://localhost:5173", ADMIN_BASE_URL = "http://localhost:8787/admin", EMAIL_FROM = "UFCIM <noreply@ufcim.integrarte.arq.br>", ALLOWED_EMAIL_DOMAINS = "ufc.br,alu.ufc.br,teste.com" }
 
 [env.dev.observability]
 enabled = true
@@ -46,7 +46,7 @@ crons = ["0 4 * * *"]   # 04:00 UTC daily
 
 [env.production]
 main = "src/index.ts"
-vars = { ENVIRONMENT = "production", JWT_ISSUER = "ufcim-prototype", INVITE_BASE_URL = "https://ufcim-front3d.pages.dev/", ADMIN_BASE_URL = "https://ufcim-production.abner-hey.workers.dev/admin", EMAIL_FROM = "UFCIM <noreply@ufcim.integrarte.arq.br>" }
+vars = { ENVIRONMENT = "production", JWT_ISSUER = "ufcim-prototype", INVITE_BASE_URL = "https://ufcim-front3d.pages.dev/", ADMIN_BASE_URL = "https://ufcim-production.abner-hey.workers.dev/admin", EMAIL_FROM = "UFCIM <noreply@ufcim.integrarte.arq.br>", ALLOWED_EMAIL_DOMAINS = "ufc.br,alu.ufc.br,teste.com" }
 
 [env.production.observability]
 enabled = true

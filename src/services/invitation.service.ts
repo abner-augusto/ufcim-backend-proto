@@ -33,6 +33,27 @@ export class InvitationService {
     this.email = new EmailService(env);
   }
 
+  /** Parsed, lowercased allow-list from env. Empty array = no restriction. */
+  private allowedDomains(): string[] {
+    return (this.env.ALLOWED_EMAIL_DOMAINS ?? '')
+      .split(',')
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  private assertAllowedDomain(email: string): void {
+    const allowed = this.allowedDomains();
+    if (allowed.length === 0) return; // no restriction configured
+    const domain = email.slice(email.lastIndexOf('@') + 1);
+    if (!allowed.includes(domain)) {
+      throw new AppError(
+        422,
+        `E-mail de domínio "${domain}" não é permitido. Domínios aceitos: ${allowed.join(', ')}.`,
+        'EMAIL_DOMAIN_NOT_ALLOWED'
+      );
+    }
+  }
+
   private buildInviteUrl(token: string): string {
     if (!this.env.INVITE_BASE_URL) {
       throw new Error(
@@ -54,6 +75,8 @@ export class InvitationService {
   }): Promise<{ invitation: Invitation; token: string; url: string; email: EmailResult }> {
     const { inviterId, name, role, department, registration, ttlHours = 72, purpose = 'invite' } = input;
     const email = input.email.trim().toLowerCase();
+
+    this.assertAllowedDomain(email);
 
     const deptService = new DepartmentService(this.db);
     if (!(await deptService.validateId(department))) {
