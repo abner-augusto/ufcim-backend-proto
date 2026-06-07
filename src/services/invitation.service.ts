@@ -6,6 +6,7 @@ import type { UserRole } from '@/types/auth';
 import { AppError, ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from '@/services/audit-log.service';
 import { DepartmentService } from '@/services/department.service';
+import { EmailService, type EmailResult } from '@/services/email.service';
 import { generateOpaqueToken, sha256Hex } from '@/lib/crypto';
 
 type Invitation = typeof invitations.$inferSelect;
@@ -22,12 +23,14 @@ interface PaginatedInvitations {
 
 export class InvitationService {
   private auditLog: AuditLogService;
+  private email: EmailService;
 
   constructor(
     private db: Database,
     private env: Env
   ) {
     this.auditLog = new AuditLogService(db);
+    this.email = new EmailService(env);
   }
 
   private buildInviteUrl(token: string): string {
@@ -48,7 +51,7 @@ export class InvitationService {
     registration?: string | null;
     ttlHours?: number;
     purpose?: 'invite' | 'reset';
-  }): Promise<{ invitation: Invitation; token: string; url: string }> {
+  }): Promise<{ invitation: Invitation; token: string; url: string; email: EmailResult }> {
     const { inviterId, name, role, department, registration, ttlHours = 72, purpose = 'invite' } = input;
     const email = input.email.trim().toLowerCase();
 
@@ -110,7 +113,9 @@ export class InvitationService {
     const url = this.buildInviteUrl(rawToken);
     await this.auditLog.log(inviterId, 'invitation.created', id, 'invitation', `Convite criado para ${email}`);
 
-    return { invitation, token: rawToken, url };
+    const emailResult = await this.email.sendInvitation({ to: email, name, url, purpose });
+
+    return { invitation, token: rawToken, url, email: emailResult };
   }
 
   async list(filters: {
@@ -167,7 +172,7 @@ export class InvitationService {
     inviterId: string,
     invitationId: string,
     ttlHours = 72
-  ): Promise<{ invitation: Invitation; token: string; url: string }> {
+  ): Promise<{ invitation: Invitation; token: string; url: string; email: EmailResult }> {
     const invite = await this.db.query.invitations.findFirst({
       where: eq(invitations.id, invitationId),
     });
@@ -188,6 +193,14 @@ export class InvitationService {
 
     const url = this.buildInviteUrl(rawToken);
     await this.auditLog.log(inviterId, 'invitation.resent', invitationId, 'invitation', `Convite reenviado para ${invite.email}`);
-    return { invitation: updated, token: rawToken, url };
+
+    const emailResult = await this.email.sendInvitation({
+      to: invite.email,
+      name: invite.name,
+      url,
+      purpose: invite.purpose as 'invite' | 'reset',
+    });
+
+    return { invitation: updated, token: rawToken, url, email: emailResult };
   }
 }

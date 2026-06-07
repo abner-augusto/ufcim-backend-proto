@@ -13,6 +13,7 @@ import { EquipmentService } from '@/services/equipment.service';
 import { UserService } from '@/services/user.service';
 import { UserAdminService } from '@/services/user-admin.service';
 import { InvitationService } from '@/services/invitation.service';
+import type { EmailResult } from '@/services/email.service';
 import { DepartmentService } from '@/services/department.service';
 import { StatsService } from '@/services/stats.service';
 import { createSpaceSchema, updateSpaceSchema } from '@/validators/space.schema';
@@ -43,6 +44,13 @@ import { renderDepartmentsView } from '@/admin/views/departments.view';
 import { renderLogsView } from '@/admin/views/logs.view';
 
 const createEquipmentFormSchema = createEquipmentSchema;
+
+/** Human-readable note about whether the invitation e-mail went out. */
+function emailStatus(email: EmailResult): string {
+  return email.sent
+    ? 'E-mail enviado.'
+    : `E-mail não enviado (${email.reason}) — copie o link abaixo e envie manualmente.`;
+}
 
 export const adminRoutes = new Hono<AppEnv>();
 
@@ -266,12 +274,12 @@ adminRoutes.post('/actions/invitations', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new InvitationService(db, c.env);
-  const { invitation, url } = await service.create({
+  const { invitation, url, email } = await service.create({
     inviterId: getActingUserId(c),
     ...parsed.data,
   });
   return c.html(await renderInvitationsView(c, {
-    message: `Convite criado para ${invitation.email}.`,
+    message: `Convite criado para ${invitation.email}. ${emailStatus(email)}`,
     highlightUrl: url,
     highlightInvitationId: invitation.id,
   }));
@@ -287,9 +295,9 @@ adminRoutes.delete('/actions/invitations/:id', async (c) => {
 adminRoutes.post('/actions/invitations/:id/resend', async (c) => {
   const db = createDb(c.env.DB);
   const service = new InvitationService(db, c.env);
-  const { invitation, url } = await service.resend(getActingUserId(c), c.req.param('id'));
+  const { invitation, url, email } = await service.resend(getActingUserId(c), c.req.param('id'));
   return c.html(await renderInvitationsView(c, {
-    message: `Link reenviado para ${invitation.email}.`,
+    message: `Link reenviado para ${invitation.email}. ${emailStatus(email)}`,
     highlightUrl: url,
     highlightInvitationId: invitation.id,
   }));
