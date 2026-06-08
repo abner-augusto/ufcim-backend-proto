@@ -3,7 +3,7 @@ import { users, userCredentials, refreshTokens, invitations } from '@/db/schema'
 import type { Database } from '@/db/client';
 import type { Env } from '@/types/env';
 import type { UserRole } from '@/types/auth';
-import { UnauthorizedError } from '@/middleware/error-handler';
+import { AppError, UnauthorizedError } from '@/middleware/error-handler';
 import { AuditLogService } from '@/services/audit-log.service';
 import { hashPassword, verifyPassword, generateOpaqueToken, sha256Hex } from '@/lib/crypto';
 import { signAccessToken } from '@/lib/jwt';
@@ -196,6 +196,7 @@ export class AuthService {
   async acceptInvitation(input: {
     token: string;
     password: string;
+    registration?: string;
     userAgent?: string;
   }): Promise<{ accessToken: string; refreshToken: string; user: PublicUser }> {
     const { token, password, userAgent } = input;
@@ -233,6 +234,13 @@ export class AuthService {
       return { accessToken, refreshToken, user: toPublicUser(existingUser) };
     }
 
+    // Matrícula: prefer what the invitee typed, fall back to what the admin set.
+    // Required for students; optional for other roles.
+    const registration = (input.registration ?? '').trim() || invite.registration || null;
+    if (invite.role === 'student' && !registration) {
+      throw new AppError(422, 'Matrícula é obrigatória para alunos.', 'REGISTRATION_REQUIRED');
+    }
+
     const newUserId = crypto.randomUUID();
     await this.db.batch([
       this.db.insert(users).values({
@@ -241,7 +249,7 @@ export class AuthService {
         email: invite.email,
         role: invite.role,
         department: invite.department,
-        registration: invite.registration ?? null,
+        registration,
         isMasterAdmin: false,
         disabledAt: null,
         createdAt: now,

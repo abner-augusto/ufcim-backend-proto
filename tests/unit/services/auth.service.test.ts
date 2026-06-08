@@ -351,10 +351,37 @@ describe('AuthService.acceptInvitation', () => {
     db.query.users.findFirst.mockResolvedValue(makeUser({ id: 'new-user' }));
     db.batch.mockResolvedValue([]);
 
-    const result = await service.acceptInvitation({ token: 'valid-token', password: 'Password123' });
+    const result = await service.acceptInvitation({ token: 'valid-token', password: 'Password123', registration: '2023001' });
     expect(result.accessToken).toBeTruthy();
     expect(result.refreshToken).toBeTruthy();
     expect(db.batch).toHaveBeenCalled();
+  });
+
+  it('requires a matrícula when the invited role is student', async () => {
+    db.query.invitations.findFirst.mockResolvedValue(makeInvitation({ role: 'student', registration: null }));
+    db.query.users.findFirst.mockResolvedValue(makeUser({ id: 'new-user' }));
+    db.batch.mockResolvedValue([]);
+
+    await expect(service.acceptInvitation({ token: 'valid-token', password: 'Password123' }))
+      .rejects.toThrow('Matrícula é obrigatória');
+  });
+
+  it('accepts a student when matrícula is provided', async () => {
+    db.query.invitations.findFirst.mockResolvedValue(makeInvitation({ role: 'student', registration: null }));
+    db.query.users.findFirst.mockResolvedValue(makeUser({ id: 'new-user' }));
+    db.batch.mockResolvedValue([]);
+
+    const result = await service.acceptInvitation({ token: 'valid-token', password: 'Password123', registration: '2023999' });
+    expect(result.accessToken).toBeTruthy();
+  });
+
+  it('allows a non-student without matrícula', async () => {
+    db.query.invitations.findFirst.mockResolvedValue(makeInvitation({ role: 'professor', registration: null }));
+    db.query.users.findFirst.mockResolvedValue(makeUser({ id: 'new-user' }));
+    db.batch.mockResolvedValue([]);
+
+    const result = await service.acceptInvitation({ token: 'valid-token', password: 'Password123' });
+    expect(result.accessToken).toBeTruthy();
   });
 
   it('rejects a weak password shorter than 10 chars', async () => {
@@ -365,7 +392,7 @@ describe('AuthService.acceptInvitation', () => {
     db.query.invitations.findFirst.mockResolvedValue(makeInvitation());
     db.query.users.findFirst.mockResolvedValue(makeUser());
     db.batch.mockResolvedValue([]);
-    const result = await service.acceptInvitation({ token: 'valid-token', password: 'Password123' });
+    const result = await service.acceptInvitation({ token: 'valid-token', password: 'Password123', registration: '2023001' });
     expect(result).toBeDefined();
   });
 

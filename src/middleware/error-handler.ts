@@ -43,6 +43,7 @@ const resourceLabels: Record<string, string> = {
   'Recurring reservation series': 'Série de reservas recorrentes',
   'Space manager assignment': 'Atribuição de gestor de espaço',
   'Audit log entry': 'Registro de auditoria',
+  'Invitation request': 'Solicitação de convite',
 };
 
 export class AppError extends Error {

@@ -10,3 +10,15 @@ JWT_SIGNING_SECRET=dev-only-secret-change-me
 # Optional. When set, POST /bootstrap requires this token to create the
 # first master-admin user. Leave unset to disable the bootstrap endpoint.
 BOOTSTRAP_TOKEN=dev-bootstrap-token
+
+# Resend API key used by src/services/email.service.ts to deliver invitation
+# e-mails. Leave empty to disable e-mail delivery — invitations still generate
+# the copyable link, they just won't be e-mailed. Get one at
+# https://resend.com/api-keys. In deployed workers, set it as a Secret via the
+# Cloudflare dashboard (Workers & Pages → worker → Settings → Variables and Secrets).
+RESEND_API_KEY=
+
+# Cloudflare Turnstile secret key, used by src/services/turnstile.service.ts to
+# verify the captcha on the public POST /auth/request-invitation endpoint. Leave
+# empty to skip verification (local dev). Set as a Secret in deployed workers.
+TURNSTILE_SECRET_KEY=

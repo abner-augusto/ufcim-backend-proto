@@ -13,12 +13,14 @@ import { EquipmentService } from '@/services/equipment.service';
 import { UserService } from '@/services/user.service';
 import { UserAdminService } from '@/services/user-admin.service';
 import { InvitationService } from '@/services/invitation.service';
+import { InvitationRequestService } from '@/services/invitation-request.service';
+import type { EmailResult } from '@/services/email.service';
 import { DepartmentService } from '@/services/department.service';
 import { StatsService } from '@/services/stats.service';
 import { createSpaceSchema, updateSpaceSchema } from '@/validators/space.schema';
 import { createBlockingSchema } from '@/validators/blocking.schema';
 import { createEquipmentSchema } from '@/validators/equipment.schema';
-import { createInvitationSchema } from '@/validators/invitation.schema';
+import { createInvitationSchema, approveInvitationRequestSchema } from '@/validators/invitation.schema';
 import { IAUD_PINS } from '@/lib/iaud-pins';
 
 import { getActingUserId } from '@/admin/context';
@@ -39,10 +41,18 @@ import { renderBlockingsView } from '@/admin/views/blockings.view';
 import { renderEquipmentView } from '@/admin/views/equipment.view';
 import { renderUsersView } from '@/admin/views/users.view';
 import { renderInvitationsView } from '@/admin/views/invitations.view';
+import { renderInvitationRequestsView } from '@/admin/views/invitation-requests.view';
 import { renderDepartmentsView } from '@/admin/views/departments.view';
 import { renderLogsView } from '@/admin/views/logs.view';
 
 const createEquipmentFormSchema = createEquipmentSchema;
+
+/** Human-readable note about whether the invitation e-mail went out. */
+function emailStatus(email: EmailResult): string {
+  return email.sent
+    ? 'E-mail enviado.'
+    : `E-mail não enviado (${email.reason}) — copie o link abaixo e envie manualmente.`;
+}
 
 export const adminRoutes = new Hono<AppEnv>();
 
@@ -122,6 +132,10 @@ adminRoutes.get('/partials/users', async (c) => {
 
 adminRoutes.get('/partials/invitations', async (c) => {
   return c.html(await renderInvitationsView(c));
+});
+
+adminRoutes.get('/partials/invitation-requests', async (c) => {
+  return c.html(await renderInvitationRequestsView(c));
 });
 
 adminRoutes.get('/partials/departments', async (c) => {
@@ -266,12 +280,12 @@ adminRoutes.post('/actions/invitations', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new InvitationService(db, c.env);
-  const { invitation, url } = await service.create({
+  const { invitation, url, email } = await service.create({
     inviterId: getActingUserId(c),
     ...parsed.data,
   });
   return c.html(await renderInvitationsView(c, {
-    message: `Convite criado para ${invitation.email}.`,
+    message: `Convite criado para ${invitation.email}. ${emailStatus(email)}`,
     highlightUrl: url,
     highlightInvitationId: invitation.id,
   }));
@@ -287,12 +301,38 @@ adminRoutes.delete('/actions/invitations/:id', async (c) => {
 adminRoutes.post('/actions/invitations/:id/resend', async (c) => {
   const db = createDb(c.env.DB);
   const service = new InvitationService(db, c.env);
-  const { invitation, url } = await service.resend(getActingUserId(c), c.req.param('id'));
+  const { invitation, url, email } = await service.resend(getActingUserId(c), c.req.param('id'));
   return c.html(await renderInvitationsView(c, {
-    message: `Link reenviado para ${invitation.email}.`,
+    message: `Link reenviado para ${invitation.email}. ${emailStatus(email)}`,
     highlightUrl: url,
     highlightInvitationId: invitation.id,
   }));
+});
+
+adminRoutes.post('/actions/invitation-requests/:id/approve', async (c) => {
+  const body = await formDataToObject(c);
+  const parsed = approveInvitationRequestSchema.safeParse({
+    role: stringValue(body.role),
+    department: stringValue(body.department),
+    registration: blankToUndefined(body.registration),
+  });
+  if (!parsed.success) return c.html(renderValidationErrors(parsed.error.issues));
+
+  const db = createDb(c.env.DB);
+  const service = new InvitationRequestService(db, c.env);
+  const { url, email, request } = await service.approve(getActingUserId(c), c.req.param('id'), parsed.data);
+  return c.html(await renderInvitationRequestsView(c, {
+    message: `Solicitação de ${request.email} aprovada. ${emailStatus(email)}`,
+    highlightUrl: url,
+    highlightRequestId: request.id,
+  }));
+});
+
+adminRoutes.post('/actions/invitation-requests/:id/reject', async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new InvitationRequestService(db, c.env);
+  const request = await service.reject(getActingUserId(c), c.req.param('id'));
+  return c.html(await renderInvitationRequestsView(c, { message: `Solicitação de ${request.email} rejeitada.` }));
 });
 
 adminRoutes.patch('/actions/users/:id/role', async (c) => {
