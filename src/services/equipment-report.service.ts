@@ -225,9 +225,7 @@ export class EquipmentReportService {
       where: conditions.length > 0 ? and(...conditions) : undefined,
       orderBy: (r, { desc }) => [desc(r.createdAt)],
       with: {
-        equipment: filters.spaceId
-          ? { with: { space: true } }
-          : true,
+        equipment: { with: { space: { with: { department: true } } } },
         reporter: true,
         acknowledger: true,
       },
