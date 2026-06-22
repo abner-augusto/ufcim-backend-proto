@@ -94,7 +94,10 @@ spaceRoutes.get('/:id/availability', async (c) => {
 });
 
 // GET /spaces/:id/report?startDate=...&endDate=...
-spaceRoutes.get('/:id/report', async (c) => {
+// Reports are restricted to the same roles as the occupancy report (CAN_VIEW_REPORTS
+// on the frontend); without this guard any authenticated user — including students —
+// could fetch per-space report data directly from the API.
+spaceRoutes.get('/:id/report', rbac(['professor', 'staff', 'maintenance']), async (c) => {
   const db = createDb(c.env.DB);
   const service = new ReportService(db);
   const user = c.get('user');
