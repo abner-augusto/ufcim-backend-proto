@@ -10,7 +10,7 @@ conditions, and update your row when done.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001  | Recurring reservations exempt from active-reservation cap | P1 | S | — | TODO |
+| 001  | Recurring reservations exempt from active-reservation cap | P1 | S | — | DONE (branch `fix/recurring-active-limit`, reviewed 2026-06-23) |
 | 002  | Push admin list filtering & pagination into SQL | P2 | M | — | TODO |
 | 003  | Double-booking DB guard + correct false doc claim | P2 | M | — | TODO |
 | 004  | Hourly occupancy grid — DB-enforced non-overlap | P2 | L | 003 (supersedes) | ⛔ TRIGGER-GATED |
