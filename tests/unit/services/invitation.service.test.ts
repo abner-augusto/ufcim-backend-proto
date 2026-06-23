@@ -14,6 +14,10 @@ function createMockDb() {
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
   const updateFn = vi.fn().mockReturnValue({ set: updateSet });
 
+  const selectWhere = vi.fn().mockResolvedValue([{ total: 0 }]);
+  const selectFrom = vi.fn().mockReturnValue({ where: selectWhere });
+  const selectFn = vi.fn().mockReturnValue({ from: selectFrom });
+
   return {
     query: {
       users: { findFirst: vi.fn().mockResolvedValue(undefined) },
@@ -26,8 +30,10 @@ function createMockDb() {
     },
     insert: insertFn,
     update: updateFn,
+    select: selectFn,
     _insert: { returning: insertReturning },
     _update: { returning: updateReturning },
+    _select: { where: selectWhere },
   };
 }
 
@@ -204,49 +210,42 @@ describe('InvitationService.list', () => {
     service = new InvitationService(db as never, TEST_ENV);
   });
 
-  it('returns all invitations when status=all', async () => {
-    db.query.invitations.findMany.mockResolvedValue([
-      makeInvitation(),
-      makeInvitation({ id: 'inv-2', acceptedAt: PAST }),
-      makeInvitation({ id: 'inv-3', revokedAt: PAST }),
-    ]);
+  it('returns pending invitations using SQL status condition, limit, and offset', async () => {
+    const invitation = makeInvitation({ id: 'inv-1' });
+    db.query.invitations.findMany.mockResolvedValue([invitation]);
+    db._select.where.mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.list({ status: 'pending', page: 2, limit: 10 });
+
+    expect(result).toEqual({
+      data: [invitation],
+      pagination: { page: 2, limit: 10, total: 1, totalPages: 1 },
+    });
+
+    const args = db.query.invitations.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(args.limit).toBe(10);
+    expect(args.offset).toBe(10);
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+  });
+
+  it('returns all invitations without a SQL status condition', async () => {
+    const invitations = [makeInvitation(), makeInvitation({ id: 'inv-2', acceptedAt: PAST })];
+    db.query.invitations.findMany.mockResolvedValue(invitations);
+    db._select.where.mockResolvedValueOnce([{ total: 2 }]);
 
     const result = await service.list({ status: 'all', page: 1, limit: 50 });
-    expect(result.data).toHaveLength(3);
-  });
 
-  it('filters by status=pending', async () => {
-    db.query.invitations.findMany.mockResolvedValue([
-      makeInvitation({ id: 'inv-1' }),
-      makeInvitation({ id: 'inv-2', acceptedAt: PAST }),
-      makeInvitation({ id: 'inv-3', expiresAt: PAST }),
-    ]);
+    expect(result).toEqual({
+      data: invitations,
+      pagination: { page: 1, limit: 50, total: 2, totalPages: 1 },
+    });
 
-    const result = await service.list({ status: 'pending', page: 1, limit: 50 });
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].id).toBe('inv-1');
-  });
-
-  it('filters by status=accepted', async () => {
-    db.query.invitations.findMany.mockResolvedValue([
-      makeInvitation({ id: 'inv-1' }),
-      makeInvitation({ id: 'inv-2', acceptedAt: PAST }),
-    ]);
-
-    const result = await service.list({ status: 'accepted', page: 1, limit: 50 });
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].id).toBe('inv-2');
-  });
-
-  it('filters by status=revoked', async () => {
-    db.query.invitations.findMany.mockResolvedValue([
-      makeInvitation({ id: 'inv-1' }),
-      makeInvitation({ id: 'inv-2', revokedAt: PAST }),
-    ]);
-
-    const result = await service.list({ status: 'revoked', page: 1, limit: 50 });
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0].id).toBe('inv-2');
+    expect(db.query.invitations.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: undefined,
+      limit: 50,
+      offset: 0,
+    }));
   });
 });
 

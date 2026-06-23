@@ -194,3 +194,42 @@ describe('BlockingService.listByUser', () => {
     expect(result[1].date).toBe('2099-06-10');
   });
 });
+
+describe('BlockingService.listActive', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: BlockingService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new BlockingService(db);
+  });
+
+  it('returns paginated active blockings using SQL limit and offset', async () => {
+    db.query.blockings.findMany.mockResolvedValue([SEED.blocking]);
+    db._select.where.mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.listActive({ page: 1, limit: 25 });
+
+    expect(result).toEqual({
+      data: [SEED.blocking],
+      pagination: { page: 1, limit: 25, total: 1, totalPages: 1 },
+    });
+
+    const args = db.query.blockings.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(args.limit).toBe(25);
+    expect(args.offset).toBe(0);
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+  });
+
+  it('keeps SQL where defined when filtering from a date', async () => {
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.listActive({ dateFrom: '2099-06-01', page: 2, limit: 10 });
+
+    const args = db.query.blockings.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(args.offset).toBe(10);
+  });
+});

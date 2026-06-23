@@ -1,11 +1,10 @@
-import { eq, and, gte } from 'drizzle-orm';
+import { eq, and, gte, lte, count } from 'drizzle-orm';
 import { reservations, blockings, recurrences, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
 import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
-import { count } from 'drizzle-orm';
 
 const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
   student: 5,
@@ -296,26 +295,32 @@ export class ReservationService {
   }
 
   async listForAdmin(filters: ListReservationsFilters) {
-    const allReservations = await this.db.query.reservations.findMany({
-      with: { user: true, space: true, recurrence: true },
-      orderBy: (r, { desc }) => [desc(r.date)],
-    });
+    const conditions = [];
+    if (filters.spaceId) conditions.push(eq(reservations.spaceId, filters.spaceId));
+    if (filters.userId) conditions.push(eq(reservations.userId, filters.userId));
+    if (filters.status) conditions.push(eq(reservations.status, filters.status));
+    if (filters.dateFrom) conditions.push(gte(reservations.date, filters.dateFrom));
+    if (filters.dateTo) conditions.push(lte(reservations.date, filters.dateTo));
 
-    const filtered = allReservations.filter((reservation) => {
-      if (filters.spaceId && reservation.spaceId !== filters.spaceId) return false;
-      if (filters.userId && reservation.userId !== filters.userId) return false;
-      if (filters.status && reservation.status !== filters.status) return false;
-      if (filters.dateFrom && reservation.date < filters.dateFrom) return false;
-      if (filters.dateTo && reservation.date > filters.dateTo) return false;
-      return true;
-    });
+    const where = conditions.length ? and(...conditions) : undefined;
+    const offset = (filters.page - 1) * filters.limit;
 
-    const total = filtered.length;
+    const [data, [countRow]] = await Promise.all([
+      this.db.query.reservations.findMany({
+        where,
+        with: { user: true, space: true, recurrence: true },
+        orderBy: (r, { desc }) => [desc(r.date)],
+        limit: filters.limit,
+        offset,
+      }),
+      this.db.select({ total: count() }).from(reservations).where(where),
+    ]);
+
+    const total = countRow?.total ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / filters.limit));
-    const start = (filters.page - 1) * filters.limit;
 
     return {
-      data: filtered.slice(start, start + filters.limit),
+      data,
       pagination: {
         page: filters.page,
         limit: filters.limit,

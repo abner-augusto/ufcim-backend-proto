@@ -1,4 +1,4 @@
-import { eq, and, isNull, isNotNull, lt, gte } from 'drizzle-orm';
+import { eq, and, isNull, isNotNull, lt, gte, count } from 'drizzle-orm';
 import { invitations, users } from '@/db/schema';
 import type { Database } from '@/db/client';
 import type { Env } from '@/types/env';
@@ -126,27 +126,34 @@ export class InvitationService {
     page: number;
     limit: number;
   }): Promise<PaginatedInvitations> {
-    const all = await this.db.query.invitations.findMany({
-      orderBy: (inv, { desc }) => [desc(inv.createdAt)],
-    });
-
     const now = new Date().toISOString();
-    const filtered = all.filter((inv) => {
-      const status = filters.status ?? 'all';
-      if (status === 'all') return true;
-      if (status === 'accepted') return inv.acceptedAt != null;
-      if (status === 'revoked') return inv.revokedAt != null;
-      if (status === 'expired') return inv.expiresAt < now && inv.acceptedAt == null && inv.revokedAt == null;
-      if (status === 'pending') return inv.acceptedAt == null && inv.revokedAt == null && inv.expiresAt >= now;
-      return true;
-    });
+    const status = filters.status ?? 'all';
+    const where = status === 'accepted'
+      ? isNotNull(invitations.acceptedAt)
+      : status === 'revoked'
+        ? isNotNull(invitations.revokedAt)
+        : status === 'expired'
+          ? and(lt(invitations.expiresAt, now), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))
+          : status === 'pending'
+            ? and(isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gte(invitations.expiresAt, now))
+            : undefined;
+    const offset = (filters.page - 1) * filters.limit;
 
-    const total = filtered.length;
+    const [data, [countRow]] = await Promise.all([
+      this.db.query.invitations.findMany({
+        where,
+        orderBy: (inv, { desc }) => [desc(inv.createdAt)],
+        limit: filters.limit,
+        offset,
+      }),
+      this.db.select({ total: count() }).from(invitations).where(where),
+    ]);
+
+    const total = countRow?.total ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / filters.limit));
-    const start = (filters.page - 1) * filters.limit;
 
     return {
-      data: filtered.slice(start, start + filters.limit),
+      data,
       pagination: { page: filters.page, limit: filters.limit, total, totalPages },
     };
   }

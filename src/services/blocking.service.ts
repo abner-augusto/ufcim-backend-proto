@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte, lte, count } from 'drizzle-orm';
 import { blockings, reservations, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError } from '@/middleware/error-handler';
@@ -165,25 +165,30 @@ export class BlockingService {
   }
 
   async listActive(filters: ListBlockingsFilters) {
-    const allBlockings = await this.db.query.blockings.findMany({
-      with: { creator: true, space: true },
-      orderBy: (b, { asc }) => [asc(b.date)],
-    });
+    const conditions = [eq(blockings.status, 'active')];
+    if (filters.spaceId) conditions.push(eq(blockings.spaceId, filters.spaceId));
+    if (filters.dateFrom) conditions.push(gte(blockings.date, filters.dateFrom));
+    if (filters.dateTo) conditions.push(lte(blockings.date, filters.dateTo));
 
-    const filtered = allBlockings.filter((blocking) => {
-      if (blocking.status !== 'active') return false;
-      if (filters.spaceId && blocking.spaceId !== filters.spaceId) return false;
-      if (filters.dateFrom && blocking.date < filters.dateFrom) return false;
-      if (filters.dateTo && blocking.date > filters.dateTo) return false;
-      return true;
-    });
+    const where = and(...conditions);
+    const offset = (filters.page - 1) * filters.limit;
 
-    const total = filtered.length;
+    const [data, [countRow]] = await Promise.all([
+      this.db.query.blockings.findMany({
+        where,
+        with: { creator: true, space: true },
+        orderBy: (b, { asc }) => [asc(b.date)],
+        limit: filters.limit,
+        offset,
+      }),
+      this.db.select({ total: count() }).from(blockings).where(where),
+    ]);
+
+    const total = countRow?.total ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / filters.limit));
-    const start = (filters.page - 1) * filters.limit;
 
     return {
-      data: filtered.slice(start, start + filters.limit),
+      data,
       pagination: {
         page: filters.page,
         limit: filters.limit,

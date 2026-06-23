@@ -367,6 +367,45 @@ describe('ReservationService.createRecurring', () => {
   });
 });
 
+describe('ReservationService.listForAdmin', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+  });
+
+  it('returns paginated reservations using SQL limit and offset', async () => {
+    db.query.reservations.findMany.mockResolvedValue([SEED.reservation]);
+    db._select.where.mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.listForAdmin({ page: 1, limit: 20 });
+
+    expect(result).toEqual({
+      data: [SEED.reservation],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
+    expect(db.query.reservations.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: undefined,
+      limit: 20,
+      offset: 0,
+    }));
+  });
+
+  it('passes status filters through SQL and offsets page 2', async () => {
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+
+    await service.listForAdmin({ status: 'confirmed', page: 2, limit: 10 });
+
+    const args = db.query.reservations.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(args.offset).toBe(10);
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+  });
+});
+
 describe('ReservationService.cancelSeries', () => {
   let db: ReturnType<typeof createMockDb>;
   let service: ReservationService;
