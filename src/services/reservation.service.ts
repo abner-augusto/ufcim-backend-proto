@@ -117,8 +117,6 @@ export class ReservationService {
       throw new ForbiddenError('Apenas professores e funcionários podem criar reservas recorrentes');
     }
 
-    await this.enforceActiveLimit(userId, userRole);
-
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
 

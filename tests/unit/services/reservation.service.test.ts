@@ -322,6 +322,28 @@ describe('ReservationService.createRecurring', () => {
     expect(result.recurrenceId).toBeTruthy();
   });
 
+  it('allows a professor at the active-reservation cap to still create a series', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]); // all slots free
+    db.query.blockings.findMany.mockResolvedValue([]);
+    // Simulate the user already holding the cap. If createRecurring still called
+    // enforceActiveLimit, this would surface as a RESERVATION_LIMIT error.
+    db._select.where.mockResolvedValue([{ total: 10 }]);
+
+    const result = await service.createRecurring(OTHER_USER_ID, 'professor', SEED.space.department, {
+      spaceId: SPACE_ID,
+      startDate: '2099-06-02', // Monday
+      endDate: '2099-06-16',   // 3 Mondays
+      dayOfWeek: 1,
+      startTime: START_TIME,
+      endTime: END_TIME,
+      description: 'Weekly lecture',
+    });
+
+    expect(result.created.length).toBeGreaterThan(0);
+    expect(result.skipped).toHaveLength(0);
+  });
+
   it('skips a date when its slot is already confirmed', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     // First occurrence: slot taken → skipped; subsequent: available
