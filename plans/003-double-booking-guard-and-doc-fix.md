@@ -1,0 +1,287 @@
+# Plan 003: Close the double-booking race (DB guard) and correct the false README security claim
+
+> **Executor instructions**: Follow this plan step by step. Run every
+> verification command and confirm the expected result before moving to the
+> next step. If anything in the "STOP conditions" section occurs, stop and
+> report — do not improvise. When done, update the status row for this plan
+> in `plans/README.md`.
+>
+> **Drift check (run first)**: `git diff --stat ad08a7d..HEAD -- src/db/schema.ts src/services/reservation.service.ts README.md`
+> If any in-scope file changed since this plan was written, compare the
+> "Current state" excerpts against the live code before proceeding; on a
+> mismatch, treat it as a STOP condition.
+
+## Status
+
+- **Priority**: P2
+- **Effort**: M
+- **Risk**: MED
+- **Depends on**: none (but if both 001 and 003 are run, do 001 first to avoid editing `reservation.service.ts` twice)
+- **Category**: security
+- **Planned at**: commit `ad08a7d`, 2026-06-23
+
+## Why this matters
+
+`ReservationService.create` checks slot availability and then inserts in two
+separate awaited steps with no transaction and **no database constraint**
+(`reservation.service.ts:66` reads existing reservations, `:79` inserts). Two
+concurrent requests for the same slot can both pass the read-side check and both
+insert — a double-booking. Worse, `README.md:272` actively claims this is
+already prevented at the database layer:
+
+> "Atomicidade de conflitos: índices únicos parciais no banco previnem
+> condições de corrida em reservas concorrentes — a verificação não é apenas na
+> camada de aplicação."
+
+No such index exists on `reservations` or `blockings` (`schema.ts:108-140`).
+The documentation overstates the security posture, which is itself a risk
+(reviewers trust a guarantee that isn't there).
+
+This plan does two things: (1) corrects the documentation to match reality, and
+(2) adds a **partial unique index** that makes the claim true for the common
+case — two *identical* confirmed slots can no longer coexist — and translates
+the resulting constraint violation into the existing user-facing conflict error.
+
+**Honest scope limit:** the slot model uses free-form `HH:00` start/end times,
+so reservations can *partially* overlap (e.g. `08:00–12:00` vs `09:00–11:00`).
+A unique index cannot express "no overlapping range" — it only catches exact
+duplicates. This plan closes the exact-duplicate race and documents the residual
+partial-overlap gap as known/deferred. Do not claim full overlap protection.
+
+## Current state
+
+- `src/db/schema.ts:108-124` — the `reservations` table has **no** table-level
+  index argument (no second arg to `sqliteTable`). Compare with the existing
+  partial-unique precedent on `users` (`schema.ts:29-31`):
+
+```ts
+(t) => ({
+  registrationUnq: uniqueIndex('users_registration_unq').on(t.registration).where(sql`registration IS NOT NULL`),
+})
+```
+
+  `uniqueIndex` and `sql` are already imported at the top of `schema.ts`
+  (lines 1-2).
+
+- `src/services/reservation.service.ts:79-95` — the insert in `create()` is not
+  wrapped to handle a DB constraint error:
+
+```ts
+const [reservation] = await this.db
+  .insert(reservations)
+  .values({ id, spaceId: input.spaceId, /* ... */ status: 'confirmed', /* ... */ })
+  .returning();
+```
+
+- `createRecurring()` (`reservation.service.ts:142-168`) already wraps each
+  insert in `try { ... } catch { skipped.push(...) }`, so a constraint violation
+  there is already absorbed as a skipped date — **no change needed there**.
+
+- Migration tooling: `drizzle-kit generate` (script `npm run db:generate`) diffs
+  `src/db/schema.ts` against `migrations/meta/` and writes a new
+  `migrations/NNNN_*.sql` plus an updated snapshot. It runs **offline** (no DB
+  connection). Existing incremental migration: `migrations/0001_invitation_requests.sql`.
+
+### Repo conventions
+
+- Error translation: the service throws typed errors from
+  `@/middleware/error-handler` (`ConflictError`, etc.), already imported at
+  `reservation.service.ts:4`. The existing overlap conflict message is
+  `'Esta faixa de horário conflita com uma reserva existente'`
+  (`reservation.service.ts:361`) — reuse it for consistency.
+- Tests: `tests/unit/services/reservation.service.test.ts` with the Drizzle mock
+  in `tests/unit/helpers/mock-db.ts`. The insert terminal is
+  `db._insert.returning` — override it to reject for the constraint test.
+
+## Commands you will need
+
+| Purpose            | Command                | Expected on success |
+|--------------------|------------------------|---------------------|
+| Typecheck          | `npm run typecheck`    | exit 0, no errors   |
+| Tests              | `npm test`             | all pass            |
+| Generate migration | `npm run db:generate`  | new `migrations/0002_*.sql` written, exit 0 |
+
+## Scope
+
+**In scope**:
+- `src/db/schema.ts` (add the partial unique index to `reservations`)
+- `migrations/` and `migrations/meta/` (generated by `npm run db:generate` — do
+  not hand-edit beyond what the tool writes)
+- `src/services/reservation.service.ts` (`create()` insert error translation only)
+- `tests/unit/services/reservation.service.test.ts` (add a test)
+- `README.md` (correct the security claim)
+
+**Out of scope** (do NOT touch):
+- `blockings` table / `BlockingService` — blockings have their own app-level
+  overlap check; adding a blocking guard is a separate follow-up.
+- `createRecurring` — its loop already absorbs the constraint error as a skip.
+- Any attempt to fully solve partial-overlap atomicity — explicitly deferred.
+- Applying the migration to a remote/prod D1 database — that is an operator
+  step, not part of execution (see Maintenance notes).
+
+## Git workflow
+
+- Branch: `fix/double-booking-guard`
+- Commits: conventional style, e.g.
+  `fix(reservations): add partial unique index to prevent exact double-booking`
+  and `docs(readme): correct the conflict-atomicity claim`
+- Do NOT push or open a PR unless instructed.
+
+## Steps
+
+### Step 1: Add the partial unique index to the schema
+
+In `src/db/schema.ts`, give the `reservations` table a second argument that
+declares a partial unique index over the slot identity, scoped to confirmed
+rows so cancelled/overridden rows free the slot:
+
+```ts
+export const reservations = sqliteTable('reservations', {
+  // ... existing columns unchanged ...
+}, (t) => ({
+  confirmedSlotUnq: uniqueIndex('reservations_confirmed_slot_unq')
+    .on(t.spaceId, t.date, t.startTime, t.endTime)
+    .where(sql`status = 'confirmed'`),
+}));
+```
+
+Keep every column exactly as-is; only add the table-config function.
+
+**Verify**: `npm run typecheck` → exit 0.
+
+### Step 2: Generate the migration
+
+Run `npm run db:generate`. It must create exactly one new migration file
+(`migrations/0002_*.sql`) containing a `CREATE UNIQUE INDEX
+\`reservations_confirmed_slot_unq\` ON \`reservations\` (...) WHERE status = 'confirmed';`
+statement and update `migrations/meta/`.
+
+**Verify**:
+- `git status --porcelain migrations/` shows a new `0002_*.sql` and updated meta.
+- `grep -rn "reservations_confirmed_slot_unq" migrations/` shows the
+  `CREATE UNIQUE INDEX ... WHERE status = 'confirmed'` statement.
+- The diff contains **only** this index addition — no unexpected table changes.
+  If `drizzle-kit` wants to alter or drop anything else, that is drift → STOP.
+
+### Step 3: Translate the constraint violation in `create()`
+
+Wrap the insert in `ReservationService.create` so a unique-constraint violation
+surfaces as the existing conflict error instead of an unhandled 500:
+
+```ts
+let reservation;
+try {
+  [reservation] = await this.db
+    .insert(reservations)
+    .values({ /* ... unchanged ... */ })
+    .returning();
+} catch (err) {
+  if (err instanceof Error && /UNIQUE constraint failed/i.test(err.message)) {
+    throw new ConflictError('Esta faixa de horário conflita com uma reserva existente');
+  }
+  throw err;
+}
+```
+
+Place this so the subsequent audit-log and notification calls still run with the
+returned `reservation`. Do not change the inserted values.
+
+**Verify**: `npm run typecheck` → exit 0.
+
+### Step 4: Add a regression test for the translation
+
+In `tests/unit/services/reservation.service.test.ts`, inside
+`describe('ReservationService.create', ...)`, add:
+
+```ts
+it('translates a unique-constraint violation into a ConflictError', async () => {
+  db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+  db.query.reservations.findMany.mockResolvedValue([]);
+  db.query.blockings.findMany.mockResolvedValue([]);
+  db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+  db._insert.returning.mockRejectedValueOnce(new Error('D1_ERROR: UNIQUE constraint failed: reservations.space_id'));
+
+  await expect(
+    service.create(OTHER_USER_ID, 'professor', 'Ciência da Computação', {
+      spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME,
+    })
+  ).rejects.toThrow(ConflictError);
+});
+```
+
+`ConflictError` is already imported in that test file (line 4).
+
+**Verify**: `npm test` → all pass, including the new test.
+
+### Step 5: Correct the security claim in the docs
+
+The overstated "Atomicidade de conflitos" claim was moved out of `README.md`
+into `docs/ARCHITECTURE.md` (section "Postura de segurança") when the README was
+slimmed. Update the claim **wherever it now lives** — search both:
+`grep -rn "Atomicidade de conflitos\|índices únicos parciais\|índice único parcial" README.md docs/`.
+Make it describe the real posture: app-level overlap checks plus a partial unique
+index that prevents **exact-duplicate** confirmed reservations, while noting that
+partial-overlap races are not yet fully prevented at the DB layer. The fuller
+rationale already lives in `docs/adr/0001-reservation-overlap-enforcement.md`
+(Stage 1) — reference it rather than duplicating. Example replacement text:
+
+> - **Atomicidade de conflitos:** um índice único parcial
+>   (`reservations_confirmed_slot_unq`) impede que duas reservas confirmadas
+>   ocupem exatamente o mesmo espaço/data/horário, mesmo sob concorrência. A
+>   verificação de sobreposição parcial de faixas continua sendo feita na camada
+>   de aplicação (`reservation.service.ts`); sobreposições parciais simultâneas
+>   ainda não são bloqueadas pelo banco.
+
+**Verify**: `grep -rn "índices únicos parciais no banco previnem" README.md docs/`
+returns nothing (the old, overstated sentence is gone).
+
+## Test plan
+
+- New unit test: a unique-constraint rejection from the insert becomes a
+  `ConflictError` (not a 500).
+- All existing `create` / `createRecurring` tests pass unchanged.
+- Verification: `npm test` → all pass; `npm run typecheck` → exit 0.
+
+## Done criteria
+
+Machine-checkable. ALL must hold:
+
+- [ ] `npm run typecheck` exits 0
+- [ ] `npm test` exits 0; the constraint-translation test exists and passes
+- [ ] `grep -rn "reservations_confirmed_slot_unq" src/db/schema.ts migrations/` shows the index in both schema and a generated migration
+- [ ] `grep -rn "índices únicos parciais no banco previnem" README.md docs/` returns nothing
+- [ ] The generated migration diff contains only the new index (no other schema changes)
+- [ ] No files outside the in-scope list are modified (`git status`)
+- [ ] `plans/README.md` status row for plan 003 updated
+
+## STOP conditions
+
+Stop and report back (do not improvise) if:
+
+- `npm run db:generate` wants to change anything other than adding
+  `reservations_confirmed_slot_unq` (indicates the meta snapshot has drifted
+  from the schema — a human must reconcile it).
+- The `reservations` table definition in `schema.ts` no longer matches the
+  "Current state" excerpt.
+- You are tempted to also add a guard to `blockings` or to solve partial-overlap
+  atomicity — both are explicitly out of scope.
+- Any attempt to apply the migration locally fails with
+  "UNIQUE constraint failed" — that means duplicate confirmed reservations
+  already exist in the data and must be cleaned up by an operator first; report
+  it rather than deleting rows.
+
+## Maintenance notes
+
+- **Operator follow-up (not the executor's job):** applying `0002_*.sql` to the
+  dev and prod D1 databases (`wrangler d1 migrations apply ufcim-db-dev --local --env dev`,
+  and the prod equivalent) is a deploy-time step. If existing data contains
+  exact-duplicate confirmed reservations, index creation will fail until they
+  are resolved.
+- The residual gap (partial-overlap double-booking under concurrency) remains.
+  If full atomicity is needed later, options include normalizing slots to a
+  fixed grid (one row per hour) so a unique index fully expresses non-overlap,
+  or moving the check+insert into a single atomic D1 `batch`/transaction. Track
+  this as a separate finding.
+- A reviewer should confirm the index `WHERE status = 'confirmed'` matches the
+  status string the app actually writes (`reservation.service.ts:89`) — if the
+  status vocabulary changes, the partial predicate must change with it.
