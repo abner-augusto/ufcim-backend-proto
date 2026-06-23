@@ -7,6 +7,7 @@ Itens com decisão de arquitetura tomada apontam para o ADR correspondente em
 Convenção de prontidão:
 - **Pronto p/ executar** — existe um plano em `plans/`.
 - **Sob gatilho** — especificado, mas só executar quando o gatilho disparar.
+- **Concluído** — implementado e verificado em `main`.
 - **Ideia** — direção validada, sem plano ainda.
 
 ---
@@ -15,10 +16,10 @@ Convenção de prontidão:
 
 Decisão completa: `docs/adr/0001-reservation-overlap-enforcement.md`.
 
-- **Estágio 1 — agora (POC/D1)** · *Pronto p/ executar* ·
+- **Estágio 1 — agora (POC/D1)** · *Concluído* ·
   `plans/003-double-booking-guard-and-doc-fix.md`
   Índice único parcial contra duplicata exata + tradução do erro + correção da
-  doc. Mata a corrida de double-submit.
+  doc. Mata a corrida de double-submit. Implementado em `main` (`eda04c8`).
 
 - **Estágio 2 — grade horária de ocupação** · *Sob gatilho* ·
   `plans/004-occupancy-grid-overlap-enforcement.md`
