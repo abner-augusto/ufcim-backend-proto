@@ -121,7 +121,11 @@ export const reservations = sqliteTable('reservations', {
   cancelReason: text('cancel_reason'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-});
+}, (t) => ({
+  confirmedSlotUnq: uniqueIndex('reservations_confirmed_slot_unq')
+    .on(t.spaceId, t.date, t.startTime, t.endTime)
+    .where(sql`status = 'confirmed'`),
+}));
 
 // ─── Blockings (bloqueios) ──────────────────────────────────────────────────
 export const blockings = sqliteTable('blockings', {

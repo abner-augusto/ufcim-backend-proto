@@ -75,23 +75,32 @@ export class ReservationService {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    const [reservation] = await this.db
-      .insert(reservations)
-      .values({
-        id,
-        spaceId: input.spaceId,
-        userId,
-        date: input.date,
-        timeSlot: deriveLegacyTimeSlot(input.startTime),
-        startTime: input.startTime,
-        endTime: input.endTime,
-        status: 'confirmed',
-        purpose: input.purpose ?? null,
-        description: input.description?.trim() || null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
+    let reservation: typeof reservations.$inferSelect;
+    try {
+      [reservation] = await this.db
+        .insert(reservations)
+        .values({
+          id,
+          spaceId: input.spaceId,
+          userId,
+          date: input.date,
+          timeSlot: deriveLegacyTimeSlot(input.startTime),
+          startTime: input.startTime,
+          endTime: input.endTime,
+          status: 'confirmed',
+          purpose: input.purpose ?? null,
+          description: input.description?.trim() || null,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+    } catch (error) {
+      if (error instanceof Error && /UNIQUE constraint failed/i.test(error.message)) {
+        throw new ConflictError('Esta faixa de horário conflita com uma reserva existente');
+      }
+
+      throw error;
+    }
 
     await this.auditLog.log(
       userId,

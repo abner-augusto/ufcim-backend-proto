@@ -15,6 +15,13 @@
       "when": 1780865615766,
       "tag": "0001_invitation_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1782227640204,
+      "tag": "0002_tired_james_howlett",
+      "breakpoints": true
     }
   ]
 }

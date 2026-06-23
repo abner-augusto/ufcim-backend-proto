@@ -269,7 +269,7 @@ npm run deploy   # wrangler deploy --env production
 ## Segurança
 
 - **CORS** restrito a origens conhecidas por ambiente (`localhost:5173` em dev, `ufcim.pages.dev` em produção).
-- **Atomicidade de conflitos:** índices únicos parciais no banco previnem condições de corrida em reservas concorrentes — a verificação não é apenas na camada de aplicação.
+- **Conflitos de reservas:** checagens de sobreposição existem na aplicação; o índice único parcial `reservations_confirmed_slot_unq` previne duplicatas exatas de reservas confirmadas sob concorrência. Corridas com sobreposição parcial permanecem tratadas na camada de aplicação, sem bloqueio completo no banco.
 - **Secrets** fora do `wrangler.toml` — armazenados via `wrangler secret` em produção.
 - **JWKS caching** para evitar chamadas repetidas ao Keycloak.
 - **Admin gate** via middleware `requireMasterAdmin()` separado do RBAC de rotas.

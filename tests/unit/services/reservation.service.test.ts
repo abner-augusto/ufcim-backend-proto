@@ -117,6 +117,18 @@ describe('ReservationService.create', () => {
     expect((err as AppError).code).toBe('RESERVATION_LIMIT');
   });
 
+  it('throws ConflictError when the confirmed slot unique index rejects the insert', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+    db._insert.returning.mockRejectedValueOnce(new Error('D1_ERROR: UNIQUE constraint failed: reservations.space_id'));
+
+    await expect(
+      service.create(USER_ID, 'professor', SEED.space.department, { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME })
+    ).rejects.toThrow(ConflictError);
+  });
+
   it('throws ForbiddenError when maintenance role tries to create a reservation', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `reservations_confirmed_slot_unq` ON `reservations` (`space_id`,`date`,`start_time`,`end_time`) WHERE status = 'confirmed';
