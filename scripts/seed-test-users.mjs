@@ -9,7 +9,7 @@
  *
  * Config:
  *   UFCIM_TEST_PASSWORD   shared password for all accounts (default senha123456;
- *                         must satisfy the policy: ≥10 chars, ≥1 letter, ≥1 digit)
+ *                         must satisfy the policy: ≥8 chars, ≥1 letter, ≥1 digit)
  *
  * Usage:
  *   node scripts/seed-test-users.mjs
@@ -28,8 +28,8 @@ const PASSWORD = process.env.UFCIM_TEST_PASSWORD ?? 'senha123456';
 
 // Mirror the app's password policy (src/validators/auth.schema.ts) so seeded
 // accounts could also be created through the real bootstrap/invitation flow.
-if (PASSWORD.length < 10 || !/[A-Za-z]/.test(PASSWORD) || !/[0-9]/.test(PASSWORD)) {
-  console.error('UFCIM_TEST_PASSWORD must be ≥10 chars and contain at least one letter and one digit.');
+if (PASSWORD.length < 8 || !/[A-Za-z]/.test(PASSWORD) || !/[0-9]/.test(PASSWORD)) {
+  console.error('UFCIM_TEST_PASSWORD must be ≥8 chars and contain at least one letter and one digit.');
   process.exit(1);
 }
 

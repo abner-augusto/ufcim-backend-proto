@@ -384,7 +384,7 @@ describe('AuthService.acceptInvitation', () => {
     expect(result.accessToken).toBeTruthy();
   });
 
-  it('rejects a weak password shorter than 10 chars', async () => {
+  it('rejects a weak password shorter than 8 chars', async () => {
     // Password validation is at the route/Zod layer, not service layer.
     // This test confirms the service itself does not bypass schema (calls are routed through Zod).
     // Accept passes any string — policy enforced by Zod before service is called.

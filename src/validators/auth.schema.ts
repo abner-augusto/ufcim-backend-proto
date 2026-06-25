@@ -15,7 +15,7 @@ export const logoutSchema = z.object({
 
 export const passwordPolicySchema = z
   .string()
-  .min(10, 'A senha deve ter pelo menos 10 caracteres')
+  .min(8, 'A senha deve ter pelo menos 8 caracteres')
   .regex(/[A-Za-z]/, 'A senha deve conter pelo menos uma letra')
   .regex(/[0-9]/, 'A senha deve conter pelo menos um número');
 

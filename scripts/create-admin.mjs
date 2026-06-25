@@ -12,7 +12,7 @@
  *   UFCIM_BASE_URL          default http://localhost:8787
  *   UFCIM_BOOTSTRAP_TOKEN   default dev-bootstrap-token   (must match the worker secret)
  *   UFCIM_ADMIN_EMAIL       default admin@ufcim.dev
- *   UFCIM_ADMIN_PASSWORD    default Admin@dev1234         (min 10 chars, ≥1 letter + ≥1 digit)
+ *   UFCIM_ADMIN_PASSWORD    default Admin@dev1234         (min 8 chars, ≥1 letter + ≥1 digit)
  *   UFCIM_ADMIN_NAME        default Master Admin
  *   UFCIM_ADMIN_DEPARTMENT  default iaud  (MUST be an existing departments.id slug)
  *

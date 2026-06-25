@@ -38,8 +38,8 @@ const admin = {
 };
 
 // Mirror the app's password policy (src/validators/auth.schema.ts).
-if (admin.password.length < 10 || !/[A-Za-z]/.test(admin.password) || !/[0-9]/.test(admin.password)) {
-  console.error('UFCIM_ADMIN_PASSWORD must be ≥10 chars and contain at least one letter and one digit.');
+if (admin.password.length < 8 || !/[A-Za-z]/.test(admin.password) || !/[0-9]/.test(admin.password)) {
+  console.error('UFCIM_ADMIN_PASSWORD must be ≥8 chars and contain at least one letter and one digit.');
   process.exit(1);
 }
 
