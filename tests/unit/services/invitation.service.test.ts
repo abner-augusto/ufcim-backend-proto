@@ -185,6 +185,34 @@ describe('InvitationService.create — domain allow-list', () => {
     })).resolves.toBeDefined();
   });
 
+  it('accepts apex and any subdomain for a "*.ufc.br" wildcard entry', async () => {
+    const db = createMockDb();
+    const service = new InvitationService(db as never, { ...TEST_ENV, ALLOWED_EMAIL_DOMAINS: '*.ufc.br' });
+
+    for (const email of ['reitoria@ufc.br', 'aluno@alu.ufc.br', 'prof@crateus.ufc.br']) {
+      await expect(service.create({
+        inviterId: 'actor-1',
+        email,
+        name: 'UFC',
+        role: 'student',
+        department: 'CC',
+      })).resolves.toBeDefined();
+    }
+  });
+
+  it('rejects a look-alike domain for a "*.ufc.br" wildcard entry', async () => {
+    const db = createMockDb();
+    const service = new InvitationService(db as never, { ...TEST_ENV, ALLOWED_EMAIL_DOMAINS: '*.ufc.br' });
+
+    await expect(service.create({
+      inviterId: 'actor-1',
+      email: 'fake@notufc.br',
+      name: 'Outsider',
+      role: 'student',
+      department: 'CC',
+    })).rejects.toThrow('não é permitido');
+  });
+
   it('imposes no restriction when ALLOWED_EMAIL_DOMAINS is unset', async () => {
     const db = createMockDb();
     const service = new InvitationService(db as never, TEST_ENV);

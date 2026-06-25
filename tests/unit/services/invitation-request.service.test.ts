@@ -92,6 +92,49 @@ describe('InvitationRequestService.request', () => {
     expect(result.status).toBe('pending');
     expect(db.insert).toHaveBeenCalled();
   });
+
+  it('sends a Telegram notification when configured', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => '' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service2 = new InvitationRequestService(db as never, {
+      ...TEST_ENV,
+      TELEGRAM_BOT_TOKEN: 'bot-token',
+      TELEGRAM_CHAT_ID: '12345',
+    });
+    await service2.request({ name: 'New', email: 'new@ufc.br' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/botbot-token/sendMessage');
+    expect(JSON.parse(init.body as string)).toMatchObject({ chat_id: '12345' });
+
+    vi.unstubAllGlobals();
+  });
+
+  it('still succeeds when the Telegram notification fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+
+    const service2 = new InvitationRequestService(db as never, {
+      ...TEST_ENV,
+      TELEGRAM_BOT_TOKEN: 'bot-token',
+      TELEGRAM_CHAT_ID: '12345',
+    });
+    const result = await service2.request({ name: 'New', email: 'new@ufc.br' });
+    expect(result.status).toBe('pending');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('skips the Telegram call when not configured', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await service.request({ name: 'New', email: 'new@ufc.br' });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('InvitationRequestService.reject', () => {

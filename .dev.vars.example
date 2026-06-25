@@ -22,3 +22,12 @@ RESEND_API_KEY=
 # verify the captcha on the public POST /auth/request-invitation endpoint. Leave
 # empty to skip verification (local dev). Set as a Secret in deployed workers.
 TURNSTILE_SECRET_KEY=
+
+# Telegram bot notifications for new invite requests (src/services/telegram.service.ts).
+# Both must be set, otherwise notifications are silently skipped. Create a bot with
+# @BotFather to get the token; get the chat id by messaging the bot and reading
+# https://api.telegram.org/bot<TOKEN>/getUpdates (or add the bot to a group). In
+# deployed workers, set both as Secrets (Workers & Pages → worker → Settings →
+# Variables and Secrets).
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=

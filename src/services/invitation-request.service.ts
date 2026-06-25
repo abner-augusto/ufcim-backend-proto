@@ -7,6 +7,7 @@ import { ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { assertAllowedDomain } from '@/lib/email-domain';
 import { AuditLogService } from '@/services/audit-log.service';
 import { InvitationService } from '@/services/invitation.service';
+import { TelegramService } from '@/services/telegram.service';
 import type { EmailResult } from '@/services/email.service';
 
 type InvitationRequest = typeof invitationRequests.$inferSelect;
@@ -61,6 +62,9 @@ export class InvitationRequestService {
       .insert(invitationRequests)
       .values({ id: crypto.randomUUID(), name, email, status: 'pending', createdAt: now })
       .returning();
+
+    // Best-effort admin alert; never blocks the request flow.
+    await new TelegramService(this.env).notifyInvitationRequest({ name, email });
 
     return created;
   }
