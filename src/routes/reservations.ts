@@ -104,6 +104,19 @@ reservationRoutes.patch(
   }
 );
 
+// GET /reservations/series/:recurrenceId/impact — preview cancel impact (professor, staff)
+reservationRoutes.get(
+  '/series/:recurrenceId/impact',
+  rbac(['professor', 'staff']),
+  async (c) => {
+    const db = createDb(c.env.DB);
+    const service = new ReservationService(db);
+
+    const result = await service.getSeriesImpact(c.req.param('recurrenceId'));
+    return c.json(result);
+  }
+);
+
 // GET /reservations/mine — current user's reservations (any role)
 reservationRoutes.get(
   '/mine',

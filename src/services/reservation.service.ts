@@ -281,6 +281,23 @@ export class ReservationService {
     return updatedReservations;
   }
 
+  async getSeriesImpact(recurrenceId: string): Promise<{ futureCount: number; firstDate: string | null }> {
+    const seriesReservations = await this.db.query.reservations.findMany({
+      where: eq(reservations.recurrenceId, recurrenceId),
+    });
+
+    if (seriesReservations.length === 0) {
+      throw new NotFoundError('Recurring reservation series');
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = seriesReservations
+      .filter((r) => r.status === 'confirmed' && r.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return { futureCount: upcoming.length, firstDate: upcoming[0]?.date ?? null };
+  }
+
   async listBySpace(spaceId: string, date?: string) {
     return this.db.query.reservations.findMany({
       where: and(

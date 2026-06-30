@@ -466,3 +466,35 @@ describe('ReservationService.cancelSeries', () => {
     await expect(service.cancelSeries('series-1', USER_ID, 'student')).rejects.toThrow(ForbiddenError);
   });
 });
+
+describe('ReservationService.getSeriesImpact', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+  });
+
+  it('counts only future confirmed occurrences and reports the earliest future date', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      // past confirmed — ignored
+      { ...SEED.reservation, id: 'r-past', date: '2020-01-06', status: 'confirmed', recurrenceId: 'series-1' },
+      // future confirmed (out of order to verify sorting)
+      { ...SEED.reservation, id: 'r-future-2', date: '2099-06-29', status: 'confirmed', recurrenceId: 'series-1' },
+      { ...SEED.reservation, id: 'r-future-1', date: '2099-06-22', status: 'confirmed', recurrenceId: 'series-1' },
+      // future canceled — ignored
+      { ...SEED.reservation, id: 'r-canceled', date: '2099-07-06', status: 'canceled', recurrenceId: 'series-1' },
+    ]);
+
+    const result = await service.getSeriesImpact('series-1');
+
+    expect(result).toEqual({ futureCount: 2, firstDate: '2099-06-22' });
+  });
+
+  it('throws NotFoundError when the series does not exist', async () => {
+    db.query.reservations.findMany.mockResolvedValue([]);
+
+    await expect(service.getSeriesImpact('missing-series')).rejects.toThrow(NotFoundError);
+  });
+});
