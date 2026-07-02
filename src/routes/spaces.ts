@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
 import { spaces } from '@/db/schema';
@@ -10,10 +11,19 @@ import { NotFoundError } from '@/middleware/error-handler';
 import { validate, validateQuery } from '@/middleware/validation';
 import { rbac, extractRole, isMasterAdmin } from '@/middleware/rbac';
 import { createSpaceSchema, updateSpaceSchema, spaceQuerySchema } from '@/validators/space.schema';
-import type { z } from 'zod';
+import { dateSchema } from '@/validators/common.schema';
 import type { UserRole } from '@/types/auth';
 
 export const spaceRoutes = new Hono<AppEnv>();
+
+const availabilityQuerySchema = z.object({
+  date: dateSchema,
+});
+
+const reportQuerySchema = z.object({
+  startDate: dateSchema,
+  endDate: dateSchema,
+});
 
 // POST /spaces — create space (staff only)
 spaceRoutes.post(
@@ -53,14 +63,10 @@ spaceRoutes.get('/:id', async (c) => {
 });
 
 // GET /spaces/:id/availability?date=YYYY-MM-DD (any role)
-spaceRoutes.get('/:id/availability', async (c) => {
-  const date = c.req.query('date');
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return c.json({ error: 'O parâmetro de consulta "date" é obrigatório (YYYY-MM-DD)', code: 'VALIDATION_ERROR' }, 400);
-  }
-
+spaceRoutes.get('/:id/availability', validateQuery(availabilityQuerySchema), async (c) => {
   const db = createDb(c.env.DB);
   const service = new SpaceService(db);
+  const { date } = c.get('validatedQuery') as z.infer<typeof availabilityQuerySchema>;
 
   // Extract viewer from auth context (if authenticated)
   const user = c.get('user');
@@ -97,24 +103,11 @@ spaceRoutes.get('/:id/availability', async (c) => {
 // Reports are restricted to the same roles as the occupancy report (CAN_VIEW_REPORTS
 // on the frontend); without this guard any authenticated user — including students —
 // could fetch per-space report data directly from the API.
-spaceRoutes.get('/:id/report', rbac(['professor', 'staff', 'maintenance']), async (c) => {
+spaceRoutes.get('/:id/report', rbac(['professor', 'staff', 'maintenance']), validateQuery(reportQuerySchema), async (c) => {
   const db = createDb(c.env.DB);
   const service = new ReportService(db);
   const user = c.get('user');
-  if (!user) {
-    return c.json({ error: 'Autenticação obrigatória', code: 'UNAUTHORIZED' }, 401);
-  }
-
-  const startDate = c.req.query('startDate');
-  const endDate = c.req.query('endDate');
-
-  if (!startDate || !endDate) {
-    return c.json({ error: 'startDate e endDate são obrigatórios', code: 'MISSING_DATE_RANGE' }, 400);
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
-    return c.json({ error: 'Datas devem estar no formato AAAA-MM-DD', code: 'VALIDATION_ERROR' }, 400);
-  }
+  const { startDate, endDate } = c.get('validatedQuery') as z.infer<typeof reportQuerySchema>;
 
   const spaceId = c.req.param('id');
 

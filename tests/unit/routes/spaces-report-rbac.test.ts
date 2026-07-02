@@ -60,10 +60,33 @@ describe('GET /spaces/:id/report — RBAC (BUG-009)', () => {
     expect(body.code).toBe('FORBIDDEN');
   });
 
+  it('validates the report query via middleware', async () => {
+    const res = await makeApp(userWithRole('ufcim-professor')).request('/spaces/00000000-0000-0000-0000-000000000011/report', {}, makeEnv());
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('VALIDATION_ERROR');
+    expect(body.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'startDate' }),
+        expect.objectContaining({ field: 'endDate' }),
+      ])
+    );
+  });
+
   it('lets professors past the role guard (not 403)', async () => {
     const res = await makeApp(userWithRole('ufcim-professor')).request(REPORT_PATH, {}, makeEnv());
     expect(res.status).not.toBe(403);
     // space lookup misses in this test → past the guard, into the handler
     expect(res.status).toBe(404);
+  });
+
+  it('validates the availability query via middleware', async () => {
+    const res = await makeApp(userWithRole('ufcim-student')).request('/spaces/00000000-0000-0000-0000-000000000011/availability', {}, makeEnv());
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('VALIDATION_ERROR');
+    expect(body.details).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field: 'date' })])
+    );
   });
 });
