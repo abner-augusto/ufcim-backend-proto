@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SpaceService } from '@/services/space.service';
-import { NotFoundError } from '@/middleware/error-handler';
+import { ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { createMockDb, SEED } from '../helpers/mock-db';
 
 describe('SpaceService.getAvailability', () => {
@@ -96,5 +96,31 @@ describe('SpaceService.getById', () => {
 
     const result = await service.getById(SEED.space.id);
     expect(result).toEqual(spaceWithEquipment);
+  });
+});
+
+describe('SpaceService.delete', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: SpaceService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new SpaceService(db);
+    db._insert.returning.mockResolvedValue([{ id: 'log-1' }]);
+  });
+
+  it('throws ConflictError when the space has confirmed reservations', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db._select.where.mockResolvedValueOnce([{ reservationCount: 1 }]);
+
+    await expect(service.delete(SEED.space.id, 'user-1')).rejects.toThrow(ConflictError);
+  });
+
+  it('throws ConflictError when the space has active blockings', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db._select.where.mockResolvedValueOnce([{ reservationCount: 0 }]);
+    db._select.where.mockResolvedValueOnce([{ blockingCount: 1 }]);
+
+    await expect(service.delete(SEED.space.id, 'user-1')).rejects.toThrow(ConflictError);
   });
 });

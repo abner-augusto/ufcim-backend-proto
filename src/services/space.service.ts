@@ -1,10 +1,11 @@
 import { eq, and, count } from 'drizzle-orm';
 import { spaces, reservations, blockings, equipment, spaceManagers } from '@/db/schema';
 import type { Database } from '@/db/client';
-import { AppError, NotFoundError } from '@/middleware/error-handler';
+import { AppError, ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { DepartmentService } from './department.service';
 import { SpaceManagerService } from './space-manager.service';
+import { departmentName } from '@/lib/department-name';
 import { buildHourlyAvailability, intervalsOverlap, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 import { formatReservationAuthor } from '@/lib/reservation-privacy';
 import type { UserRole } from '@/types/auth';
@@ -78,7 +79,7 @@ export class SpaceService {
       .where(and(eq(reservations.spaceId, id), eq(reservations.status, 'confirmed')));
 
     if (reservationCount > 0) {
-      throw new Error(`Não é possível remover: o espaço possui ${reservationCount} reserva(s) confirmada(s).`);
+      throw new ConflictError(`Não é possível remover: o espaço possui ${reservationCount} reserva(s) confirmada(s).`);
     }
 
     const [{ blockingCount }] = await this.db
@@ -87,7 +88,7 @@ export class SpaceService {
       .where(and(eq(blockings.spaceId, id), eq(blockings.status, 'active')));
 
     if (blockingCount > 0) {
-      throw new Error(`Não é possível remover: o espaço possui ${blockingCount} bloqueio(s) ativo(s).`);
+      throw new ConflictError(`Não é possível remover: o espaço possui ${blockingCount} bloqueio(s) ativo(s).`);
     }
 
     await this.db.delete(equipment).where(eq(equipment.spaceId, id));
@@ -124,7 +125,7 @@ export class SpaceService {
       with: { equipment: true, managers: { with: { user: true } }, department: true },
     });
     if (!space) throw new NotFoundError('Space');
-    return { ...space, department: space.department?.name ?? space.department as unknown as string };
+    return { ...space, department: departmentName(space.department) };
   }
 
   async list(filters: ListSpacesFilters) {
@@ -140,7 +141,7 @@ export class SpaceService {
       limit: filters.limit,
       offset: (filters.page - 1) * filters.limit,
     });
-    return rows.map((s) => ({ ...s, department: s.department?.name ?? s.department as unknown as string }));
+    return rows.map((s) => ({ ...s, department: departmentName(s.department) }));
   }
 
   /**

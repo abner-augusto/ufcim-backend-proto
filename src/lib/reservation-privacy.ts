@@ -1,11 +1,5 @@
 import type { UserRole } from '@/types/auth';
-
-const ROLE_LABELS: Record<string, string> = {
-  student: 'estudante',
-  professor: 'professor',
-  staff: 'funcionário',
-  maintenance: 'manutenção',
-};
+import { ROLE_LABELS } from '@/lib/role-labels';
 
 const PRIVILEGED_ROLES: UserRole[] = ['professor', 'staff', 'maintenance'];
 
@@ -44,6 +38,6 @@ export function formatReservationAuthor(
   }
 
   // Student viewing someone else's reservation: only role
-  const label = ROLE_LABELS[owner.ownerRole] ?? owner.ownerRole;
+  const label = ROLE_LABELS[owner.ownerRole as UserRole] ?? owner.ownerRole;
   return { displayName: label, role: owner.ownerRole, isSelf: false };
 }

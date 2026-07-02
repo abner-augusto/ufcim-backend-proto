@@ -3,6 +3,7 @@ import { spaces, reservations, blockings } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError, AppError } from '@/middleware/error-handler';
 import { formatReservationAuthor } from '@/lib/reservation-privacy';
+import { departmentName } from '@/lib/department-name';
 import { buildHourlyAvailability, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO, timeToMinutes } from '@/lib/schedule';
 import type { UserRole } from '@/types/auth';
 
@@ -338,10 +339,6 @@ export class ReportService {
       };
     });
 
-    const department = space.department && typeof space.department === 'object'
-      ? (space.department as any).name ?? space.department
-      : space.department as unknown as string;
-
     return {
       space: {
         id: space.id,
@@ -350,7 +347,7 @@ export class ReportService {
         block: space.block,
         type: space.type,
         capacity: space.capacity,
-        department,
+        department: departmentName(space.department),
       },
       range: { startDate, endDate, days: diffDays },
       summary: {
@@ -466,9 +463,6 @@ export class ReportService {
       operational > 0 ? Math.min(100, Math.round((occupied / operational) * 100)) : 0;
 
     const spacesData = spaceList.map((s) => {
-      const deptName = typeof s.department === 'object' && s.department
-        ? (s.department as any).name ?? s.department
-        : s.department as unknown as string;
       return {
         id: s.id,
         name: s.name,
@@ -476,7 +470,7 @@ export class ReportService {
         block: s.block,
         type: s.type,
         capacity: s.capacity,
-        department: deptName,
+        department: departmentName(s.department),
         totalReservations: resCountBySpace.get(s.id) ?? 0,
         totalBlockings: blkCountBySpace.get(s.id) ?? 0,
         occupancyRate: rate(spaceOccupied.get(s.id) ?? 0, spaceOperational.get(s.id) ?? 0),

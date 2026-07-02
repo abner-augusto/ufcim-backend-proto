@@ -1,5 +1,6 @@
 import { AppError } from '@/middleware/error-handler';
 import { DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
+import { ROLE_LABELS_TITLE } from '@/lib/role-labels';
 import type { AdminContext } from './context';
 
 // ── HTML escaping ─────────────────────────────────────────────────────────────
@@ -324,12 +325,5 @@ export function renderRoleBadge(role: string) {
     maintenance: 'bg-amber-100 text-amber-700',
   };
 
-  const labelMap: Record<string, string> = {
-    student: 'Estudante',
-    professor: 'Professor(a)',
-    staff: 'Funcionário',
-    maintenance: 'Manutenção',
-  };
-
-  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${classMap[role] ?? 'bg-slate-100 text-slate-700'}">${escapeHtml(labelMap[role] ?? role)}</span>`;
+  return `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${classMap[role] ?? 'bg-slate-100 text-slate-700'}">${escapeHtml(ROLE_LABELS_TITLE[role as keyof typeof ROLE_LABELS_TITLE] ?? role)}</span>`;
 }

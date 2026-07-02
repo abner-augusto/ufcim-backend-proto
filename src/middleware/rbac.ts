@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import type { JwtPayload, UserRole } from '@/types/auth';
 import type { Env } from '@/types/env';
+import { ROLE_LABELS } from '@/lib/role-labels';
 
 /**
  * Restricts access to specific roles.
@@ -8,13 +9,6 @@ import type { Env } from '@/types/env';
  *
  * Usage: route.post('/path', rbac(['professor', 'staff']), handler)
  */
-const ROLE_LABELS: Record<UserRole, string> = {
-  student: 'estudante',
-  professor: 'professor',
-  staff: 'funcionário',
-  maintenance: 'manutenção',
-};
-
 export function rbac(allowedRoles: UserRole[]) {
   return createMiddleware<{ Bindings: Env; Variables: { user: JwtPayload } }>(
     async (c, next) => {
