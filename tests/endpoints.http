@@ -153,10 +153,6 @@ Content-Type: application/json
 
 { "status": "working" }
 
-### GET /equipment/space/:spaceId
-GET {{base}}/api/v1/equipment/space/00000000-0000-0000-0000-000000000011
-Authorization: Bearer {{student_token}}
-
 ###############################################################################
 # 4 — Reservations
 ###############################################################################
@@ -229,14 +225,6 @@ Content-Type: application/json
 
 ### GET /reservations/mine (student)
 GET {{base}}/api/v1/reservations/mine
-Authorization: Bearer {{student_token}}
-
-### GET /reservations/space/:spaceId
-GET {{base}}/api/v1/reservations/space/00000000-0000-0000-0000-000000000012
-Authorization: Bearer {{student_token}}
-
-### GET /reservations/space/:spaceId filtered by date
-GET {{base}}/api/v1/reservations/space/00000000-0000-0000-0000-000000000012?date=2026-06-10
 Authorization: Bearer {{student_token}}
 
 ### PATCH /reservations/:id/cancel — replace :id with a real reservation UUID from above

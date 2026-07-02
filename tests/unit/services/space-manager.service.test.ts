@@ -92,46 +92,6 @@ describe('SpaceManagerService.remove', () => {
   });
 });
 
-describe('SpaceManagerService.listBySpace', () => {
-  let db: ReturnType<typeof createMockDb>;
-  let service: SpaceManagerService;
-
-  beforeEach(() => {
-    db = createMockDb();
-    service = new SpaceManagerService(db);
-  });
-
-  it('returns managers with user details', async () => {
-    const managerWithUser = { ...SEED.spaceManager, user: SEED.user };
-    db.query.spaceManagers.findMany.mockResolvedValue([managerWithUser]);
-
-    const result = await service.listBySpace(SEED.spaceManager.spaceId);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ userId: SEED.spaceManager.userId, user: { name: SEED.user.name } });
-  });
-});
-
-describe('SpaceManagerService.listByUser', () => {
-  let db: ReturnType<typeof createMockDb>;
-  let service: SpaceManagerService;
-
-  beforeEach(() => {
-    db = createMockDb();
-    service = new SpaceManagerService(db);
-  });
-
-  it('returns spaces with space details', async () => {
-    const managerWithSpace = { ...SEED.spaceManager, space: SEED.space };
-    db.query.spaceManagers.findMany.mockResolvedValue([managerWithSpace]);
-
-    const result = await service.listByUser(SEED.spaceManager.userId);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ spaceId: SEED.spaceManager.spaceId, space: { number: SEED.space.number } });
-  });
-});
-
 describe('SpaceManagerService.isManager', () => {
   let db: ReturnType<typeof createMockDb>;
   let service: SpaceManagerService;

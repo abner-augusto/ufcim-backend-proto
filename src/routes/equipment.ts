@@ -130,10 +130,3 @@ equipmentRoutes.patch(
   }
 );
 
-// GET /equipment/space/:spaceId — list equipment for a space (any role)
-equipmentRoutes.get('/space/:spaceId', async (c) => {
-  const db = createDb(c.env.DB);
-  const service = new EquipmentService(db);
-  const data = await service.listBySpace(c.req.param('spaceId'));
-  return c.json(data);
-});
