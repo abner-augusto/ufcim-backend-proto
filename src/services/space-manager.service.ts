@@ -71,20 +71,6 @@ export class SpaceManagerService {
     );
   }
 
-  async listBySpace(spaceId: string) {
-    return this.db.query.spaceManagers.findMany({
-      where: eq(spaceManagers.spaceId, spaceId),
-      with: { user: true },
-    });
-  }
-
-  async listByUser(userId: string) {
-    return this.db.query.spaceManagers.findMany({
-      where: eq(spaceManagers.userId, userId),
-      with: { space: true },
-    });
-  }
-
   async isManager(userId: string, spaceId: string): Promise<boolean> {
     const result = await this.db.query.spaceManagers.findFirst({
       where: and(

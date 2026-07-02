@@ -9,7 +9,7 @@ import { createDb } from '@/db/client';
 import { UserService } from '@/services/user.service';
 import { userRoutes } from '@/routes/users';
 import { spaceRoutes } from '@/routes/spaces';
-import { spaceManagerRoutes, userManagedSpacesRoutes } from '@/routes/space-managers';
+import { spaceManagerRoutes } from '@/routes/space-managers';
 import { equipmentRoutes } from '@/routes/equipment';
 import { reservationRoutes } from '@/routes/reservations';
 import { blockingRoutes } from '@/routes/blockings';
@@ -100,7 +100,6 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   api.use('*', syncUserMiddleware);
 
   api.route('/users', userRoutes);
-  api.route('/users', userManagedSpacesRoutes);
   api.route('/spaces', spaceRoutes);
   api.route('/spaces', spaceManagerRoutes);
   api.route('/equipment', equipmentRoutes);

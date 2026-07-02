@@ -131,12 +131,3 @@ reservationRoutes.get(
   }
 );
 
-// GET /reservations/space/:spaceId?date=YYYY-MM-DD (any role)
-reservationRoutes.get('/space/:spaceId', async (c) => {
-  const db = createDb(c.env.DB);
-  const service = new ReservationService(db);
-  const date = c.req.query('date');
-
-  const data = await service.listBySpace(c.req.param('spaceId'), date);
-  return c.json(data);
-});

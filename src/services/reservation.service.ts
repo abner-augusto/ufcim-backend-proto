@@ -298,18 +298,6 @@ export class ReservationService {
     return { futureCount: upcoming.length, firstDate: upcoming[0]?.date ?? null };
   }
 
-  async listBySpace(spaceId: string, date?: string) {
-    return this.db.query.reservations.findMany({
-      where: and(
-        eq(reservations.spaceId, spaceId),
-        eq(reservations.status, 'confirmed'),
-        date ? eq(reservations.date, date) : undefined
-      ),
-      with: { user: true },
-      orderBy: (r, { asc }) => [asc(r.date)],
-    });
-  }
-
   async listByUser(userId: string, page: number, limit: number) {
     return this.db.query.reservations.findMany({
       where: eq(reservations.userId, userId),

@@ -81,16 +81,6 @@ export class EquipmentService {
     return updated;
   }
 
-  async listBySpace(spaceId: string) {
-    const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, spaceId) });
-    if (!space) throw new NotFoundError('Space');
-
-    return this.db.query.equipment.findMany({
-      where: eq(equipment.spaceId, spaceId),
-      orderBy: (e, { asc }) => [asc(e.assetId)],
-    });
-  }
-
   async listGroupedBySpace() {
     const allSpaces = await this.db.query.spaces.findMany({
       with: { equipment: true },

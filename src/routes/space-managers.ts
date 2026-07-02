@@ -42,20 +42,3 @@ spaceManagerRoutes.delete(
   }
 );
 
-// GET /spaces/:spaceId/managers — list managers for a space (any role)
-spaceManagerRoutes.get('/:spaceId/managers', async (c) => {
-  const db = createDb(c.env.DB);
-  const service = new SpaceManagerService(db);
-  const managers = await service.listBySpace(c.req.param('spaceId'));
-  return c.json(managers);
-});
-
-export const userManagedSpacesRoutes = new Hono<AppEnv>();
-
-// GET /users/:userId/managed-spaces — list spaces managed by a user (any role)
-userManagedSpacesRoutes.get('/:userId/managed-spaces', async (c) => {
-  const db = createDb(c.env.DB);
-  const service = new SpaceManagerService(db);
-  const spaces = await service.listByUser(c.req.param('userId'));
-  return c.json(spaces);
-});
