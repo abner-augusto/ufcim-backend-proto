@@ -1,4 +1,4 @@
-import { eq, and, gte, desc, lte, isNull } from 'drizzle-orm';
+import { eq, and, gte, desc, lte, isNull, inArray } from 'drizzle-orm';
 import { equipmentReports, equipment, users } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { AppError, NotFoundError, ConflictError, ForbiddenError } from '@/middleware/error-handler';
@@ -221,6 +221,17 @@ export class EquipmentReportService {
       conditions.push(eq(equipmentReports.status, filters.status));
     }
 
+    if (filters.spaceId) {
+      const eqRows = await this.db
+        .select({ id: equipment.id })
+        .from(equipment)
+        .where(eq(equipment.spaceId, filters.spaceId));
+
+      if (eqRows.length === 0) return [];
+
+      conditions.push(inArray(equipmentReports.equipmentId, eqRows.map((r) => r.id)));
+    }
+
     const results = await this.db.query.equipmentReports.findMany({
       where: conditions.length > 0 ? and(...conditions) : undefined,
       orderBy: (r, { desc }) => [desc(r.createdAt)],
@@ -232,11 +243,6 @@ export class EquipmentReportService {
       limit: filters.limit,
       offset: (filters.page - 1) * filters.limit,
     });
-
-    // Filter by spaceId if provided
-    if (filters.spaceId) {
-      return results.filter((r: any) => r.equipment?.spaceId === filters.spaceId);
-    }
 
     return results;
   }

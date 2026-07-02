@@ -219,37 +219,81 @@ describe('EquipmentReportService.listPending', () => {
     db = createMockDb();
     service = new EquipmentReportService(db);
     db.query.equipmentReports.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValue([]);
   });
 
-  it('filters by status when provided', async () => {
-    db.query.equipmentReports.findMany.mockResolvedValue([
+  it('keeps results unchanged when no spaceId is provided', async () => {
+    const rows = [
       { id: '1', equipmentId: 'eq-1', severity: 'minor', status: 'pending', equipment: { spaceId: 's1' }, reporter: null, acknowledger: null },
-    ]);
+    ];
+    db.query.equipmentReports.findMany.mockResolvedValue(rows as any);
 
     const result = await service.listPending({ status: 'pending', page: 1, limit: 20 });
-    expect(result).toHaveLength(1);
-    expect(result[0].status).toBe('pending');
+
+    expect(result).toEqual(rows);
+    expect(db._select.where).not.toHaveBeenCalled();
+    expect(db.query.equipmentReports.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.anything(), limit: 20, offset: 0 })
+    );
   });
 
-  it('returns only reports matching the status filter', async () => {
-    db.query.equipmentReports.findMany.mockResolvedValue([
-      { id: '1', equipmentId: 'eq-1', severity: 'minor', status: 'pending', equipment: { spaceId: 's1' }, reporter: null, acknowledger: null },
-    ]);
+  it('returns the space report even when the first SQL page would otherwise miss it', async () => {
+    db._select.where.mockResolvedValue([{ id: 'eq-a' }]);
+    db.query.equipmentReports.findMany.mockImplementation(async () => {
+      if (db._select.where.mock.calls.length > 0) {
+        return [
+          { id: 'a-1', equipmentId: 'eq-a', severity: 'minor', status: 'pending', equipment: { spaceId: 'space-a' }, reporter: null, acknowledger: null },
+        ];
+      }
 
-    const result = await service.listPending({ status: 'pending', page: 1, limit: 20 });
+      return [
+        { id: 'b-1', equipmentId: 'eq-b', severity: 'minor', status: 'pending', equipment: { spaceId: 'space-b' }, reporter: null, acknowledger: null },
+        { id: 'b-2', equipmentId: 'eq-b', severity: 'major', status: 'pending', equipment: { spaceId: 'space-b' }, reporter: null, acknowledger: null },
+      ];
+    });
+
+    const result = await service.listPending({ spaceId: 'space-a', page: 1, limit: 2 });
+
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe('pending');
+    expect(result[0].id).toBe('a-1');
+    expect(db._select.where).toHaveBeenCalledTimes(1);
+    expect(db.query.equipmentReports.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.anything(), limit: 2, offset: 0 })
+    );
   });
 
-  it('applies spaceId filter when provided', async () => {
-    db.query.equipmentReports.findMany.mockResolvedValue([
-      { id: '1', equipmentId: 'eq-1', severity: 'minor', status: 'pending', equipment: { spaceId: 's1' }, reporter: null, acknowledger: null },
-      { id: '2', equipmentId: 'eq-2', severity: 'major', status: 'pending', equipment: { spaceId: 's2' }, reporter: null, acknowledger: null },
-    ]);
+  it('combines spaceId and status filters in SQL', async () => {
+    db._select.where.mockResolvedValue([{ id: 'eq-a' }]);
+    db.query.equipmentReports.findMany.mockImplementation(async () => {
+      if (db._select.where.mock.calls.length > 0) {
+        return [
+          { id: 'a-1', equipmentId: 'eq-a', severity: 'minor', status: 'pending', equipment: { spaceId: 'space-a' }, reporter: null, acknowledger: null },
+        ];
+      }
 
-    const result = await service.listPending({ status: 'pending', spaceId: 's1', page: 1, limit: 20 });
+      return [
+        { id: 'a-2', equipmentId: 'eq-a', severity: 'major', status: 'resolved', equipment: { spaceId: 'space-a' }, reporter: null, acknowledger: null },
+      ];
+    });
+
+    const result = await service.listPending({ status: 'pending', spaceId: 'space-a', page: 2, limit: 5 });
+    const call = db.query.equipmentReports.findMany.mock.calls[0]?.[0];
+
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('1');
+    expect(result[0].status).toBe('pending');
+    expect(call.where).toBeDefined();
+    expect(call.limit).toBe(5);
+    expect(call.offset).toBe(5);
+    expect(db._select.where).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns an empty array when the space has no equipment', async () => {
+    db._select.where.mockResolvedValue([]);
+
+    const result = await service.listPending({ spaceId: 'space-a', page: 1, limit: 20 });
+
+    expect(result).toEqual([]);
+    expect(db.query.equipmentReports.findMany).not.toHaveBeenCalled();
   });
 });
 
