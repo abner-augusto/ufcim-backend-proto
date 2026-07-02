@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, count, desc, gte, lt } from 'drizzle-orm';
 import { auditLogs } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError } from '@/middleware/error-handler';
@@ -11,6 +11,12 @@ interface ListAuditLogsFilters {
   dateTo?: string;
   page: number;
   limit: number;
+}
+
+function nextDay(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export class AuditLogService {
@@ -36,28 +42,35 @@ export class AuditLogService {
   }
 
   async list(filters: ListAuditLogsFilters) {
-    const allLogs = await this.db.query.auditLogs.findMany({
-      with: { user: true },
-      orderBy: (l, { desc: d }) => [d(l.timestamp)],
-    });
+    const conditions = [];
+    if (filters.userId) conditions.push(eq(auditLogs.userId, filters.userId));
+    if (filters.actionType) conditions.push(eq(auditLogs.actionType, filters.actionType));
+    if (filters.referenceType) conditions.push(eq(auditLogs.referenceType, filters.referenceType));
+    if (filters.dateFrom) conditions.push(gte(auditLogs.timestamp, filters.dateFrom));
+    if (filters.dateTo) conditions.push(lt(auditLogs.timestamp, nextDay(filters.dateTo)));
 
-    const filtered = allLogs.filter((log) => {
-      if (filters.userId && log.userId !== filters.userId) return false;
-      if (filters.actionType && log.actionType !== filters.actionType) return false;
-      if (filters.referenceType && log.referenceType !== filters.referenceType) return false;
-      if (filters.dateFrom && log.timestamp.slice(0, 10) < filters.dateFrom) return false;
-      if (filters.dateTo && log.timestamp.slice(0, 10) > filters.dateTo) return false;
-      return true;
-    });
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const offset = (filters.page - 1) * filters.limit;
 
-    const start = (filters.page - 1) * filters.limit;
+    const [data, [countRow]] = await Promise.all([
+      this.db.query.auditLogs.findMany({
+        where,
+        with: { user: true },
+        orderBy: (l, { desc }) => [desc(l.timestamp)],
+        limit: filters.limit,
+        offset,
+      }),
+      this.db.select({ total: count() }).from(auditLogs).where(where),
+    ]);
+
+    const total = countRow?.total ?? 0;
     return {
-      data: filtered.slice(start, start + filters.limit),
+      data,
       pagination: {
         page: filters.page,
         limit: filters.limit,
-        total: filtered.length,
-        totalPages: Math.max(1, Math.ceil(filtered.length / filters.limit)),
+        total,
+        totalPages: Math.max(1, Math.ceil(total / filters.limit)),
       },
     };
   }
