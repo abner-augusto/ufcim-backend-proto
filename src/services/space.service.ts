@@ -1,7 +1,7 @@
 import { eq, and, count } from 'drizzle-orm';
 import { spaces, reservations, blockings, equipment, spaceManagers } from '@/db/schema';
 import type { Database } from '@/db/client';
-import { AppError, NotFoundError } from '@/middleware/error-handler';
+import { AppError, ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { DepartmentService } from './department.service';
 import { SpaceManagerService } from './space-manager.service';
@@ -78,7 +78,7 @@ export class SpaceService {
       .where(and(eq(reservations.spaceId, id), eq(reservations.status, 'confirmed')));
 
     if (reservationCount > 0) {
-      throw new Error(`Não é possível remover: o espaço possui ${reservationCount} reserva(s) confirmada(s).`);
+      throw new ConflictError(`Não é possível remover: o espaço possui ${reservationCount} reserva(s) confirmada(s).`);
     }
 
     const [{ blockingCount }] = await this.db
@@ -87,7 +87,7 @@ export class SpaceService {
       .where(and(eq(blockings.spaceId, id), eq(blockings.status, 'active')));
 
     if (blockingCount > 0) {
-      throw new Error(`Não é possível remover: o espaço possui ${blockingCount} bloqueio(s) ativo(s).`);
+      throw new ConflictError(`Não é possível remover: o espaço possui ${blockingCount} bloqueio(s) ativo(s).`);
     }
 
     await this.db.delete(equipment).where(eq(equipment.spaceId, id));
