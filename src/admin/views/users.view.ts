@@ -1,6 +1,7 @@
 import { createDb } from '@/db/client';
 import { UserService } from '@/services/user.service';
 import { paginationSchema } from '@/validators/common.schema';
+import { ROLE_LABELS_TITLE } from '@/lib/role-labels';
 import { getActingUserId, type AdminContext } from '../context';
 import { escapeAttribute, escapeHtml, renderMessage, renderPagination, renderRoleBadge } from '../ui';
 
@@ -92,7 +93,7 @@ export async function renderUsersView(
                               class="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-slate-900 focus:outline-none"
                             >
                               ${['student', 'professor', 'staff', 'maintenance'].map((r) => `
-                                <option value="${r}" ${r === user.role ? 'selected' : ''}>${{student:'Estudante',professor:'Professor(a)',staff:'Funcionário',maintenance:'Manutenção'}[r] ?? r}</option>
+                                <option value="${r}" ${r === user.role ? 'selected' : ''}>${ROLE_LABELS_TITLE[r as keyof typeof ROLE_LABELS_TITLE] ?? r}</option>
                               `).join('')}
                             </select>
                           </form>`
