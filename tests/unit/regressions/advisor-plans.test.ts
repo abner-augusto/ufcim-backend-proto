@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import { AuditLogService } from '@/services/audit-log.service';
 import { BlockingService } from '@/services/blocking.service';
 import { InvitationService } from '@/services/invitation.service';
 import { ReservationService } from '@/services/reservation.service';
@@ -9,6 +10,16 @@ import { createMockDb, SEED } from '../helpers/mock-db';
 
 const USER_ID = SEED.reservation.userId;
 const PROFESSOR_ID = '00000000-0000-0000-0000-000000000002';
+const AUDIT_USER = {
+  id: USER_ID,
+  name: SEED.user.name,
+  registration: SEED.user.registration,
+  role: SEED.user.role,
+  department: SEED.user.department,
+  email: SEED.user.email,
+  createdAt: SEED.user.createdAt,
+  updatedAt: SEED.user.updatedAt,
+};
 const TEST_ENV: Env = {
   DB: {} as D1Database,
   JWKS_URL: '',
@@ -36,6 +47,26 @@ function createInvitationMockDb() {
     },
     select: selectFn,
     _select: { where: selectWhere },
+  };
+}
+
+interface AuditLogOverrides {
+  actionType?: string;
+  referenceId?: string | null;
+  referenceType?: string | null;
+  details?: string | null;
+}
+
+function makeAuditLog(id: string, timestamp: string, overrides: AuditLogOverrides = {}) {
+  return {
+    id,
+    userId: AUDIT_USER.id,
+    actionType: overrides.actionType ?? 'viewed',
+    referenceId: overrides.referenceId ?? null,
+    referenceType: overrides.referenceType ?? 'space',
+    timestamp,
+    details: overrides.details ?? null,
+    user: AUDIT_USER,
   };
 }
 
@@ -135,6 +166,133 @@ describe('advisor plan regressions', () => {
     expect(args.offset).toBe(4);
     expect(db._select.where).toHaveBeenCalledWith(args.where);
     expect(result.pagination).toEqual({ page: 2, limit: 4, total: 6, totalPages: 2 });
+  });
+
+  it('paginates audit logs in SQL and preserves descending timestamp order', async () => {
+    const db = createMockDb();
+    const service = new AuditLogService(db);
+
+    const rows = [
+      makeAuditLog('log-3', '2026-07-03T10:00:00.000Z'),
+      makeAuditLog('log-2', '2026-07-02T10:00:00.000Z'),
+    ];
+    db.query.auditLogs.findMany.mockResolvedValueOnce(rows);
+    db._select.where.mockResolvedValueOnce([{ total: 5 }]);
+
+    const result = await service.list({ page: 2, limit: 2 });
+
+    const args = db.query.auditLogs.findMany.mock.calls[0][0];
+    expect(args.where).toBeUndefined();
+    expect(args.limit).toBe(2);
+    expect(args.offset).toBe(2);
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+    expect(result).toEqual({
+      data: rows,
+      pagination: { page: 2, limit: 2, total: 5, totalPages: 3 },
+    });
+  });
+
+  it('filters audit logs by userId in SQL', async () => {
+    const db = createMockDb();
+    const service = new AuditLogService(db);
+
+    const row = makeAuditLog('log-user', '2026-07-02T10:00:00.000Z');
+    db.query.auditLogs.findMany.mockResolvedValueOnce([row]);
+    db._select.where.mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.list({ userId: AUDIT_USER.id, page: 1, limit: 10 });
+
+    const args = db.query.auditLogs.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(args.limit).toBe(10);
+    expect(args.offset).toBe(0);
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+    expect(result.pagination).toEqual({ page: 1, limit: 10, total: 1, totalPages: 1 });
+    expect(result.data).toEqual([row]);
+  });
+
+  it('filters audit logs by actionType in SQL', async () => {
+    const db = createMockDb();
+    const service = new AuditLogService(db);
+
+    const row = makeAuditLog('log-action', '2026-07-02T10:00:00.000Z', { actionType: 'created' });
+    db.query.auditLogs.findMany.mockResolvedValueOnce([row]);
+    db._select.where.mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.list({ actionType: 'created', page: 1, limit: 10 });
+
+    const args = db.query.auditLogs.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+    expect(result.pagination.total).toBe(1);
+    expect(result.data).toEqual([row]);
+  });
+
+  it('filters audit logs by referenceType in SQL', async () => {
+    const db = createMockDb();
+    const service = new AuditLogService(db);
+
+    const row = makeAuditLog('log-ref', '2026-07-02T10:00:00.000Z', { referenceType: 'blocking' });
+    db.query.auditLogs.findMany.mockResolvedValueOnce([row]);
+    db._select.where.mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.list({ referenceType: 'blocking', page: 1, limit: 10 });
+
+    const args = db.query.auditLogs.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+    expect(result.pagination).toEqual({ page: 1, limit: 10, total: 1, totalPages: 1 });
+    expect(result.data).toEqual([row]);
+  });
+
+  it('keeps dateTo inclusive for audit log date filters', async () => {
+    const db = createMockDb();
+    const service = new AuditLogService(db);
+
+    const rows = [
+      makeAuditLog('log-day2-a', '2026-07-02T08:00:00.000Z'),
+      makeAuditLog('log-day2-b', '2026-07-02T18:00:00.000Z'),
+    ];
+    db.query.auditLogs.findMany.mockResolvedValueOnce(rows);
+    db._select.where.mockResolvedValueOnce([{ total: 2 }]);
+
+    const result = await service.list({ dateFrom: '2026-07-02', dateTo: '2026-07-02', page: 1, limit: 10 });
+
+    const args = db.query.auditLogs.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(db._select.where).toHaveBeenCalledWith(args.where);
+    expect(result.pagination).toEqual({ page: 1, limit: 10, total: 2, totalPages: 1 });
+    expect(result.data).toEqual(rows);
+  });
+
+  it('returns an empty page with totalPages 1 when audit log filters match nothing', async () => {
+    const db = createMockDb();
+    const service = new AuditLogService(db);
+
+    db.query.auditLogs.findMany.mockResolvedValueOnce([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+
+    const result = await service.list({ userId: 'missing-user', page: 1, limit: 10 });
+
+    const args = db.query.auditLogs.findMany.mock.calls[0][0];
+    expect(args.where).toBeDefined();
+    expect(result).toEqual({
+      data: [],
+      pagination: { page: 1, limit: 10, total: 0, totalPages: 1 },
+    });
+  });
+
+  it('includes user data on returned audit log rows', async () => {
+    const db = createMockDb();
+    const service = new AuditLogService(db);
+
+    const row = makeAuditLog('log-user-populated', '2026-07-02T10:00:00.000Z');
+    db.query.auditLogs.findMany.mockResolvedValueOnce([row]);
+    db._select.where.mockResolvedValueOnce([{ total: 1 }]);
+
+    const result = await service.list({ page: 1, limit: 10 });
+
+    expect(result.data[0].user).toEqual(AUDIT_USER);
   });
 
   it('translates exact duplicate confirmed slots into the existing conflict error', async () => {
