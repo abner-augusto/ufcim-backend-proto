@@ -5,6 +5,7 @@ import { AppError, ConflictError, NotFoundError } from '@/middleware/error-handl
 import { AuditLogService } from './audit-log.service';
 import { DepartmentService } from './department.service';
 import { SpaceManagerService } from './space-manager.service';
+import { departmentName } from '@/lib/department-name';
 import { buildHourlyAvailability, intervalsOverlap, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 import { formatReservationAuthor } from '@/lib/reservation-privacy';
 import type { UserRole } from '@/types/auth';
@@ -124,7 +125,7 @@ export class SpaceService {
       with: { equipment: true, managers: { with: { user: true } }, department: true },
     });
     if (!space) throw new NotFoundError('Space');
-    return { ...space, department: space.department?.name ?? space.department as unknown as string };
+    return { ...space, department: departmentName(space.department) };
   }
 
   async list(filters: ListSpacesFilters) {
@@ -140,7 +141,7 @@ export class SpaceService {
       limit: filters.limit,
       offset: (filters.page - 1) * filters.limit,
     });
-    return rows.map((s) => ({ ...s, department: s.department?.name ?? s.department as unknown as string }));
+    return rows.map((s) => ({ ...s, department: departmentName(s.department) }));
   }
 
   /**
