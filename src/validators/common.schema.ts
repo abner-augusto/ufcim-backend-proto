@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { HOURLY_TIME_REGEX, BOUNDARY_TIME_REGEX } from '@/lib/schedule';
 
 export const uuidSchema = z.string().uuid({ message: 'ID inválido' });
 
@@ -20,8 +21,8 @@ export const futureDateSchema = dateSchema.refine(
 
 export const hourlyTimeSchema = z
   .string()
-  .regex(/^([01]\d|2[0-3]):00$/, 'O horário deve ser uma hora cheia no formato HH:00 (ex: 14:00)');
+  .regex(HOURLY_TIME_REGEX, 'O horário deve ser uma hora cheia no formato HH:00 (ex: 14:00)');
 
 export const boundaryTimeSchema = z
   .string()
-  .regex(/^([01]\d|2[0-4]):00$/, 'O horário deve ser uma hora cheia no formato HH:00 (ex: 14:00)');
+  .regex(BOUNDARY_TIME_REGEX, 'O horário deve ser uma hora cheia no formato HH:00 (ex: 14:00)');
