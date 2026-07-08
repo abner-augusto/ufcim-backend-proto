@@ -316,3 +316,56 @@ describe('ReportService.getSpaceReport', () => {
     expect(report.summary.peakHour).not.toBeNull();
   });
 });
+
+describe('ReportService.getOccupancyReport', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReportService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReportService(db);
+
+    db.query.spaces.findMany.mockResolvedValue([
+      { ...SEED.space, department: { id: 'iaud', name: 'IAUD' } },
+    ]);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+  });
+
+  it('rejects a range over 90 days', async () => {
+    await expect(
+      service.getOccupancyReport({
+        startDate: '2026-01-01',
+        endDate: '2026-05-01',
+      })
+    ).rejects.toThrow(AppError);
+  });
+
+  it('rejects end before start', async () => {
+    await expect(
+      service.getOccupancyReport({
+        startDate: '2026-06-10',
+        endDate: '2026-06-01',
+      })
+    ).rejects.toThrow(AppError);
+  });
+
+  it('allows exactly 90 days', async () => {
+    const result = await service.getOccupancyReport({
+      startDate: '2026-01-01',
+      endDate: '2026-03-31',
+    });
+
+    expect(Array.isArray(result.spaces)).toBe(true);
+    expect(typeof result.totalOccupancyRate).toBe('number');
+  });
+
+  it('allows a small range', async () => {
+    const result = await service.getOccupancyReport({
+      startDate: '2026-06-01',
+      endDate: '2026-06-07',
+    });
+
+    expect(result).toBeDefined();
+  });
+});

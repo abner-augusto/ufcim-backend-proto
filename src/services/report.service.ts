@@ -7,6 +7,9 @@ import { departmentName } from '@/lib/department-name';
 import { buildHourlyAvailability, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO, timeToMinutes } from '@/lib/schedule';
 import type { UserRole } from '@/types/auth';
 
+/** Maximum span (inclusive, in days) accepted by the report endpoints. */
+const MAX_REPORT_RANGE_DAYS = 90;
+
 interface SpaceReportInput {
   spaceId: string;
   startDate: string;
@@ -121,8 +124,8 @@ export class ReportService {
     }
 
     const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
-    if (diffDays > 90) {
-      throw new AppError(400, 'O período máximo permitido é de 90 dias', 'RANGE_TOO_LARGE');
+    if (diffDays > MAX_REPORT_RANGE_DAYS) {
+      throw new AppError(400, `O período máximo permitido é de ${MAX_REPORT_RANGE_DAYS} dias`, 'RANGE_TOO_LARGE');
     }
 
     // Load space: use pre-loaded from input, or query DB
@@ -376,6 +379,19 @@ export class ReportService {
     groupBy?: 'day' | 'week' | 'month';
   }) {
     const { startDate, endDate, campus, department, spaceId } = filters;
+
+    const startMs = new Date(startDate + 'T00:00:00').getTime();
+    const endMs = new Date(endDate + 'T00:00:00').getTime();
+    if (isNaN(startMs) || isNaN(endMs)) {
+      throw new AppError(400, 'Datas inválidas. Use o formato AAAA-MM-DD.', 'INVALID_DATE');
+    }
+    if (startMs > endMs) {
+      throw new AppError(400, 'startDate não pode ser posterior a endDate', 'INVALID_DATE_RANGE');
+    }
+    const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)) + 1;
+    if (diffDays > MAX_REPORT_RANGE_DAYS) {
+      throw new AppError(400, `O período máximo permitido é de ${MAX_REPORT_RANGE_DAYS} dias`, 'RANGE_TOO_LARGE');
+    }
 
     const spaceConditions: any[] = [];
     if (campus) spaceConditions.push(eq(spaces.campus, campus));
