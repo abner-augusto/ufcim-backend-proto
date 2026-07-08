@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { HOURLY_TIME_REGEX, BOUNDARY_TIME_REGEX } from '@/lib/schedule';
+import { campusToday } from '@/lib/clock';
 
 export const uuidSchema = z.string().uuid({ message: 'ID inválido' });
 
@@ -15,7 +16,7 @@ export const dateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'A data deve estar no formato AAAA-MM-DD');
 
 export const futureDateSchema = dateSchema.refine(
-  (d) => new Date(d) >= new Date(new Date().toISOString().split('T')[0]),
+  (d) => d >= campusToday(),
   'A data não pode ser no passado'
 );
 

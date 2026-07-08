@@ -28,7 +28,7 @@ your row when done.
 | 006  | Push audit-log list filtering & pagination into SQL | P1 | S | — | DONE (branch `perf/audit-log-sql-pagination`, reviewed 2026-07-02; merged to main, verified on `09fe163` 2026-07-07) |
 | 007  | Consistency sweep (error classes, route validation, 4 duplicated maps/helpers) | P2 | M | — | DONE (branch `refactor/consistency-sweep`, reviewed 2026-07-02; merged to main, verified on `09fe163` 2026-07-07) |
 | 008  | Remove four endpoints with zero consumers | P3 | S | — | DONE (branch `chore/remove-dead-endpoints`, reviewed 2026-07-02; merged to main, verified on `09fe163` 2026-07-07) |
-| 009  | Reject same-day past-hour reservations (kanban BUG-005) | P1 | S | — | TODO |
+| 009  | Reject same-day past-hour reservations (kanban BUG-005) | P1 | S | — | DONE (branch `fix/reject-past-hour-reservation`, executed by opencode/Qwopus-27B-Coder, reviewed 2026-07-08 — typecheck clean, 342 tests pass incl. 5 new, revert-proof verified) |
 
 **004 is trigger-gated — do not execute on the normal backlog.** It runs only
 when a second department with real users goes live on D1, or a real double-booking

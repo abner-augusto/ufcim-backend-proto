@@ -4,7 +4,8 @@ import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
-import { deriveLegacyTimeSlot, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
+import { deriveLegacyTimeSlot, timeToMinutes, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
+import { campusToday, campusNowMinutes } from '@/lib/clock';
 
 const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
   student: 5,
@@ -363,6 +364,13 @@ export class ReservationService {
     startTime: string,
     endTime: string
   ) {
+    // Reject slots that already ended today (campus time). The in-progress hour
+    // stays bookable — the frontend grid allows it (its cells only become "past"
+    // when the hour ENDS), and the backend must not be stricter than the UI.
+    if (date === campusToday() && timeToMinutes(startTime) + 60 <= campusNowMinutes()) {
+      throw new ConflictError('Esta faixa de horário já passou');
+    }
+
     if (overlapsClosedHours(startTime, endTime, space.closedFrom, space.closedTo)) {
       throw new ConflictError('Esta faixa de horário está dentro do período em que o espaço permanece fechado');
     }
