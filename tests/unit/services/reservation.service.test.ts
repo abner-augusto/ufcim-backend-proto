@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi } from 'vitest';
 import { ReservationService } from '@/services/reservation.service';
 import {
   NotFoundError,
@@ -167,6 +168,86 @@ describe('ReservationService.create', () => {
       'Ciência da Computação',
       { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME }
     );
+
+    expect(result).toMatchObject({ id: SEED.reservation.id });
+  });
+});
+
+describe('ReservationService.create — same-day past hour (BUG-005)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-06-15T18:30:00Z')); // 15:30 in Fortaleza
+    db = createMockDb();
+    service = new ReservationService(db);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('rejects an ended slot today', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.create(USER_ID, 'professor', SEED.space.department, {
+        spaceId: SPACE_ID,
+        date: '2099-06-15',
+        startTime: '14:00',
+        endTime: '15:00',
+      })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('allows the in-progress hour', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+
+    const result = await service.create(USER_ID, 'professor', SEED.space.department, {
+      spaceId: SPACE_ID,
+      date: '2099-06-15',
+      startTime: '15:00',
+      endTime: '16:00',
+    });
+
+    expect(result).toMatchObject({ id: SEED.reservation.id });
+  });
+
+  it('allows a future hour today', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+
+    const result = await service.create(USER_ID, 'professor', SEED.space.department, {
+      spaceId: SPACE_ID,
+      date: '2099-06-15',
+      startTime: '16:00',
+      endTime: '17:00',
+    });
+
+    expect(result).toMatchObject({ id: SEED.reservation.id });
+  });
+
+  it('ignores the clock for future dates', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+    db._insert.returning.mockResolvedValue([SEED.reservation]);
+
+    const result = await service.create(USER_ID, 'professor', SEED.space.department, {
+      spaceId: SPACE_ID,
+      date: '2099-06-16',
+      startTime: '07:00',
+      endTime: '08:00',
+    });
 
     expect(result).toMatchObject({ id: SEED.reservation.id });
   });

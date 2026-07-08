@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi } from 'vitest';
 import {
   uuidSchema,
   paginationSchema,
@@ -71,6 +72,21 @@ describe('futureDateSchema', () => {
 
   it('rejects wrong format even for future date-like string', () => {
     expect(futureDateSchema.safeParse('31-12-2099').success).toBe(false);
+  });
+
+  it('night-window regression: campus date is used, not UTC date', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-06-16T01:00:00Z')); // 22:00 on 2099-06-15 in Fortaleza
+    try {
+      // UTC date is 2099-06-16, but campus date is 2099-06-15 — should accept
+      expect(futureDateSchema.safeParse('2099-06-15').success).toBe(true);
+      // 2099-06-14 is still past campus date
+      expect(futureDateSchema.safeParse('2099-06-14').success).toBe(false);
+      // 2099-06-16 is future campus date
+      expect(futureDateSchema.safeParse('2099-06-16').success).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
