@@ -128,20 +128,29 @@ export const reservations = sqliteTable('reservations', {
 }));
 
 // ─── Blockings (bloqueios) ──────────────────────────────────────────────────
-export const blockings = sqliteTable('blockings', {
-  id: text('id').primaryKey(),
-  spaceId: text('space_id').notNull().references(() => spaces.id),
-  createdBy: text('created_by').notNull().references(() => users.id),
-  date: text('date').notNull(),
-  timeSlot: text('time_slot').notNull(),
-  startTime: text('start_time').notNull(),
-  endTime: text('end_time').notNull(),
-  reason: text('reason').notNull(),
-  blockType: text('block_type').notNull(), // 'maintenance' | 'administrative'
-  status: text('status').notNull().default('active'), // 'active' | 'removed'
-  createdAt: text('created_at').notNull(),
-  updatedAt: text('updated_at').notNull(),
-});
+export const blockings = sqliteTable(
+  'blockings',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('space_id').notNull().references(() => spaces.id),
+    createdBy: text('created_by').notNull().references(() => users.id),
+    date: text('date').notNull(),
+    timeSlot: text('time_slot').notNull(),
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    reason: text('reason').notNull(),
+    blockType: text('block_type').notNull(), // 'maintenance' | 'administrative'
+    status: text('status').notNull().default('active'), // 'active' | 'removed'
+    // Shared by every day created in a single multi-day operation (MEL-017).
+    // Null for rows created before the feature and for direct single-day calls.
+    batchId: text('batch_id'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => ({
+    batchIdx: index('blockings_batch_idx').on(t.batchId),
+  })
+);
 
 // ─── Notifications (notificacoes) ───────────────────────────────────────────
 export const notifications = sqliteTable('notifications', {

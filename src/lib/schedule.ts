@@ -53,6 +53,21 @@ export function intervalsOverlap(
     && timeToMinutes(leftEnd) > timeToMinutes(rightStart);
 }
 
+/**
+ * Inclusive list of `YYYY-MM-DD` dates between two dates (MEL-017 multi-day
+ * blockings). Assumes `from <= to` and valid ISO dates — callers validate first.
+ */
+export function datesBetween(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor <= end) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 export function getClosedIntervals(closedFrom: string, closedTo: string) {
   const normalized = normalizeClosedHours(closedFrom, closedTo);
   const from = timeToMinutes(normalized.closedFrom);

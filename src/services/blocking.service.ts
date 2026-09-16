@@ -1,14 +1,18 @@
-import { eq, and, gte, lte, count } from 'drizzle-orm';
+import { eq, and, gte, lte, count, inArray } from 'drizzle-orm';
 import { blockings, reservations, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
-import { deriveLegacyTimeSlot, intervalsOverlap } from '@/lib/schedule';
+import { datesBetween, deriveLegacyTimeSlot, intervalsOverlap } from '@/lib/schedule';
 
 interface CreateBlockingInput {
   spaceId: string;
-  date: string;
+  /** Single-day form (compat). Mutually exclusive with `dateFrom`/`dateTo`. */
+  date?: string;
+  /** Inclusive multi-day range (MEL-017). */
+  dateFrom?: string;
+  dateTo?: string;
   startTime: string;
   endTime: string;
   reason: string;
@@ -40,81 +44,111 @@ export class BlockingService {
     // rule, so the payload's type is normalized instead of rejected.
     const blockType = userRole === 'maintenance' ? 'maintenance' : input.blockType;
 
+    const dates = input.date ? [input.date] : datesBetween(input.dateFrom!, input.dateTo!);
+    const isMultiDay = dates.length > 1;
+
+    // All-or-nothing pre-check: if any day is already blocked on an overlapping
+    // range, the whole operation fails so the caller can adjust the interval.
     const existingBlockings = await this.db.query.blockings.findMany({
       where: and(
         eq(blockings.spaceId, input.spaceId),
-        eq(blockings.date, input.date),
+        inArray(blockings.date, dates),
         eq(blockings.status, 'active')
       ),
     });
-    if (existingBlockings.some((blocking) => intervalsOverlap(input.startTime, input.endTime, blocking.startTime, blocking.endTime))) {
-      throw new ConflictError('Já existe um bloqueio ativo para esta faixa de horário');
+    const conflictingDates = [
+      ...new Set(
+        existingBlockings
+          .filter((blocking) =>
+            intervalsOverlap(input.startTime, input.endTime, blocking.startTime, blocking.endTime)
+          )
+          .map((blocking) => blocking.date)
+      ),
+    ].sort();
+    if (conflictingDates.length > 0) {
+      throw new ConflictError(
+        isMultiDay
+          ? `Já existe bloqueio ativo nestes dias: ${conflictingDates.join(', ')}`
+          : 'Já existe um bloqueio ativo para esta faixa de horário'
+      );
     }
 
-    const id = crypto.randomUUID();
+    const batchId = crypto.randomUUID();
     const now = new Date().toISOString();
-
-    const [blocking] = await this.db
-      .insert(blockings)
-      .values({
-        id,
-        spaceId: input.spaceId,
-        createdBy: userId,
-        date: input.date,
-        timeSlot: deriveLegacyTimeSlot(input.startTime),
-        startTime: input.startTime,
-        endTime: input.endTime,
-        reason: input.reason,
-        blockType,
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
 
     const conflictingReservations = await this.db.query.reservations.findMany({
       where: and(
         eq(reservations.spaceId, input.spaceId),
-        eq(reservations.date, input.date),
+        inArray(reservations.date, dates),
         eq(reservations.status, 'confirmed')
       ),
     });
 
-    const overlappingReservations = conflictingReservations.filter((reservation) =>
-      intervalsOverlap(input.startTime, input.endTime, reservation.startTime, reservation.endTime)
-    );
+    const createdRows: Array<typeof blockings.$inferSelect> = [];
+    let overriddenReservations = 0;
 
-    for (const conflicting of overlappingReservations) {
-      await this.db
-        .update(reservations)
-        .set({ status: 'overridden', changeOrigin: 'blocking', updatedAt: now })
-        .where(eq(reservations.id, conflicting.id));
+    for (const date of dates) {
+      const id = crypto.randomUUID();
 
-      await this.notification.create(
-        conflicting.userId,
-        'Reserva sobreposta por bloqueio',
-        `Sua reserva para o espaço ${space.number} em ${input.date} (${conflicting.startTime}-${conflicting.endTime}) foi cancelada devido a um bloqueio ${blockType === 'administrative' ? 'administrativo' : 'de manutenção'}: ${input.reason}`,
-        'overridden'
+      const [blocking] = await this.db
+        .insert(blockings)
+        .values({
+          id,
+          spaceId: input.spaceId,
+          createdBy: userId,
+          date,
+          timeSlot: deriveLegacyTimeSlot(input.startTime),
+          startTime: input.startTime,
+          endTime: input.endTime,
+          reason: input.reason,
+          blockType,
+          status: 'active',
+          batchId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      createdRows.push(blocking);
+
+      const overlappingReservations = conflictingReservations.filter(
+        (reservation) =>
+          reservation.date === date &&
+          intervalsOverlap(input.startTime, input.endTime, reservation.startTime, reservation.endTime)
       );
+
+      for (const conflicting of overlappingReservations) {
+        await this.db
+          .update(reservations)
+          .set({ status: 'overridden', changeOrigin: 'blocking', updatedAt: now })
+          .where(eq(reservations.id, conflicting.id));
+
+        await this.notification.create(
+          conflicting.userId,
+          'Reserva sobreposta por bloqueio',
+          `Sua reserva para o espaço ${space.number} em ${date} (${conflicting.startTime}-${conflicting.endTime}) foi cancelada devido a um bloqueio ${blockType === 'administrative' ? 'administrativo' : 'de manutenção'}: ${input.reason}`,
+          'overridden'
+        );
+
+        await this.auditLog.log(
+          userId,
+          'override_reservation',
+          conflicting.id,
+          'reservation',
+          `Reserva sobrescrita pelo bloqueio ${id} no espaço ${space.number}`
+        );
+        overriddenReservations++;
+      }
 
       await this.auditLog.log(
         userId,
-        'override_reservation',
-        conflicting.id,
-        'reservation',
-        `Reserva sobrescrita pelo bloqueio ${id} no espaço ${space.number}`
+        'create_blocking',
+        id,
+        'blocking',
+        `Bloqueou o espaço ${space.number} em ${date} (${input.startTime}-${input.endTime}): ${input.reason}`
       );
     }
 
-    await this.auditLog.log(
-      userId,
-      'create_blocking',
-      id,
-      'blocking',
-      `Bloqueou o espaço ${space.number} em ${input.date} (${input.startTime}-${input.endTime}): ${input.reason}`
-    );
-
-    return blocking;
+    return { blockings: createdRows, created: createdRows.length, overriddenReservations };
   }
 
   async remove(blockingId: string, userId: string, userRole: string) {

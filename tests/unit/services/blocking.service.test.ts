@@ -44,8 +44,71 @@ describe('BlockingService.create', () => {
 
     const result = await service.create(STAFF_ID, 'staff', CREATE_INPUT);
 
-    expect(result).toMatchObject({ id: SEED.blocking.id });
+    expect(result.created).toBe(1);
+    expect(result.blockings[0]).toMatchObject({ id: SEED.blocking.id });
     expect(db._insert.fn).toHaveBeenCalled();
+  });
+
+  it('creates one row per day sharing a batchId for a date range (MEL-017)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db._insert.returning.mockResolvedValue([SEED.blocking]);
+
+    const result = await service.create(STAFF_ID, 'staff', {
+      ...CREATE_INPUT,
+      date: undefined,
+      dateFrom: '2099-06-15',
+      dateTo: '2099-06-19',
+    });
+
+    expect(result.created).toBe(5);
+
+    const rows = db._insert.values.mock.calls
+      .map(([values]) => values as { date: string; batchId: string })
+      .filter((values) => values.batchId);
+    const dates = rows.map((row) => row.date);
+    const batchIds = new Set(rows.map((row) => row.batchId));
+
+    expect(dates).toEqual(['2099-06-15', '2099-06-16', '2099-06-17', '2099-06-18', '2099-06-19']);
+    expect(batchIds.size).toBe(1);
+  });
+
+  it('aborts the whole multi-day operation when any day is already blocked (MEL-017)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.blockings.findMany.mockResolvedValue([
+      { ...SEED.blocking, date: '2099-06-17', startTime: '08:00', endTime: '09:00' },
+    ]);
+
+    await expect(
+      service.create(STAFF_ID, 'staff', {
+        ...CREATE_INPUT,
+        date: undefined,
+        dateFrom: '2099-06-15',
+        dateTo: '2099-06-19',
+      })
+    ).rejects.toThrow('2099-06-17');
+
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it('overrides confirmed reservations on their own day only (MEL-017)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, id: 'r1', date: '2099-06-16', startTime: '08:00', endTime: '09:00' },
+      { ...SEED.reservation, id: 'r2', date: '2099-06-18', startTime: '08:00', endTime: '09:00' },
+    ]);
+
+    const result = await service.create(STAFF_ID, 'staff', {
+      ...CREATE_INPUT,
+      date: undefined,
+      dateFrom: '2099-06-15',
+      dateTo: '2099-06-19',
+    });
+
+    expect(result.overriddenReservations).toBe(2);
+    expect(db._update.fn).toHaveBeenCalledTimes(2);
   });
 
   it('forces blockType to maintenance when the creator role is maintenance', async () => {

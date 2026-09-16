@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildHourlyAvailability,
+  datesBetween,
   DEFAULT_CLOSED_FROM,
   DEFAULT_CLOSED_TO,
   normalizeClosedHours,
@@ -30,5 +31,29 @@ describe('buildHourlyAvailability', () => {
     expect(slots.find((slot) => slot.startTime === '23:00')?.status).toBe('closed');
     expect(slots.find((slot) => slot.startTime === '06:00')?.status).toBe('closed');
     expect(slots.find((slot) => slot.startTime === '12:00')?.status).toBe('available');
+  });
+});
+
+describe('datesBetween', () => {
+  it('returns a single date when from equals to', () => {
+    expect(datesBetween('2099-06-15', '2099-06-15')).toEqual(['2099-06-15']);
+  });
+
+  it('returns the inclusive range (MEL-017)', () => {
+    expect(datesBetween('2099-06-15', '2099-06-18')).toEqual([
+      '2099-06-15',
+      '2099-06-16',
+      '2099-06-17',
+      '2099-06-18',
+    ]);
+  });
+
+  it('crosses month and year boundaries', () => {
+    expect(datesBetween('2099-12-30', '2100-01-02')).toEqual([
+      '2099-12-30',
+      '2099-12-31',
+      '2100-01-01',
+      '2100-01-02',
+    ]);
   });
 });
