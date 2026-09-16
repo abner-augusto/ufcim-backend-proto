@@ -27,14 +27,14 @@ describe('BlockingService.create', () => {
   it('throws NotFoundError when space does not exist', async () => {
     db.query.spaces.findFirst.mockResolvedValue(undefined);
 
-    await expect(service.create(STAFF_ID, CREATE_INPUT)).rejects.toThrow(NotFoundError);
+    await expect(service.create(STAFF_ID, 'staff', CREATE_INPUT)).rejects.toThrow(NotFoundError);
   });
 
   it('throws ConflictError when an active blocking already overlaps the requested time range', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.blockings.findMany.mockResolvedValue([SEED.blocking]);
 
-    await expect(service.create(STAFF_ID, CREATE_INPUT)).rejects.toThrow(ConflictError);
+    await expect(service.create(STAFF_ID, 'staff', CREATE_INPUT)).rejects.toThrow(ConflictError);
   });
 
   it('creates a blocking when the time range is free', async () => {
@@ -42,10 +42,32 @@ describe('BlockingService.create', () => {
     db.query.blockings.findMany.mockResolvedValue([]);
     db.query.reservations.findMany.mockResolvedValue([]);
 
-    const result = await service.create(STAFF_ID, CREATE_INPUT);
+    const result = await service.create(STAFF_ID, 'staff', CREATE_INPUT);
 
     expect(result).toMatchObject({ id: SEED.blocking.id });
     expect(db._insert.fn).toHaveBeenCalled();
+  });
+
+  it('forces blockType to maintenance when the creator role is maintenance', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([]);
+
+    await service.create(STAFF_ID, 'maintenance', { ...CREATE_INPUT, blockType: 'administrative' });
+
+    const inserted = db._insert.values.mock.calls[0][0] as { blockType: string };
+    expect(inserted.blockType).toBe('maintenance');
+  });
+
+  it('preserves the requested blockType for non-maintenance roles', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([]);
+
+    await service.create(STAFF_ID, 'professor', { ...CREATE_INPUT, blockType: 'administrative' });
+
+    const inserted = db._insert.values.mock.calls[0][0] as { blockType: string };
+    expect(inserted.blockType).toBe('administrative');
   });
 
   it('overrides a confirmed reservation on the same slot', async () => {
@@ -54,7 +76,7 @@ describe('BlockingService.create', () => {
     db.query.reservations.findMany.mockResolvedValue([SEED.reservation]);
     db._update.returning.mockResolvedValue([{ ...SEED.reservation, status: 'overridden' }]);
 
-    await service.create(STAFF_ID, { ...CREATE_INPUT, startTime: '09:00', endTime: '10:00' });
+    await service.create(STAFF_ID, 'staff', { ...CREATE_INPUT, startTime: '09:00', endTime: '10:00' });
 
     // update called to override the reservation
     expect(db._update.fn).toHaveBeenCalled();
@@ -69,7 +91,7 @@ describe('BlockingService.create', () => {
     db._update.returning.mockResolvedValue([{ ...SEED.reservation, status: 'overridden' }]);
     db._insert.returning.mockResolvedValue([{}]);
 
-    await service.create(STAFF_ID, { ...CREATE_INPUT, startTime: '09:00', endTime: '10:00' });
+    await service.create(STAFF_ID, 'staff', { ...CREATE_INPUT, startTime: '09:00', endTime: '10:00' });
 
     // insert is called for: notification, override audit log, create_blocking audit log
     expect(db._insert.fn.mock.calls.length).toBeGreaterThanOrEqual(3);

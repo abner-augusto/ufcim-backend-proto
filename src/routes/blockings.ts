@@ -19,7 +19,7 @@ blockingRoutes.post(
     const service = new BlockingService(db);
     const body = c.get('validatedBody') as z.infer<typeof createBlockingSchema>;
 
-    const blocking = await service.create(c.get('user').sub, body);
+    const blocking = await service.create(c.get('user').sub, extractRole(c.get('user')) ?? '', body);
     return c.json(blocking, 201);
   }
 );
