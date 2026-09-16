@@ -97,6 +97,31 @@ describe('SpaceService.getById', () => {
     const result = await service.getById(SEED.space.id);
     expect(result).toEqual(spaceWithEquipment);
   });
+
+  it('exposes the open report status per equipment (MEL-015)', async () => {
+    const spaceWithEquipment = { ...SEED.space, equipment: [{ ...SEED.equipment }] };
+    db.query.spaces.findFirst.mockResolvedValue(spaceWithEquipment);
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { equipmentId: SEED.equipment.id, status: 'acknowledged' },
+    ] as never);
+
+    const result = await service.getById(SEED.space.id);
+
+    expect(result.equipment[0]).toMatchObject({
+      id: SEED.equipment.id,
+      openReportStatus: 'acknowledged',
+    });
+  });
+
+  it('sets openReportStatus to null when the equipment has no open report', async () => {
+    const spaceWithEquipment = { ...SEED.space, equipment: [{ ...SEED.equipment }] };
+    db.query.spaces.findFirst.mockResolvedValue(spaceWithEquipment);
+    db.query.equipmentReports.findMany.mockResolvedValue([]);
+
+    const result = await service.getById(SEED.space.id);
+
+    expect(result.equipment[0]).toMatchObject({ openReportStatus: null });
+  });
 });
 
 describe('SpaceService.delete', () => {

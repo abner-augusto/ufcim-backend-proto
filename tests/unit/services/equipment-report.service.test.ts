@@ -91,6 +91,72 @@ describe('EquipmentReportService.create', () => {
     expect(result.severity).toBe('minor');
     expect(result.status).toBe('pending');
   });
+
+  it('blocks a second report while any open report exists — even from another user (MEL-015)', async () => {
+    db.query.equipment.findFirst.mockResolvedValue({ ...SEED.equipment, space: null });
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: 'open-report', equipmentId: SEED.equipment.id, status: 'acknowledged' },
+    ] as never);
+
+    await expect(
+      service.create('another-user', 'professor', {
+        equipmentId: SEED.equipment.id,
+        description: 'Continua quebrado',
+        severity: 'major',
+      })
+    ).rejects.toThrow('já possui um chamado em aberto');
+
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it('allows a new report once the previous one is resolved or dismissed (MEL-015)', async () => {
+    db.query.equipment.findFirst.mockResolvedValue({ ...SEED.equipment, status: 'working', space: null });
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: 'old-report', equipmentId: SEED.equipment.id, status: 'resolved' },
+    ] as never);
+    db.query.equipmentReports.findFirst.mockResolvedValue(undefined);
+
+    const result = await service.create('another-user', 'professor', {
+      equipmentId: SEED.equipment.id,
+      description: 'Voltou a falhar',
+      severity: 'minor',
+    });
+
+    expect(result.status).toBe('pending');
+  });
+});
+
+describe('EquipmentReportService.getOpenStatusByEquipmentIds', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: EquipmentReportService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new EquipmentReportService(db);
+  });
+
+  it('returns an empty map without querying when there are no ids', async () => {
+    const map = await service.getOpenStatusByEquipmentIds([]);
+
+    expect(map.size).toBe(0);
+    expect(db.query.equipmentReports.findMany).not.toHaveBeenCalled();
+  });
+
+  it('prefers acknowledged over pending and ignores closed reports (MEL-015)', async () => {
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { equipmentId: 'eq-1', status: 'pending' },
+      { equipmentId: 'eq-1', status: 'acknowledged' },
+      { equipmentId: 'eq-2', status: 'resolved' },
+      { equipmentId: 'eq-3', status: 'pending' },
+    ] as never);
+
+    const map = await service.getOpenStatusByEquipmentIds(['eq-1', 'eq-2', 'eq-3']);
+
+    expect(map.get('eq-1')).toBe('acknowledged');
+    expect(map.has('eq-2')).toBe(false);
+    expect(map.get('eq-3')).toBe('pending');
+    expect(map.size).toBe(2);
+  });
 });
 
 describe('EquipmentReportService.acknowledge', () => {

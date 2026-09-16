@@ -4,6 +4,7 @@ import type { Database } from '@/db/client';
 import { AppError, ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { DepartmentService } from './department.service';
+import { EquipmentReportService } from './equipment-report.service';
 import { SpaceManagerService } from './space-manager.service';
 import { departmentName } from '@/lib/department-name';
 import { buildHourlyAvailability, intervalsOverlap, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
@@ -125,7 +126,21 @@ export class SpaceService {
       with: { equipment: true, managers: { with: { user: true } }, department: true },
     });
     if (!space) throw new NotFoundError('Space');
-    return { ...space, department: departmentName(space.department) };
+
+    // Surface any open equipment report so the room popup can show "em análise"
+    // and hide the report action (MEL-015).
+    const openReportStatuses = await new EquipmentReportService(this.db).getOpenStatusByEquipmentIds(
+      space.equipment.map((item) => item.id)
+    );
+
+    return {
+      ...space,
+      equipment: space.equipment.map((item) => ({
+        ...item,
+        openReportStatus: openReportStatuses.get(item.id) ?? null,
+      })),
+      department: departmentName(space.department),
+    };
   }
 
   async list(filters: ListSpacesFilters) {

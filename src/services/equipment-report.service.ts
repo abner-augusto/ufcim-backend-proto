@@ -42,6 +42,13 @@ export class EquipmentReportService {
     });
     if (!equip) throw new NotFoundError('Equipment');
 
+    // Any open report blocks new ones, from any user — prevents duplicated
+    // tickets while maintenance still handles the case (MEL-015).
+    const openStatuses = await this.getOpenStatusByEquipmentIds([input.equipmentId]);
+    if (openStatuses.has(input.equipmentId)) {
+      throw new ConflictError('Este equipamento já possui um chamado em aberto.');
+    }
+
     // Anti-spam: same user, same equipment, within 24h
     const cutoff = new Date(Date.now() - RECENT_REPORT_WINDOW_MS).toISOString();
     const recent = await this.db.query.equipmentReports.findFirst({
@@ -200,8 +207,35 @@ export class EquipmentReportService {
     return updated;
   }
 
-  async listByEquipment(equipmentId: string) {
-    const equip = await this.db.query.equipment.findFirst({ where: eq(equipment.id, equipmentId) });
+  /**
+   * Open report status per equipment id, when present (`acknowledged` wins over
+   * `pending`). Shared by the create guard and by the space endpoints that
+   * surface "em análise" to end users (MEL-015).
+   */
+  async getOpenStatusByEquipmentIds(
+    equipmentIds: string[]
+  ): Promise<Map<string, 'pending' | 'acknowledged'>> {
+    const unique = [...new Set(equipmentIds)];
+    if (unique.length === 0) return new Map();
+
+    const rows = await this.db.query.equipmentReports.findMany({
+      where: and(
+        inArray(equipmentReports.equipmentId, unique),
+        inArray(equipmentReports.status, ['pending', 'acknowledged'])
+      ),
+    });
+
+    const map = new Map<string, 'pending' | 'acknowledged'>();
+    for (const row of rows) {
+      if (row.status !== 'pending' && row.status !== 'acknowledged') continue;
+      if (row.status === 'acknowledged' || !map.has(row.equipmentId)) {
+        map.set(row.equipmentId, row.status);
+      }
+    }
+    return map;
+  }
+
+  async listByEquipment(equipmentId: string) {    const equip = await this.db.query.equipment.findFirst({ where: eq(equipment.id, equipmentId) });
     if (!equip) throw new NotFoundError('Equipment');
 
     return this.db.query.equipmentReports.findMany({
