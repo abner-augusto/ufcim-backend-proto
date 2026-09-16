@@ -228,7 +228,7 @@ adminRoutes.post('/actions/blockings', async (c) => {
 
   const db = createDb(c.env.DB);
   const service = new BlockingService(db);
-  await service.create(getActingUserId(c), parsed.data);
+  await service.create(getActingUserId(c), 'staff', parsed.data);
   return c.html(await renderBlockingsView(c, { message: 'Bloqueio criado' }));
 });
 

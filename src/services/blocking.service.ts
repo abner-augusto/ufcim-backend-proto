@@ -32,9 +32,13 @@ export class BlockingService {
     this.notification = new NotificationService(db);
   }
 
-  async create(userId: string, input: CreateBlockingInput) {
+  async create(userId: string, userRole: string, input: CreateBlockingInput) {
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
+
+    // The maintenance team only creates maintenance blockings. The server owns the
+    // rule, so the payload's type is normalized instead of rejected.
+    const blockType = userRole === 'maintenance' ? 'maintenance' : input.blockType;
 
     const existingBlockings = await this.db.query.blockings.findMany({
       where: and(
@@ -61,7 +65,7 @@ export class BlockingService {
         startTime: input.startTime,
         endTime: input.endTime,
         reason: input.reason,
-        blockType: input.blockType,
+        blockType,
         status: 'active',
         createdAt: now,
         updatedAt: now,
@@ -89,7 +93,7 @@ export class BlockingService {
       await this.notification.create(
         conflicting.userId,
         'Reserva sobreposta por bloqueio',
-        `Sua reserva para o espaço ${space.number} em ${input.date} (${conflicting.startTime}-${conflicting.endTime}) foi cancelada devido a um bloqueio ${input.blockType === 'administrative' ? 'administrativo' : 'de manutenção'}: ${input.reason}`,
+        `Sua reserva para o espaço ${space.number} em ${input.date} (${conflicting.startTime}-${conflicting.endTime}) foi cancelada devido a um bloqueio ${blockType === 'administrative' ? 'administrativo' : 'de manutenção'}: ${input.reason}`,
         'overridden'
       );
 
