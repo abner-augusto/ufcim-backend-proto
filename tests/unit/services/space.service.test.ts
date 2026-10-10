@@ -114,7 +114,20 @@ describe('SpaceService.getById', () => {
     db.query.spaces.findFirst.mockResolvedValue(spaceWithEquipment);
 
     const result = await service.getById(SEED.space.id);
-    expect(result).toEqual(spaceWithEquipment);
+    expect(result).toEqual({ ...spaceWithEquipment, openRoomReportStatus: {} });
+  });
+
+  it('exposes open room tickets per category (MEL-026)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue({ ...SEED.space, equipment: [] });
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { equipmentId: null, category: 'lighting', status: 'pending' },
+      { equipmentId: null, category: 'plumbing', status: 'acknowledged' },
+      { equipmentId: null, category: 'painting', status: 'resolved' },
+    ] as never);
+
+    const result = await service.getById(SEED.space.id);
+
+    expect(result.openRoomReportStatus).toEqual({ lighting: 'pending', plumbing: 'acknowledged' });
   });
 
   it('exposes the open report status per equipment (MEL-015)', async () => {

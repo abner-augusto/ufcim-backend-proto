@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lt } from 'drizzle-orm';
+import { and, asc, eq, gte, isNotNull, lt } from 'drizzle-orm';
 import { equipment, equipmentReports, equipmentStatusHistory } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { AppError, NotFoundError } from '@/middleware/error-handler';
@@ -425,6 +425,8 @@ export class MaintenanceReportService {
     const conditions = [
       gte(equipmentReports.createdAt, new Date(range.startMs).toISOString()),
       lt(equipmentReports.createdAt, new Date(range.endMs).toISOString()),
+      // Room tickets (MEL-026) have no equipment and stay out of this report.
+      isNotNull(equipmentReports.equipmentId),
     ];
     if (equipmentId) conditions.push(eq(equipmentReports.equipmentId, equipmentId));
     return this.db.query.equipmentReports.findMany({

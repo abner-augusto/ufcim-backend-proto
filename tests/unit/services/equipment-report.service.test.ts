@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EquipmentReportService } from '@/services/equipment-report.service';
-import { NotFoundError, ConflictError } from '@/middleware/error-handler';
-import { equipmentStatusHistory } from '@/db/schema';
+import { AppError, NotFoundError, ConflictError } from '@/middleware/error-handler';
+import { equipment, equipmentReports, equipmentStatusHistory } from '@/db/schema';
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
+import type { SQL } from 'drizzle-orm';
 import { createMockDb, SEED } from '../helpers/mock-db';
+
+const dialect = new SQLiteSyncDialect();
+/** Renders a drizzle `where` to SQL so tests can assert the actual filter. */
+const toSql = (where: SQL) => dialect.sqlToQuery(where);
 
 describe('EquipmentReportService.create', () => {
   let db: ReturnType<typeof createMockDb>;
@@ -341,63 +347,36 @@ describe('EquipmentReportService.listPending', () => {
     );
   });
 
-  it('returns the space report even when the first SQL page would otherwise miss it', async () => {
-    db._select.where.mockResolvedValue([{ id: 'eq-a' }]);
-    db.query.equipmentReports.findMany.mockImplementation(async () => {
-      if (db._select.where.mock.calls.length > 0) {
-        return [
-          { id: 'a-1', equipmentId: 'eq-a', severity: 'minor', status: 'pending', equipment: { spaceId: 'space-a' }, reporter: null, acknowledger: null },
-        ];
-      }
-
-      return [
-        { id: 'b-1', equipmentId: 'eq-b', severity: 'minor', status: 'pending', equipment: { spaceId: 'space-b' }, reporter: null, acknowledger: null },
-        { id: 'b-2', equipmentId: 'eq-b', severity: 'major', status: 'pending', equipment: { spaceId: 'space-b' }, reporter: null, acknowledger: null },
-      ];
-    });
-
-    const result = await service.listPending({ spaceId: 'space-a', page: 1, limit: 2 });
-
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('a-1');
-    expect(db._select.where).toHaveBeenCalledTimes(1);
-    expect(db.query.equipmentReports.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.anything(), limit: 2, offset: 0 })
-    );
-  });
-
-  it('combines spaceId and status filters in SQL', async () => {
-    db._select.where.mockResolvedValue([{ id: 'eq-a' }]);
-    db.query.equipmentReports.findMany.mockImplementation(async () => {
-      if (db._select.where.mock.calls.length > 0) {
-        return [
-          { id: 'a-1', equipmentId: 'eq-a', severity: 'minor', status: 'pending', equipment: { spaceId: 'space-a' }, reporter: null, acknowledger: null },
-        ];
-      }
-
-      return [
-        { id: 'a-2', equipmentId: 'eq-a', severity: 'major', status: 'resolved', equipment: { spaceId: 'space-a' }, reporter: null, acknowledger: null },
-      ];
-    });
-
-    const result = await service.listPending({ status: 'pending', spaceId: 'space-a', page: 2, limit: 5 });
+  it('filters a space by the ticket space_id in SQL, so room tickets match too (MEL-026)', async () => {
+    await service.listPending({ status: 'pending', spaceId: 'space-a', page: 2, limit: 5 });
     const call = db.query.equipmentReports.findMany.mock.calls[0]?.[0];
+    const where = toSql(call.where);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].status).toBe('pending');
-    expect(call.where).toBeDefined();
+    expect(where.sql).toContain('"equipment_reports"."space_id" = ?');
+    expect(where.sql).toContain('"equipment_reports"."status" = ?');
+    expect(where.params).toEqual(['pending', 'space-a']);
     expect(call.limit).toBe(5);
     expect(call.offset).toBe(5);
-    expect(db._select.where).toHaveBeenCalledTimes(1);
+    // No equipment lookup any more: a room with no equipment can still have tickets.
+    expect(db._select.where).not.toHaveBeenCalled();
   });
 
-  it('returns an empty array when the space has no equipment', async () => {
-    db._select.where.mockResolvedValue([]);
+  it('lists room tickets with their space and department (MEL-026)', async () => {
+    const roomTicket = {
+      id: 'room-1', equipmentId: null, spaceId: 'space-a', category: 'lighting', severity: 'minor', status: 'pending',
+      equipment: null, space: { id: 'space-a', number: 'B2-03', department: { id: 'iaud', name: 'IAUD' } },
+      reporter: null, acknowledger: null,
+    };
+    db.query.equipmentReports.findMany.mockResolvedValue([roomTicket] as never);
 
-    const result = await service.listPending({ spaceId: 'space-a', page: 1, limit: 20 });
+    const result = await service.listPending({ status: 'pending', page: 1, limit: 20 });
+    const call = db.query.equipmentReports.findMany.mock.calls[0]?.[0];
 
-    expect(result).toEqual([]);
-    expect(db.query.equipmentReports.findMany).not.toHaveBeenCalled();
+    expect(result).toEqual([roomTicket]);
+    expect(call.with).toMatchObject({
+      space: { with: { department: true } },
+      equipment: { with: { space: { with: { department: true } } } },
+    });
   });
 });
 
@@ -416,5 +395,239 @@ describe('EquipmentReportService.listByUser', () => {
   it('returns reports for the user', async () => {
     const result = await service.listByUser('user-1', 1, 20);
     expect(result).toHaveLength(1);
+  });
+
+  it('loads the ticket space so room tickets carry their room (MEL-026)', async () => {
+    await service.listByUser('user-1', 1, 20);
+    const call = db.query.equipmentReports.findMany.mock.calls[0]?.[0];
+    expect(call.with).toMatchObject({ space: true });
+  });
+});
+
+// ─── Room tickets (MEL-026) ────────────────────────────────────────────────
+
+const ROOM_INPUT = {
+  spaceId: SEED.space.id,
+  category: 'lighting' as const,
+  description: 'Duas lâmpadas queimadas',
+  severity: 'blocking' as const,
+};
+
+describe('EquipmentReportService.create — room tickets (MEL-026)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: EquipmentReportService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new EquipmentReportService(db);
+    db.query.spaces.findFirst.mockResolvedValue({ ...SEED.space } as never);
+    db.query.users.findMany.mockResolvedValue([]);
+    db._insert.returning.mockResolvedValue([{
+      id: 'room-1',
+      equipmentId: null,
+      spaceId: SEED.space.id,
+      category: 'lighting',
+      reportedBy: SEED.user.id,
+      description: ROOM_INPUT.description,
+      severity: 'blocking',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    }]);
+  });
+
+  it('stores a ticket with the space and category and no equipment', async () => {
+    const result = await service.create(SEED.user.id, 'student', ROOM_INPUT);
+
+    expect(result).toMatchObject({ equipmentId: null, spaceId: SEED.space.id, category: 'lighting', status: 'pending' });
+    expect(db._insert.fn).toHaveBeenCalledWith(equipmentReports);
+    expect(db._insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        equipmentId: null,
+        spaceId: SEED.space.id,
+        category: 'lighting',
+        description: 'Duas lâmpadas queimadas',
+        severity: 'blocking',
+        status: 'pending',
+      })
+    );
+  });
+
+  it('never touches equipment status or writes status history, even when blocking', async () => {
+    await service.create(SEED.user.id, 'student', ROOM_INPUT);
+
+    expect(db.query.equipment.findFirst).not.toHaveBeenCalled();
+    expect(db._update.fn).not.toHaveBeenCalled();
+    expect(db._batch).not.toHaveBeenCalled();
+    expect(db._insert.fn).not.toHaveBeenCalledWith(equipmentStatusHistory);
+  });
+
+  it('throws NotFoundError when the space does not exist', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(undefined);
+
+    await expect(service.create(SEED.user.id, 'student', ROOM_INPUT)).rejects.toThrow(NotFoundError);
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 while the same room has an open ticket in the same category, from any user', async () => {
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: 'open', equipmentId: null, spaceId: SEED.space.id, category: 'lighting', status: 'acknowledged' },
+    ] as never);
+
+    const attempt = service.create('another-user', 'professor', ROOM_INPUT);
+
+    await expect(attempt).rejects.toThrow(ConflictError);
+    await expect(service.create('another-user', 'professor', ROOM_INPUT)).rejects.toThrow(
+      'já possui um chamado em aberto'
+    );
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it('queries open tickets by space, category and open status without equipment', async () => {
+    await service.create(SEED.user.id, 'student', ROOM_INPUT);
+    const call = db.query.equipmentReports.findMany.mock.calls[0]?.[0];
+    const where = toSql(call.where);
+
+    expect(where.sql).toContain('"equipment_reports"."space_id" = ?');
+    expect(where.sql).toContain('"equipment_reports"."equipment_id" is null');
+    expect(where.sql).toContain('"equipment_reports"."status" in (?, ?)');
+    expect(where.params).toEqual(expect.arrayContaining([SEED.space.id, 'pending', 'acknowledged']));
+  });
+
+  it('allows a ticket when the open one is in another category', async () => {
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: 'open', equipmentId: null, spaceId: SEED.space.id, category: 'plumbing', status: 'pending' },
+    ] as never);
+
+    const result = await service.create(SEED.user.id, 'student', ROOM_INPUT);
+    expect(result.status).toBe('pending');
+  });
+
+  it('allows a ticket when only an equipment ticket is open in the room', async () => {
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { id: 'eq-open', equipmentId: SEED.equipment.id, spaceId: SEED.space.id, category: null, status: 'pending' },
+    ] as never);
+
+    const result = await service.create(SEED.user.id, 'student', ROOM_INPUT);
+    expect(result.status).toBe('pending');
+  });
+
+  it('keeps the 24h anti-spam per user for the same room and category', async () => {
+    db.query.equipmentReports.findFirst.mockResolvedValue({ id: 'recent', status: 'resolved' } as never);
+
+    await expect(service.create(SEED.user.id, 'student', ROOM_INPUT)).rejects.toThrow('últimas 24h');
+  });
+
+  it('notifies staff and maintenance with the category label', async () => {
+    db.query.users.findMany.mockResolvedValue([
+      { id: 'staff-1', role: 'staff' },
+      { id: 'maint-1', role: 'maintenance' },
+      { id: 'student-1', role: 'student' },
+    ] as never);
+
+    await service.create(SEED.user.id, 'student', ROOM_INPUT);
+
+    const notified = db._insert.values.mock.calls
+      .map(([v]) => v as { userId?: string; title?: string; message?: string })
+      .filter((v) => v.title === 'Novo chamado de manutenção');
+    expect(notified.map((v) => v.userId)).toEqual(['staff-1', 'maint-1']);
+    expect(notified[0].message).toContain('Sala A101');
+    expect(notified[0].message).toContain('Iluminação');
+  });
+
+  it('rejects an input carrying both an equipment and a room target', async () => {
+    await expect(
+      service.create(SEED.user.id, 'student', { ...ROOM_INPUT, equipmentId: SEED.equipment.id } as never)
+    ).rejects.toThrow(AppError);
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+});
+
+describe('EquipmentReportService.create — equipment tickets keep their room (MEL-026)', () => {
+  it('copies the equipment space into the ticket and leaves the category empty', async () => {
+    const db = createMockDb();
+    const service = new EquipmentReportService(db);
+    db.query.equipment.findFirst.mockResolvedValue({ ...SEED.equipment, status: 'working', space: null });
+    db.query.users.findMany.mockResolvedValue([]);
+
+    await service.create(SEED.user.id, 'student', {
+      equipmentId: SEED.equipment.id,
+      description: 'Arranhado na superfície',
+      severity: 'minor',
+    });
+
+    expect(db._insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({ equipmentId: SEED.equipment.id, spaceId: SEED.equipment.spaceId, category: null })
+    );
+  });
+});
+
+describe('EquipmentReportService.getOpenRoomStatusByCategory (MEL-026)', () => {
+  it('maps open room tickets per category, preferring acknowledged and ignoring equipment tickets', async () => {
+    const db = createMockDb();
+    const service = new EquipmentReportService(db);
+    db.query.equipmentReports.findMany.mockResolvedValue([
+      { equipmentId: null, category: 'lighting', status: 'pending' },
+      { equipmentId: null, category: 'lighting', status: 'acknowledged' },
+      { equipmentId: null, category: 'plumbing', status: 'pending' },
+      { equipmentId: null, category: 'painting', status: 'resolved' },
+      { equipmentId: 'eq-1', category: null, status: 'pending' },
+    ] as never);
+
+    const map = await service.getOpenRoomStatusByCategory(SEED.space.id);
+
+    expect(Object.fromEntries(map)).toEqual({ lighting: 'acknowledged', plumbing: 'pending' });
+  });
+});
+
+describe('EquipmentReportService acknowledge/resolve — room tickets (MEL-026)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: EquipmentReportService;
+  const roomTicket = {
+    id: 'room-1',
+    equipmentId: null,
+    spaceId: SEED.space.id,
+    category: 'electrical',
+    reportedBy: 'user-1',
+    description: 'Tomada solta',
+    severity: 'major',
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    equipment: null,
+    space: { ...SEED.space },
+    reporter: { id: 'user-1', name: 'User', role: 'student' },
+  };
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new EquipmentReportService(db);
+    db.query.equipmentReports.findFirst.mockResolvedValue(roomTicket as never);
+  });
+
+  it('acknowledges a room ticket', async () => {
+    db._update.returning.mockResolvedValue([{ ...roomTicket, status: 'acknowledged', acknowledgedBy: 'staff-1' }]);
+
+    const result = await service.acknowledge('room-1', 'staff-1');
+
+    expect(result.status).toBe('acknowledged');
+    expect(db._update.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'acknowledged', acknowledgedBy: 'staff-1' }));
+  });
+
+  it('resolves a room ticket and tells the reporter which room problem was fixed', async () => {
+    db._update.returning.mockResolvedValue([{ ...roomTicket, status: 'resolved' }]);
+
+    const result = await service.resolve('room-1', 'staff-1');
+
+    expect(result.status).toBe('resolved');
+    expect(db._update.fn).toHaveBeenCalledWith(equipmentReports);
+    expect(db._update.fn).not.toHaveBeenCalledWith(equipment);
+    expect(db._insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        title: 'Reporte resolvido',
+        message: expect.stringContaining('Tomadas e elétrica'),
+      })
+    );
+    const call = db.query.equipmentReports.findFirst.mock.calls[0]?.[0];
+    expect(call.with).toMatchObject({ space: true });
   });
 });

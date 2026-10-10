@@ -67,12 +67,17 @@ export const equipment = sqliteTable('equipment', {
   updatedAt: text('updated_at').notNull(),
 });
 
-// ─── Equipment Reports (reportes de equipamentos) ──────────────────────────
+// ─── Equipment Reports (chamados de manutenção) ────────────────────────────
+// A ticket targets either one equipment (`equipmentId`, `category` null) or the
+// room itself by service category (`equipmentId` null, `category` set; MEL-026).
+// `spaceId` is always set: copied from the equipment for equipment tickets.
 export const equipmentReports = sqliteTable(
   'equipment_reports',
   {
     id: text('id').primaryKey(),
-    equipmentId: text('equipment_id').notNull().references(() => equipment.id),
+    equipmentId: text('equipment_id').references(() => equipment.id),
+    spaceId: text('space_id').notNull().references(() => spaces.id),
+    category: text('category'), // MaintenanceCategory; null for equipment tickets
     reportedBy: text('reported_by').notNull().references(() => users.id),
     description: text('description').notNull(),
     severity: text('severity').notNull(), // 'minor' | 'major' | 'blocking'
@@ -87,6 +92,7 @@ export const equipmentReports = sqliteTable(
     equipmentIdx: index('equipment_reports_equipment_idx').on(t.equipmentId),
     statusIdx: index('equipment_reports_status_idx').on(t.status),
     createdAtIdx: index('equipment_reports_created_at_idx').on(t.createdAt),
+    spaceCategoryIdx: index('equipment_reports_space_category_idx').on(t.spaceId, t.category),
   })
 );
 
@@ -118,6 +124,7 @@ export const equipmentStatusHistoryRelations = relations(equipmentStatusHistory,
 
 export const equipmentReportsRelations = relations(equipmentReports, ({ one }) => ({
   equipment: one(equipment, { fields: [equipmentReports.equipmentId], references: [equipment.id] }),
+  space: one(spaces, { fields: [equipmentReports.spaceId], references: [spaces.id] }),
   reporter: one(users, { fields: [equipmentReports.reportedBy], references: [users.id], relationName: 'reporter' }),
   acknowledger: one(users, { fields: [equipmentReports.acknowledgedBy], references: [users.id], relationName: 'acknowledger' }),
 }));

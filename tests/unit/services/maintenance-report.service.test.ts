@@ -6,6 +6,7 @@ import {
   resolveRange,
 } from '@/services/maintenance-report.service';
 import { AppError, NotFoundError } from '@/middleware/error-handler';
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import { createMockDb } from '../helpers/mock-db';
 
 // Campus is UTC-3: 03:00Z is local midnight. "Now" is 2026-09-16 12:00 local.
@@ -107,6 +108,9 @@ describe('brokenIntervals / overlapMs', () => {
     expect(overlapMs(intervals, 11 * DAY, 12 * DAY)).toBe(0);
   });
 });
+
+// A room ticket (MEL-026): no equipment, in the window, open and serious.
+const ROOM_TICKET = { id: 'r-room', equipmentId: null, spaceId: 's-1', category: 'lighting', reportedBy: 'u-maria', description: 'Lâmpadas queimadas', severity: 'blocking', status: 'pending', acknowledgedBy: null, acknowledgedAt: null, resolvedAt: null, dismissedReason: null, createdAt: '2026-09-14T03:00:00.000Z', reporter: MARIA, acknowledger: null };
 
 describe('MaintenanceReportService.listEquipment', () => {
   let db: ReturnType<typeof createMockDb>;
@@ -212,6 +216,22 @@ describe('MaintenanceReportService.listEquipment', () => {
   it('returns null historySince when no history exists yet', async () => {
     db.query.equipmentStatusHistory.findFirst.mockResolvedValue(undefined);
     expect((await service.listEquipment({})).historySince).toBeNull();
+  });
+
+  it('ignores room tickets, which have no equipment (MEL-026)', async () => {
+    const baseline = await service.listEquipment({});
+    db.query.equipmentReports.findMany.mockResolvedValue([...REPORTS, ROOM_TICKET] as never);
+
+    const withRoomTicket = await service.listEquipment({});
+
+    expect(withRoomTicket).toEqual(baseline);
+  });
+
+  it('filters room tickets out in SQL (MEL-026)', async () => {
+    await service.listEquipment({});
+    const call = db.query.equipmentReports.findMany.mock.calls[0]?.[0];
+
+    expect(new SQLiteSyncDialect().sqlToQuery(call.where).sql).toContain('"equipment_reports"."equipment_id" is not null');
   });
 });
 

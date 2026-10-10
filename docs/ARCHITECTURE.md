@@ -55,7 +55,8 @@ departments        – slug (PK), nome, campus
 users              – sincronizados do Keycloak; roles: student|professor|staff|maintenance
 spaces             – espaços físicos; closedFrom/closedTo; modelId (pino 3D)
 equipment          – equipamentos vinculados a espaços
-equipment_reports  – reportes de equipamentos (pending/acknowledged/resolved/dismissed)
+equipment_reports  – chamados de manutenção (pending/acknowledged/resolved/dismissed): de um
+                     equipamento, ou da sala por categoria (equipment_id nulo); space_id sempre preenchido
 equipment_status_history – transições de status (from→to, source report|manual|system); só para frente
 space_managers     – vínculo usuário↔espaço (coordinator|maintainer)
 reservations       – reservas; startTime/endTime "HH:00"|"HH:30"; timeSlot legado derivado

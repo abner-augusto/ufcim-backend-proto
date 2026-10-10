@@ -129,9 +129,13 @@ export class SpaceService {
 
     // Surface any open equipment report so the room popup can show "em análise"
     // and hide the report action (MEL-015).
-    const openReportStatuses = await new EquipmentReportService(this.db).getOpenStatusByEquipmentIds(
+    const reports = new EquipmentReportService(this.db);
+    const openReportStatuses = await reports.getOpenStatusByEquipmentIds(
       space.equipment.map((item) => item.id)
     );
+    // Open room tickets per category, so the popup can show their status and
+    // hide the report action for that category (MEL-026).
+    const openRoomReports = await reports.getOpenRoomStatusByCategory(space.id);
 
     return {
       ...space,
@@ -139,6 +143,7 @@ export class SpaceService {
         ...item,
         openReportStatus: openReportStatuses.get(item.id) ?? null,
       })),
+      openRoomReportStatus: Object.fromEntries(openRoomReports),
       department: departmentName(space.department),
     };
   }

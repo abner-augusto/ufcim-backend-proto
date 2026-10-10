@@ -7,7 +7,12 @@ import { MaintenanceReportService } from '@/services/maintenance-report.service'
 import { validate, validateQuery } from '@/middleware/validation';
 import { rbac, extractRole } from '@/middleware/rbac';
 import { createEquipmentSchema, updateEquipmentStatusSchema } from '@/validators/equipment.schema';
-import { createEquipmentReportSchema, dismissReportSchema } from '@/validators/equipment-report.schema';
+import {
+  createEquipmentReportSchema,
+  createMaintenanceTicketSchema,
+  dismissReportSchema,
+  type CreateMaintenanceTicketBody,
+} from '@/validators/equipment-report.schema';
 import { maintenanceRangeQuerySchema } from '@/validators/report.schema';
 import type { z } from 'zod';
 
@@ -29,6 +34,21 @@ equipmentRoutes.post(
 );
 
 // ─── Equipment Report routes (must be before generic /:id routes) ─────────
+
+// POST /equipment/reports — any authenticated user. Opens a ticket for one
+// equipment (`equipmentId`) or for the room by category (`spaceId` +
+// `category`, MEL-026); the validator enforces exactly one target.
+equipmentRoutes.post('/reports', validate(createMaintenanceTicketSchema), async (c) => {
+  const db = createDb(c.env.DB);
+  const service = new EquipmentReportService(db);
+  const user = c.get('user');
+  const body = c.get('validatedBody') as CreateMaintenanceTicketBody;
+  const input = body.equipmentId
+    ? { equipmentId: body.equipmentId, description: body.description, severity: body.severity }
+    : { spaceId: body.spaceId!, category: body.category!, description: body.description, severity: body.severity };
+  const report = await service.create(user.sub, extractRole(user) ?? 'student', input);
+  return c.json(report, 201);
+});
 
 // GET /equipment/reports/pending — staff/maintenance
 equipmentRoutes.get('/reports/pending', rbac(['staff', 'maintenance']), async (c) => {
