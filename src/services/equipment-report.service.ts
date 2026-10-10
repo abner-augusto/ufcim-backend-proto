@@ -172,19 +172,6 @@ export class EquipmentReportService {
       throw new ConflictError('Esta sala já possui um chamado em aberto para esta categoria.');
     }
 
-    const cutoff = new Date(Date.now() - RECENT_REPORT_WINDOW_MS).toISOString();
-    const recent = await this.db.query.equipmentReports.findFirst({
-      where: and(
-        eq(equipmentReports.reportedBy, userId),
-        eq(equipmentReports.spaceId, input.spaceId),
-        eq(equipmentReports.category, input.category),
-        gte(equipmentReports.createdAt, cutoff)
-      ),
-    });
-    if (recent) {
-      throw new ConflictError('Você já abriu um chamado desta categoria para esta sala nas últimas 24h');
-    }
-
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 

@@ -511,10 +511,12 @@ describe('EquipmentReportService.create — room tickets (MEL-026)', () => {
     expect(result.status).toBe('pending');
   });
 
-  it('keeps the 24h anti-spam per user for the same room and category', async () => {
+  it('accepts a new ticket once the previous one in the category is closed', async () => {
+    // Only open tickets block; there is no per-user 24h window for room tickets.
     db.query.equipmentReports.findFirst.mockResolvedValue({ id: 'recent', status: 'resolved' } as never);
 
-    await expect(service.create(SEED.user.id, 'student', ROOM_INPUT)).rejects.toThrow('últimas 24h');
+    const result = await service.create(SEED.user.id, 'student', ROOM_INPUT);
+    expect(result.status).toBe('pending');
   });
 
   it('notifies staff and maintenance with the category label', async () => {
