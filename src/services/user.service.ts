@@ -1,9 +1,18 @@
-import { eq, and, count, isNull } from 'drizzle-orm';
+import { eq, and, or, ne, count, isNull, sql } from 'drizzle-orm';
 import { users, notifications } from '@/db/schema';
 import type { Database } from '@/db/client';
 import type { JwtPayload } from '@/types/auth';
 import { extractRole } from '@/middleware/rbac';
 import { NotFoundError } from '@/middleware/error-handler';
+import { departmentName } from '@/lib/department-name';
+
+/** Rows returned by the requester search (MEL-025). */
+const REQUESTER_SEARCH_LIMIT = 10;
+
+/** Escapes LIKE wildcards so the query matches them literally (ESCAPE '\'). */
+function likeContains(term: string) {
+  return `%${term.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
 
 interface PaginatedUsers {
   data: Awaited<ReturnType<Database['query']['users']['findMany']>>;
@@ -99,6 +108,35 @@ export class UserService {
       offset: (page - 1) * limit,
     });
     return data;
+  }
+
+  /**
+   * Who staff can reserve on behalf of (MEL-025): active users whose name or
+   * e-mail contains `q`, at most 10, by name. Maintenance is left out because
+   * it never holds reservations (active limit 0, no reservation management);
+   * the searching staff member is left out because booking for oneself needs
+   * no requester. Returns only `{ id, name, role, department }`.
+   */
+  async searchRequesters(q: string, excludeUserId: string) {
+    const pattern = likeContains(q.trim());
+    const rows = await this.db.query.users.findMany({
+      where: and(
+        isNull(users.disabledAt),
+        isNull(users.deletedAt),
+        ne(users.role, 'maintenance'),
+        ne(users.id, excludeUserId),
+        or(
+          sql`lower(${users.name}) like ${pattern} escape '\\'`,
+          sql`lower(${users.email}) like ${pattern} escape '\\'`
+        )
+      ),
+      columns: { id: true, name: true, role: true },
+      with: { department: true },
+      orderBy: (u, { asc }) => [asc(u.name)],
+      limit: REQUESTER_SEARCH_LIMIT,
+    });
+
+    return rows.map((u) => ({ id: u.id, name: u.name, role: u.role, department: departmentName(u.department) }));
   }
 
   async listForAdmin(page: number, limit: number, includeDeleted = false): Promise<PaginatedUsers> {

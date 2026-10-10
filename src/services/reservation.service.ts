@@ -1,5 +1,5 @@
-import { eq, and, gte, lte, count } from 'drizzle-orm';
-import { reservations, blockings, recurrences, spaces } from '@/db/schema';
+import { eq, and, or, gte, lte, count, inArray } from 'drizzle-orm';
+import { reservations, blockings, recurrences, spaces, users } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
@@ -13,7 +13,8 @@ import {
   SLOT_MINUTES,
 } from '@/lib/schedule';
 import { campusToday, campusNowMinutes } from '@/lib/clock';
-import { canManageReservation } from '@/lib/reservation-permissions';
+import { canManageReservation, type ReservationAction } from '@/lib/reservation-permissions';
+import { presentReservationForViewer } from '@/lib/reservation-privacy';
 
 const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
   student: 5,
@@ -22,7 +23,24 @@ const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
   maintenance: 0,
 };
 
-interface CreateReservationInput {
+/** Only staff may reserve on someone else's behalf (MEL-025). */
+const CAN_RESERVE_ON_BEHALF = ['staff'];
+
+/** Optional requester sent by staff (MEL-025); the validator allows one of id or name. */
+interface RequesterInput {
+  requesterUserId?: string;
+  requesterName?: string;
+  requesterContact?: string;
+}
+
+/** Requester columns to store, plus who registered it and how to name the requester. */
+interface ResolvedRequester {
+  columns: { requesterUserId: string | null; requesterName: string | null; requesterContact: string | null };
+  actorName: string;
+  requesterLabel: string;
+}
+
+interface CreateReservationInput extends RequesterInput {
   spaceId: string;
   date: string;
   startTime: string;
@@ -31,7 +49,7 @@ interface CreateReservationInput {
   description?: string; // optional free-text, max 100 chars
 }
 
-interface CreateRecurringInput {
+interface CreateRecurringInput extends RequesterInput {
   spaceId: string;
   startDate: string;
   endDate: string;
@@ -69,6 +87,8 @@ export class ReservationService {
   }
 
   async create(userId: string, userRole: string, userDept: string, input: CreateReservationInput) {
+    const requester = await this.resolveRequester(userId, userRole, input);
+
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
 
@@ -99,6 +119,8 @@ export class ReservationService {
           id,
           spaceId: input.spaceId,
           userId,
+          createdBy: userId,
+          ...this.requesterColumns(requester),
           date: input.date,
           timeSlot: deriveLegacyTimeSlot(input.startTime),
           startTime: input.startTime,
@@ -118,20 +140,32 @@ export class ReservationService {
       throw error;
     }
 
+    const when = `em ${input.date} (${input.startTime}-${input.endTime})`;
     await this.auditLog.log(
       userId,
       'create_reservation',
       id,
       'reservation',
-      `Reservou o espaço ${space.number} em ${input.date} (${input.startTime}-${input.endTime})`
+      requester
+        ? `${requester.actorName} reservou o espaço ${space.number} ${when} para ${requester.requesterLabel}`
+        : `Reservou o espaço ${space.number} ${when}`
     );
 
     await this.notification.create(
       userId,
       'Reserva confirmada',
-      `Sua reserva para o espaço ${space.number} em ${input.date} (${input.startTime}-${input.endTime}) foi confirmada.`,
+      `Sua reserva para o espaço ${space.number} ${when} foi confirmada.`,
       'confirmed'
     );
+
+    if (requester?.columns.requesterUserId) {
+      await this.notification.create(
+        requester.columns.requesterUserId,
+        'Reserva feita para você',
+        `${requester.actorName} reservou o espaço ${space.number} para você ${when}.`,
+        'confirmed'
+      );
+    }
 
     return reservation;
   }
@@ -140,6 +174,8 @@ export class ReservationService {
     if (!['professor', 'staff'].includes(userRole)) {
       throw new ForbiddenError('Apenas professores e funcionários podem criar reservas recorrentes');
     }
+
+    const requester = await this.resolveRequester(userId, userRole, input);
 
     const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, input.spaceId) });
     if (!space) throw new NotFoundError('Space');
@@ -150,11 +186,13 @@ export class ReservationService {
 
     const recurrenceId = crypto.randomUUID();
     const now = new Date().toISOString();
+    const requesterColumns = this.requesterColumns(requester);
 
     await this.db.insert(recurrences).values({
       id: recurrenceId,
       description: input.description ?? '',
       createdBy: userId,
+      ...requesterColumns,
       createdAt: now,
     });
 
@@ -171,6 +209,8 @@ export class ReservationService {
             id,
             spaceId: input.spaceId,
             userId,
+            createdBy: userId,
+            ...requesterColumns,
             date,
             timeSlot: deriveLegacyTimeSlot(input.startTime),
             startTime: input.startTime,
@@ -189,13 +229,27 @@ export class ReservationService {
       }
     }
 
+    const range = `(${input.startTime}-${input.endTime}, ${skipped.length} ignoradas)`;
     await this.auditLog.log(
       userId,
       'create_recurring_reservation',
       recurrenceId,
       'reservation',
-      `Criou ${created.length} reservas para o espaço ${space.number} (${input.startTime}-${input.endTime}, ${skipped.length} ignoradas)`
+      requester
+        ? `${requester.actorName} reservou ${created.length} datas do espaço ${space.number} ${range} para ${requester.requesterLabel}`
+        : `Criou ${created.length} reservas para o espaço ${space.number} ${range}`
     );
+
+    if (requester?.columns.requesterUserId && created.length > 0) {
+      const first = created[0].date;
+      const last = created[created.length - 1].date;
+      await this.notification.create(
+        requester.columns.requesterUserId,
+        'Reservas recorrentes feitas para você',
+        `${requester.actorName} reservou o espaço ${space.number} para você em ${created.length} datas, de ${first} a ${last} (${input.startTime}-${input.endTime}).`,
+        'confirmed'
+      );
+    }
 
     return { recurrenceId, created, skipped };
   }
@@ -214,7 +268,7 @@ export class ReservationService {
     input: UpdateReservationInput
   ) {
     const reservation = await this.findOrThrow(reservationId);
-    this.assertCanManage(userId, userRole, reservation, 'Você só pode editar as próprias reservas');
+    this.assertCanManage(userId, userRole, reservation, 'edit', 'Você só pode editar as próprias reservas');
 
     if (reservation.status !== 'confirmed') {
       throw new ConflictError('Só é possível editar reservas confirmadas');
@@ -308,12 +362,21 @@ export class ReservationService {
       );
     }
 
+    if (this.shouldNotifyRequester(reservation, userId)) {
+      await this.notification.create(
+        reservation.requesterUserId!,
+        'Reserva alterada',
+        `A reserva do espaço ${space.number} feita para você foi alterada: agora em ${next.date} (${next.startTime}-${next.endTime}).`,
+        'modified'
+      );
+    }
+
     return updated;
   }
 
   async cancel(reservationId: string, userId: string, userRole: string, cancelReason?: string) {
     const reservation = await this.findOrThrow(reservationId);
-    this.assertCanManage(userId, userRole, reservation, 'Você só pode cancelar as próprias reservas');
+    this.assertCanManage(userId, userRole, reservation, 'cancel', 'Você só pode cancelar as próprias reservas');
 
     if (reservation.status === 'canceled') {
       throw new AppError(400, 'A reserva já está cancelada', 'ALREADY_CANCELED');
@@ -344,14 +407,24 @@ export class ReservationService {
       );
     }
 
+    if (this.shouldNotifyRequester(reservation, userId)) {
+      const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, reservation.spaceId) });
+      await this.notification.create(
+        reservation.requesterUserId!,
+        'Reserva cancelada',
+        `A reserva do espaço ${space?.number ?? reservation.spaceId} feita para você em ${reservation.date} (${reservation.startTime}-${reservation.endTime}) foi cancelada.${reasonSuffix}`,
+        'canceled'
+      );
+    }
+
     return updated;
   }
 
+  /**
+   * Cancels the upcoming occurrences of a series: its creator, staff, or
+   * (MEL-025) its registered requester, whatever their role.
+   */
   async cancelSeries(recurrenceId: string, userId: string, userRole: string, cancelReason?: string) {
-    if (userRole === 'student') {
-      throw new ForbiddenError('Estudantes não podem cancelar séries de reservas recorrentes');
-    }
-
     if (userRole === 'maintenance') {
       throw new ForbiddenError('A equipe de manutenção não pode gerenciar reservas');
     }
@@ -366,12 +439,11 @@ export class ReservationService {
     }
 
     const first = seriesReservations[0];
-    this.assertCanManage(
-      userId,
-      userRole,
-      { userId: first.recurrence?.createdBy ?? first.userId },
-      'Você só pode cancelar as próprias séries de reservas'
-    );
+    const series = {
+      userId: first.recurrence?.createdBy ?? first.userId,
+      requesterUserId: first.recurrence?.requesterUserId ?? first.requesterUserId ?? null,
+    };
+    this.assertCanManage(userId, userRole, series, 'cancel', 'Você só pode cancelar as próprias séries de reservas');
 
     const today = campusToday();
     const upcoming = seriesReservations.filter((r) => r.status === 'confirmed' && r.date >= today);
@@ -406,6 +478,16 @@ export class ReservationService {
       );
     }
 
+    // One summary for the requester rather than one notice per occurrence.
+    if (this.shouldNotifyRequester(series, userId)) {
+      await this.notification.create(
+        series.requesterUserId!,
+        'Série de reservas recorrentes cancelada',
+        `As ${upcoming.length} reservas recorrentes do espaço ${first.space?.number ?? first.spaceId} feitas para você foram canceladas.${reasonSuffix}`,
+        'canceled'
+      );
+    }
+
     return updatedReservations;
   }
 
@@ -426,15 +508,25 @@ export class ReservationService {
     return { futureCount: upcoming.length, firstDate: upcoming[0]?.date ?? null };
   }
 
-  async listByUser(userId: string, page: number, limit: number) {
-    return this.db.query.reservations.findMany({
-      where: eq(reservations.userId, userId),
-      with: { space: true },
+  /**
+   * "Minhas Reservas": the reservations I own plus (MEL-025) the ones staff
+   * registered for me, flagged `onBehalfOfMe`. The requester contact is only
+   * kept for staff viewers.
+   */
+  async listByUser(userId: string, userRole: string, page: number, limit: number) {
+    const rows = await this.db.query.reservations.findMany({
+      where: or(eq(reservations.userId, userId), eq(reservations.requesterUserId, userId)),
+      with: {
+        space: true,
+        creator: { columns: { id: true, name: true } },
+        requester: { columns: { id: true, name: true } },
+      },
       // id tiebreak keeps page boundaries stable when many rows share a date.
       orderBy: (r, { desc }) => [desc(r.date), desc(r.startTime), desc(r.id)],
       limit,
       offset: (page - 1) * limit,
     });
+    return rows.map((row) => presentReservationForViewer(row, { userId, role: userRole }));
   }
 
   async listForAdmin(filters: ListReservationsFilters) {
@@ -485,19 +577,82 @@ export class ReservationService {
     }
   }
 
-  /** Owner or staff (MEL-023); maintenance never. See {@link canManageReservation}. */
+  /**
+   * Owner or staff (MEL-023); the registered requester may only cancel
+   * (MEL-025); maintenance never. See {@link canManageReservation}.
+   */
   private assertCanManage(
     userId: string,
     userRole: string,
-    reservation: { userId: string },
+    reservation: { userId: string; requesterUserId?: string | null },
+    action: ReservationAction,
     notOwnerMessage: string
   ) {
     if (userRole === 'maintenance') {
       throw new ForbiddenError('A equipe de manutenção não pode gerenciar reservas');
     }
-    if (!canManageReservation({ userId, role: userRole }, reservation)) {
+    if (!canManageReservation({ userId, role: userRole }, reservation, action)) {
       throw new ForbiddenError(notOwnerMessage);
     }
+  }
+
+  /**
+   * Validates the optional requester (MEL-025). Returns null when none was
+   * sent. Throws 403 when a non-staff role sends any requester field, and 400
+   * when the registered user is unknown, inactive, maintenance (which never
+   * holds reservations) or the acting staff member.
+   */
+  private async resolveRequester(
+    actorId: string,
+    actorRole: string,
+    input: RequesterInput
+  ): Promise<ResolvedRequester | null> {
+    const { requesterUserId, requesterName, requesterContact } = input;
+    if (!requesterUserId && !requesterName && !requesterContact) return null;
+
+    if (!CAN_RESERVE_ON_BEHALF.includes(actorRole)) {
+      throw new ForbiddenError('Apenas funcionários podem reservar em nome de outra pessoa');
+    }
+    if (!requesterUserId && !requesterName) {
+      throw new AppError(400, 'Informe o solicitante para registrar o contato', 'INVALID_REQUESTER');
+    }
+    if (requesterUserId === actorId) {
+      throw new AppError(400, 'Você não pode reservar em nome de si mesmo', 'INVALID_REQUESTER');
+    }
+
+    const ids = requesterUserId ? [actorId, requesterUserId] : [actorId];
+    const people = await this.db.query.users.findMany({
+      where: inArray(users.id, ids),
+      columns: { id: true, name: true, role: true, disabledAt: true, deletedAt: true },
+    });
+    const actorName = people.find((p) => p.id === actorId)?.name ?? 'Um funcionário';
+
+    if (requesterUserId) {
+      const person = people.find((p) => p.id === requesterUserId);
+      if (!person || person.disabledAt || person.deletedAt || person.role === 'maintenance') {
+        throw new AppError(400, 'Solicitante não encontrado ou inativo', 'INVALID_REQUESTER');
+      }
+      return {
+        columns: { requesterUserId, requesterName: null, requesterContact: requesterContact ?? null },
+        actorName,
+        requesterLabel: person.name,
+      };
+    }
+
+    return {
+      columns: { requesterUserId: null, requesterName: requesterName!, requesterContact: requesterContact ?? null },
+      actorName,
+      requesterLabel: requesterName!,
+    };
+  }
+
+  private requesterColumns(requester: ResolvedRequester | null) {
+    return requester?.columns ?? { requesterUserId: null, requesterName: null, requesterContact: null };
+  }
+
+  /** The registered requester hears about changes made by someone else. */
+  private shouldNotifyRequester(reservation: { requesterUserId?: string | null }, actorId: string) {
+    return !!reservation.requesterUserId && reservation.requesterUserId !== actorId;
   }
 
   /** True once the reservation's start is at or before campus "now". */

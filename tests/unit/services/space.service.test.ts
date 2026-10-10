@@ -95,6 +95,70 @@ describe('SpaceService.getAvailability', () => {
   });
 });
 
+describe('SpaceService.getAvailability — reservation made on behalf of someone (MEL-025)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: SpaceService;
+  const staff = { id: SEED.user.id, name: 'Carlos Oliveira', role: 'staff' };
+  const prof = { id: 'prof-1', name: 'Dra. Maria Costa', role: 'professor' };
+  const onBehalf = {
+    ...SEED.reservation,
+    userId: staff.id,
+    createdBy: staff.id,
+    requesterUserId: prof.id,
+    requesterName: null,
+    requesterContact: 'maria@ufc.br',
+    description: null,
+    user: staff,
+    requester: prof,
+    recurrence: null,
+  };
+  const reservationAt9 = async (viewer: { userId: string; role: 'student' | 'professor' | 'staff' | 'maintenance' }) => {
+    const slots = await service.getAvailability(SEED.space.id, '2099-06-15', viewer);
+    return slots.find((s) => s.startTime === '09:00') as { reservation?: Record<string, unknown> } | undefined;
+  };
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new SpaceService(db);
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db.query.reservations.findMany.mockResolvedValue([onBehalf]);
+  });
+
+  it('loads the requester relation', async () => {
+    await reservationAt9({ userId: 'x', role: 'staff' });
+    expect(db.query.reservations.findMany.mock.calls[0][0].with).toMatchObject({ requester: true });
+  });
+
+  it('shows the registered requester as the author and the contact to staff', async () => {
+    const slot = await reservationAt9({ userId: 'other-staff', role: 'staff' });
+    expect(slot?.reservation).toMatchObject({
+      author: { displayName: 'Dra. Maria Costa', role: 'professor' },
+      requesterContact: 'maria@ufc.br',
+    });
+  });
+
+  it('keeps the privacy rule for students and hides the contact', async () => {
+    const slot = await reservationAt9({ userId: 'stud-1', role: 'student' });
+    expect(slot?.reservation).toMatchObject({ author: { displayName: 'professor', role: 'professor' } });
+    expect(slot?.reservation).not.toHaveProperty('requesterContact');
+  });
+
+  it('hides the contact from professors and marks the requester as self', async () => {
+    const slot = await reservationAt9({ userId: prof.id, role: 'professor' });
+    expect(slot?.reservation).toMatchObject({ isSelf: true, author: { displayName: 'Dra. Maria Costa' } });
+    expect(slot?.reservation).not.toHaveProperty('requesterContact');
+  });
+
+  it('shows a free-text requester by name to privileged viewers', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...onBehalf, requesterUserId: null, requester: null, requesterName: 'Coordenação do CAU' },
+    ]);
+    const slot = await reservationAt9({ userId: 'other-prof', role: 'professor' });
+    expect(slot?.reservation).toMatchObject({ isSelf: false, author: { displayName: 'Coordenação do CAU' } });
+  });
+});
+
 describe('SpaceService.getById', () => {
   let db: ReturnType<typeof createMockDb>;
   let service: SpaceService;

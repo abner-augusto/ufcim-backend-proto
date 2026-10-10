@@ -8,7 +8,7 @@ import { EquipmentReportService } from './equipment-report.service';
 import { SpaceManagerService } from './space-manager.service';
 import { departmentName } from '@/lib/department-name';
 import { buildAvailability, intervalsOverlap, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
-import { formatReservationAuthor } from '@/lib/reservation-privacy';
+import { formatReservationAuthor, reservationAuthorInput, requesterContactFor } from '@/lib/reservation-privacy';
 import type { UserRole } from '@/types/auth';
 
 interface CreateSpaceInput {
@@ -191,7 +191,7 @@ export class SpaceService {
           eq(reservations.date, date),
           eq(reservations.status, 'confirmed')
         ),
-        ...(viewer ? { with: { user: true, recurrence: true } as const } : {}),
+        ...(viewer ? { with: { user: true, requester: true, recurrence: true } as const } : {}),
       }),
       this.db.query.blockings.findMany({
         where: and(
@@ -240,7 +240,11 @@ export class SpaceService {
       purpose: string | null;
       description: string | null;
       recurrenceId: string | null;
+      requesterUserId?: string | null;
+      requesterName?: string | null;
+      requesterContact?: string | null;
       user?: { id: string; name: string; role: string } | null;
+      requester?: { id: string; name: string; role: string } | null;
       recurrence?: { description: string } | null;
     }>,
     activeBlockings: Array<{
@@ -260,13 +264,12 @@ export class SpaceService {
         const reservation = confirmedReservations.find(
           (r) => intervalsOverlap(slot.startTime, slot.endTime, r.startTime, r.endTime)
         );
-        if (reservation && viewer && reservation.user) {
-          const author = formatReservationAuthor(
-            { ownerId: reservation.userId, ownerName: reservation.user.name, ownerRole: reservation.user.role },
-            viewer,
-            { isManager }
-          );
+        // The author is the requester when staff booked on someone's behalf (MEL-025).
+        const authorInput = reservation && viewer ? reservationAuthorInput(reservation) : null;
+        if (reservation && viewer && authorInput) {
+          const author = formatReservationAuthor(authorInput, viewer, { isManager });
           const description = reservation.description ?? reservation.recurrence?.description ?? null;
+          const contact = requesterContactFor(viewer.role, reservation.requesterContact);
           return {
             ...slot,
             reservation: {
@@ -276,6 +279,7 @@ export class SpaceService {
               isRecurring: !!reservation.recurrenceId,
               isSelf: author.isSelf,
               author: { displayName: author.displayName, role: author.role },
+              ...(contact ? { requesterContact: contact } : {}),
             },
           };
         }

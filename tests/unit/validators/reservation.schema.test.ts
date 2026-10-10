@@ -264,4 +264,49 @@ describe('updateReservationSchema', () => {
     expect(updateReservationSchema.safeParse({ startTime: '08:30', endTime: '09:00' }).success).toBe(false);
   });
 
+  it('does not accept requester fields: the requester is fixed at creation (MEL-025)', () => {
+    expect(updateReservationSchema.safeParse({ description: 'x', requesterName: 'Fulano' }).success).toBe(false);
+  });
+
+});
+
+describe('requester fields (MEL-025)', () => {
+  const single = { spaceId: VALID_UUID, date: FUTURE_DATE, startTime: '09:00', endTime: '10:00' };
+  const recurring = {
+    spaceId: VALID_UUID, startDate: FUTURE_DATE, endDate: FUTURE_DATE_LATER, dayOfWeek: 1, startTime: '09:00', endTime: '10:00',
+  };
+  const cases = [
+    ['createReservationSchema', createReservationSchema, single],
+    ['createRecurringReservationSchema', createRecurringReservationSchema, recurring],
+  ] as const;
+
+  describe.each(cases)('%s', (_name, schema, base) => {
+    it('accepts a registered requester with a contact', () => {
+      const result = schema.safeParse({ ...base, requesterUserId: VALID_UUID, requesterContact: '85 99999-0000' });
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts a free-text requester and trims it', () => {
+      const result = schema.safeParse({ ...base, requesterName: '  Coordenação do CAU  ' });
+      expect(result.success).toBe(true);
+      expect(result.data).toMatchObject({ requesterName: 'Coordenação do CAU' });
+    });
+
+    it('rejects a registered and a free-text requester together', () => {
+      expect(schema.safeParse({ ...base, requesterUserId: VALID_UUID, requesterName: 'Fulano' }).success).toBe(false);
+    });
+
+    it('rejects a contact without a requester', () => {
+      expect(schema.safeParse({ ...base, requesterContact: 'x@ufc.br' }).success).toBe(false);
+    });
+
+    it('rejects a blank free-text requester', () => {
+      expect(schema.safeParse({ ...base, requesterName: '   ' }).success).toBe(false);
+    });
+
+    it('caps the free-text name and the contact at 100 characters', () => {
+      expect(schema.safeParse({ ...base, requesterName: 'a'.repeat(101) }).success).toBe(false);
+      expect(schema.safeParse({ ...base, requesterName: 'Fulano', requesterContact: 'a'.repeat(101) }).success).toBe(false);
+    });
+  });
 });

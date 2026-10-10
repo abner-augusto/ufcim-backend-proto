@@ -8,6 +8,8 @@ import {
   AppError,
 } from '@/middleware/error-handler';
 import { createMockDb, SEED } from '../helpers/mock-db';
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
+import type { SQL } from 'drizzle-orm';
 
 const USER_ID = SEED.reservation.userId;
 const OTHER_USER_ID = '00000000-0000-0000-0000-000000000002';
@@ -602,7 +604,12 @@ describe('ReservationService.cancelSeries', () => {
   });
 
   it('throws ForbiddenError when a student tries to cancel a series', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula', createdBy: OTHER_USER_ID, requesterUserId: null }, space: SEED.space },
+    ]);
+
     await expect(service.cancelSeries('series-1', USER_ID, 'student')).rejects.toThrow(ForbiddenError);
+    expect(db._update.fn).not.toHaveBeenCalled();
   });
 
   it("throws ForbiddenError when a professor cancels someone else's series (MEL-023)", async () => {
@@ -859,5 +866,388 @@ describe('ReservationService.getSeriesImpact', () => {
     db.query.reservations.findMany.mockResolvedValue([]);
 
     await expect(service.getSeriesImpact('missing-series')).rejects.toThrow(NotFoundError);
+  });
+});
+
+// ─── MEL-025: reserve on behalf of someone else ─────────────────────────────
+
+const STAFF_ID = SEED.user.id; // Carlos Oliveira, staff
+const REQUESTER_ID = OTHER_USER_ID;
+const STAFF_USER = { ...SEED.user, disabledAt: null, deletedAt: null };
+const REQUESTER_USER = {
+  ...SEED.user,
+  id: REQUESTER_ID,
+  name: 'Dra. Maria Costa',
+  role: 'professor',
+  email: 'maria.costa@ufc.br',
+  disabledAt: null,
+  deletedAt: null,
+};
+
+/** The users the service loads by id (requester and acting staff). */
+function mockUsers(db: ReturnType<typeof createMockDb>, ...rows: Array<Record<string, unknown>>) {
+  db.query.users.findMany.mockResolvedValue(rows);
+}
+
+const dialect = new SQLiteSyncDialect();
+const toSql = (where: unknown) => dialect.sqlToQuery(where as SQL).sql;
+
+function insertedValues(db: ReturnType<typeof createMockDb>) {
+  return db._insert.values.mock.calls.map(([values]) => values);
+}
+
+function notifications(db: ReturnType<typeof createMockDb>) {
+  return insertedValues(db).filter((v) => 'title' in v && 'message' in v);
+}
+
+describe('ReservationService.create — on behalf of someone (MEL-025)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+  const base = { spaceId: SPACE_ID, date: DATE, startTime: START_TIME, endTime: END_TIME };
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._insert.returning.mockImplementation(async () => [insertedValues(db).at(-1)]);
+    mockUsers(db, STAFF_USER, REQUESTER_USER);
+  });
+
+  it('keeps staff as the owner and records a registered requester', async () => {
+    const result = await service.create(STAFF_ID, 'staff', 'Administração', {
+      ...base,
+      requesterUserId: REQUESTER_ID,
+      requesterContact: 'maria@ufc.br',
+    });
+
+    expect(result).toMatchObject({
+      userId: STAFF_ID,
+      createdBy: STAFF_ID,
+      requesterUserId: REQUESTER_ID,
+      requesterName: null,
+      requesterContact: 'maria@ufc.br',
+    });
+  });
+
+  it('records a free-text requester', async () => {
+    const result = await service.create(STAFF_ID, 'staff', 'Administração', {
+      ...base,
+      requesterName: 'Coordenação do CAU',
+    });
+
+    expect(result).toMatchObject({
+      userId: STAFF_ID,
+      createdBy: STAFF_ID,
+      requesterUserId: null,
+      requesterName: 'Coordenação do CAU',
+      requesterContact: null,
+    });
+  });
+
+  it('records created_by on a plain reservation too', async () => {
+    const result = await service.create(USER_ID, 'professor', SEED.space.department, base);
+    expect(result).toMatchObject({ userId: USER_ID, createdBy: USER_ID, requesterUserId: null, requesterName: null });
+  });
+
+  it.each(['student', 'professor'])('rejects requester fields from a %s with 403', async (role) => {
+    for (const fields of [{ requesterUserId: REQUESTER_ID }, { requesterName: 'Fulano' }, { requesterContact: 'x' }]) {
+      const err = await service.create(USER_ID, role, SEED.space.department, { ...base, ...fields }).catch((e) => e);
+      expect(err).toBeInstanceOf(ForbiddenError);
+    }
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['does not exist', undefined],
+    ['is disabled', { ...REQUESTER_USER, disabledAt: '2026-01-01T00:00:00.000Z' }],
+    ['is deleted', { ...REQUESTER_USER, deletedAt: '2026-01-01T00:00:00.000Z' }],
+    ['is maintenance', { ...REQUESTER_USER, role: 'maintenance' }],
+  ])('rejects a requester that %s with 400', async (_label, requester) => {
+    mockUsers(db, STAFF_USER, ...(requester ? [requester] : []));
+
+    const err = await service
+      .create(STAFF_ID, 'staff', 'Administração', { ...base, requesterUserId: REQUESTER_ID })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).statusCode).toBe(400);
+    expect((err as AppError).code).toBe('INVALID_REQUESTER');
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it('rejects staff naming themselves as the requester with 400', async () => {
+    const err = await service
+      .create(STAFF_ID, 'staff', 'Administração', { ...base, requesterUserId: STAFF_ID })
+      .catch((e) => e);
+    expect((err as AppError).statusCode).toBe(400);
+  });
+
+  it('notifies the registered requester and audits "<staff> reservou <sala> para <solicitante>"', async () => {
+    await service.create(STAFF_ID, 'staff', 'Administração', { ...base, requesterUserId: REQUESTER_ID });
+
+    expect(notifications(db)).toContainEqual(
+      expect.objectContaining({ userId: REQUESTER_ID, type: 'confirmed', message: expect.stringContaining('Carlos Oliveira') })
+    );
+    const audit = insertedValues(db).find((v) => v.actionType === 'create_reservation');
+    expect(audit.details).toContain('Carlos Oliveira reservou o espaço A101');
+    expect(audit.details).toContain('para Dra. Maria Costa');
+  });
+
+  it('audits a free-text requester and notifies nobody else', async () => {
+    await service.create(STAFF_ID, 'staff', 'Administração', { ...base, requesterName: 'Coordenação do CAU' });
+
+    const audit = insertedValues(db).find((v) => v.actionType === 'create_reservation');
+    expect(audit.details).toContain('para Coordenação do CAU');
+    expect(notifications(db).map((n) => n.userId)).toEqual([STAFF_ID]);
+  });
+});
+
+describe('ReservationService.createRecurring — on behalf of someone (MEL-025)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+  const base = {
+    spaceId: SPACE_ID,
+    startDate: '2099-06-01',
+    endDate: '2099-06-30',
+    dayOfWeek: 1,
+    startTime: START_TIME,
+    endTime: END_TIME,
+    description: 'Aula de Projeto',
+  };
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._insert.returning.mockImplementation(async () => [insertedValues(db).at(-1)]);
+    mockUsers(db, STAFF_USER, REQUESTER_USER);
+  });
+
+  it('stores the requester on the series and on every occurrence', async () => {
+    const result = await service.createRecurring(STAFF_ID, 'staff', 'Administração', {
+      ...base,
+      requesterUserId: REQUESTER_ID,
+      requesterContact: 'maria@ufc.br',
+    });
+
+    const recurrence = insertedValues(db).find((v) => v.id === result.recurrenceId);
+    expect(recurrence).toMatchObject({ createdBy: STAFF_ID, requesterUserId: REQUESTER_ID, requesterContact: 'maria@ufc.br' });
+    expect(result.created.length).toBeGreaterThan(0);
+    for (const reservation of result.created) {
+      expect(reservation).toMatchObject({ userId: STAFF_ID, createdBy: STAFF_ID, requesterUserId: REQUESTER_ID, requesterName: null });
+    }
+  });
+
+  it('stores a free-text requester on the series', async () => {
+    const result = await service.createRecurring(STAFF_ID, 'staff', 'Administração', { ...base, requesterName: 'Centro Acadêmico' });
+
+    const recurrence = insertedValues(db).find((v) => v.id === result.recurrenceId);
+    expect(recurrence).toMatchObject({ requesterUserId: null, requesterName: 'Centro Acadêmico' });
+    expect(result.created[0]).toMatchObject({ requesterName: 'Centro Acadêmico' });
+  });
+
+  it('rejects requester fields from a professor with 403', async () => {
+    await expect(
+      service.createRecurring(OTHER_USER_ID, 'professor', SEED.space.department, { ...base, requesterName: 'Fulano' })
+    ).rejects.toThrow(ForbiddenError);
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it('rejects an inactive requester with 400', async () => {
+    mockUsers(db, STAFF_USER, { ...REQUESTER_USER, disabledAt: '2026-01-01T00:00:00.000Z' });
+
+    const err = await service
+      .createRecurring(STAFF_ID, 'staff', 'Administração', { ...base, requesterUserId: REQUESTER_ID })
+      .catch((e) => e);
+    expect((err as AppError).statusCode).toBe(400);
+    expect(db._insert.fn).not.toHaveBeenCalled();
+  });
+
+  it('notifies the requester once and audits the series for them', async () => {
+    await service.createRecurring(STAFF_ID, 'staff', 'Administração', { ...base, requesterUserId: REQUESTER_ID });
+
+    const toRequester = notifications(db).filter((n) => n.userId === REQUESTER_ID);
+    expect(toRequester).toHaveLength(1);
+    expect(toRequester[0]).toMatchObject({ type: 'confirmed' });
+    const audit = insertedValues(db).find((v) => v.actionType === 'create_recurring_reservation');
+    expect(audit.details).toContain('Carlos Oliveira reservou');
+    expect(audit.details).toContain('para Dra. Maria Costa');
+  });
+});
+
+describe('ReservationService — registered requester rights and notifications (MEL-025)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+  const DEPT = SEED.space.department;
+  const onBehalf = { ...SEED.reservation, userId: STAFF_ID, createdBy: STAFF_ID, requesterUserId: REQUESTER_ID, requesterName: null };
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db.query.reservations.findFirst.mockResolvedValue(onBehalf);
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._update.returning.mockImplementation(async () => [{ ...onBehalf, ...db._update.set.mock.calls.at(-1)?.[0] }]);
+    mockUsers(db, STAFF_USER, REQUESTER_USER);
+  });
+
+  it('lets the requester cancel and notifies the staff owner', async () => {
+    await expect(service.cancel(onBehalf.id, REQUESTER_ID, 'professor')).resolves.toMatchObject({ status: 'canceled' });
+    expect(notifications(db)).toContainEqual(expect.objectContaining({ userId: STAFF_ID, type: 'canceled' }));
+    expect(notifications(db).some((n) => n.userId === REQUESTER_ID)).toBe(false);
+  });
+
+  it('does not let the requester edit (403)', async () => {
+    await expect(
+      service.update(onBehalf.id, REQUESTER_ID, 'professor', DEPT, { description: 'x' })
+    ).rejects.toThrow(ForbiddenError);
+    expect(db._update.fn).not.toHaveBeenCalled();
+  });
+
+  it('notifies the requester when staff edits the reservation', async () => {
+    await service.update(onBehalf.id, STAFF_ID, 'staff', 'Administração', { startTime: '14:00', endTime: '15:00' });
+
+    expect(notifications(db)).toContainEqual(
+      expect.objectContaining({ userId: REQUESTER_ID, type: 'modified', message: expect.stringContaining('A101') })
+    );
+  });
+
+  it('notifies the requester when staff cancels the reservation', async () => {
+    await service.cancel(onBehalf.id, STAFF_ID, 'staff', 'Sala interditada');
+
+    expect(notifications(db)).toContainEqual(
+      expect.objectContaining({ userId: REQUESTER_ID, type: 'canceled', message: expect.stringContaining('Sala interditada') })
+    );
+  });
+
+  it('does not notify a free-text requester (no account)', async () => {
+    db.query.reservations.findFirst.mockResolvedValue({ ...onBehalf, requesterUserId: null, requesterName: 'Fulano' });
+
+    await service.cancel(onBehalf.id, STAFF_ID, 'staff');
+    expect(notifications(db)).toHaveLength(0);
+  });
+
+  describe('series', () => {
+    const series = (overrides: Record<string, unknown> = {}) => [
+      {
+        ...onBehalf,
+        recurrenceId: 'series-1',
+        recurrence: { id: 'series-1', description: 'Aula', createdBy: STAFF_ID, requesterUserId: REQUESTER_ID },
+        space: SEED.space,
+        ...overrides,
+      },
+      {
+        ...onBehalf,
+        id: 'r-2',
+        date: '2099-06-22',
+        recurrenceId: 'series-1',
+        recurrence: { id: 'series-1', description: 'Aula', createdBy: STAFF_ID, requesterUserId: REQUESTER_ID },
+        space: SEED.space,
+        ...overrides,
+      },
+    ];
+
+    beforeEach(() => {
+      db._update.returning.mockResolvedValue([{ ...onBehalf, status: 'canceled' }]);
+    });
+
+    it.each(['student', 'professor'])('lets a %s requester cancel the series', async (role) => {
+      db.query.reservations.findMany.mockResolvedValue(series());
+
+      await expect(service.cancelSeries('series-1', REQUESTER_ID, role)).resolves.toBeDefined();
+      expect(db._update.fn).toHaveBeenCalled();
+    });
+
+    it('notifies the requester once when staff cancels the series', async () => {
+      db.query.reservations.findMany.mockResolvedValue(series());
+
+      await service.cancelSeries('series-1', STAFF_ID, 'staff');
+
+      const toRequester = notifications(db).filter((n) => n.userId === REQUESTER_ID);
+      expect(toRequester).toHaveLength(1);
+      expect(toRequester[0]).toMatchObject({ type: 'canceled', message: expect.stringContaining('2 reservas') });
+    });
+
+    it('does not let another student cancel the series', async () => {
+      db.query.reservations.findMany.mockResolvedValue(series());
+
+      await expect(service.cancelSeries('series-1', USER_ID, 'student')).rejects.toThrow(ForbiddenError);
+    });
+  });
+});
+
+describe('ReservationService.listByUser (MEL-025)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+  });
+
+  it('includes reservations where I am the registered requester, with stable ordering and pagination', async () => {
+    db.query.reservations.findMany.mockResolvedValue([]);
+
+    await service.listByUser(REQUESTER_ID, 'professor', 2, 10);
+
+    const args = db.query.reservations.findMany.mock.calls[0][0];
+    expect(toSql(args.where)).toMatch(/"user_id" = \? or .*"requester_user_id" = \?/);
+    expect(args.limit).toBe(10);
+    expect(args.offset).toBe(10);
+    expect(args.orderBy).toBeTypeOf('function');
+  });
+
+  it('marks reservations made for me and hides the contact from non-staff', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      {
+        ...SEED.reservation,
+        userId: STAFF_ID,
+        createdBy: STAFF_ID,
+        requesterUserId: REQUESTER_ID,
+        requesterName: null,
+        requesterContact: 'maria@ufc.br',
+        creator: { id: STAFF_ID, name: 'Carlos Oliveira' },
+        requester: { id: REQUESTER_ID, name: 'Dra. Maria Costa' },
+        space: SEED.space,
+      },
+    ]);
+
+    const [row] = await service.listByUser(REQUESTER_ID, 'professor', 1, 20);
+
+    expect(row).toMatchObject({
+      onBehalfOfMe: true,
+      registeredBy: { id: STAFF_ID, name: 'Carlos Oliveira' },
+      requester: { userId: REQUESTER_ID, name: 'Dra. Maria Costa' },
+    });
+    expect(row).not.toHaveProperty('requesterContact');
+  });
+
+  it('shows staff the requester and contact of reservations they registered', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      {
+        ...SEED.reservation,
+        userId: STAFF_ID,
+        createdBy: STAFF_ID,
+        requesterUserId: null,
+        requesterName: 'Coordenação do CAU',
+        requesterContact: '85 3366-0000',
+        creator: { id: STAFF_ID, name: 'Carlos Oliveira' },
+        requester: null,
+        space: SEED.space,
+      },
+    ]);
+
+    const [row] = await service.listByUser(STAFF_ID, 'staff', 1, 20);
+
+    expect(row).toMatchObject({
+      onBehalfOfMe: false,
+      requester: { userId: null, name: 'Coordenação do CAU' },
+      requesterContact: '85 3366-0000',
+    });
   });
 });

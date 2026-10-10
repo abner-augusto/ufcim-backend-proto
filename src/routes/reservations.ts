@@ -11,6 +11,7 @@ import {
   updateReservationSchema,
 } from '@/validators/reservation.schema';
 import { paginationSchema } from '@/validators/common.schema';
+import { withRequesterContactFor } from '@/lib/reservation-privacy';
 import type { z } from 'zod';
 
 export const reservationRoutes = new Hono<AppEnv>();
@@ -69,14 +70,15 @@ reservationRoutes.patch(
     const user = c.get('user');
     const body = c.get('validatedBody') as z.infer<typeof updateReservationSchema>;
 
+    const role = extractRole(user) ?? 'student';
     const reservation = await service.update(
       c.req.param('id'),
       user.sub,
-      extractRole(user) ?? 'student',
+      role,
       user.department ?? 'Unknown',
       body
     );
-    return c.json(reservation);
+    return c.json(withRequesterContactFor(role, reservation));
   }
 );
 
@@ -99,15 +101,17 @@ reservationRoutes.patch(
       // body absent or not JSON — cancelReason stays undefined
     }
 
-    const result = await service.cancel(c.req.param('id'), user.sub, extractRole(user) ?? 'student', cancelReason);
-    return c.json(result);
+    const role = extractRole(user) ?? 'student';
+    const result = await service.cancel(c.req.param('id'), user.sub, role, cancelReason);
+    return c.json(withRequesterContactFor(role, result));
   }
 );
 
-// PATCH /reservations/series/:recurrenceId/cancel (series owner or staff)
+// PATCH /reservations/series/:recurrenceId/cancel (series owner, staff, or the
+// series' registered requester — who may be a student, MEL-025)
 reservationRoutes.patch(
   '/series/:recurrenceId/cancel',
-  rbac(['professor', 'staff']),
+  rbac(['student', 'professor', 'staff']),
   async (c) => {
     const db = createDb(c.env.DB);
     const service = new ReservationService(db);
@@ -123,15 +127,17 @@ reservationRoutes.patch(
       // body absent or not JSON — cancelReason stays undefined
     }
 
-    const result = await service.cancelSeries(c.req.param('recurrenceId'), user.sub, extractRole(user) ?? 'professor', cancelReason);
-    return c.json(result);
+    const role = extractRole(user) ?? 'student';
+    const result = await service.cancelSeries(c.req.param('recurrenceId'), user.sub, role, cancelReason);
+    return c.json(result.map((row) => withRequesterContactFor(role, row)));
   }
 );
 
-// GET /reservations/series/:recurrenceId/impact — preview cancel impact (professor, staff)
+// GET /reservations/series/:recurrenceId/impact — preview cancel impact
+// (professor, staff, and a student who is the series' requester, MEL-025)
 reservationRoutes.get(
   '/series/:recurrenceId/impact',
-  rbac(['professor', 'staff']),
+  rbac(['student', 'professor', 'staff']),
   async (c) => {
     const db = createDb(c.env.DB);
     const service = new ReservationService(db);
@@ -141,7 +147,8 @@ reservationRoutes.get(
   }
 );
 
-// GET /reservations/mine — current user's reservations (any role)
+// GET /reservations/mine — reservations I own or that staff registered for me
+// (MEL-025), any role
 reservationRoutes.get(
   '/mine',
   validateQuery(paginationSchema),
@@ -149,8 +156,9 @@ reservationRoutes.get(
     const db = createDb(c.env.DB);
     const service = new ReservationService(db);
     const { page, limit } = c.get('validatedQuery') as z.infer<typeof paginationSchema>;
+    const user = c.get('user');
 
-    const data = await service.listByUser(c.get('user').sub, page, limit);
+    const data = await service.listByUser(user.sub, extractRole(user) ?? 'student', page, limit);
     return c.json(data);
   }
 );

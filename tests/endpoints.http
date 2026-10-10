@@ -56,6 +56,41 @@ Authorization: Bearer {{staff_token}}
 GET {{base}}/api/v1/users
 Authorization: Bearer {{student_token}}
 
+### GET /users/search?q= (staff only, MEL-025) — expect 200, max 10 active users
+GET {{base}}/api/v1/users/search?q=maria
+Authorization: Bearer {{staff_token}}
+
+### GET /users/search (professor) — expect 403
+GET {{base}}/api/v1/users/search?q=maria
+Authorization: Bearer {{professor_token}}
+
+### POST /reservations on behalf of a registered user (staff, MEL-025) — expect 201
+POST {{base}}/api/v1/reservations
+Authorization: Bearer {{staff_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000011",
+  "date": "2026-06-10",
+  "startTime": "10:00",
+  "endTime": "11:00",
+  "requesterUserId": "00000000-0000-0000-0000-000000000002",
+  "requesterContact": "maria.costa@ufc.br"
+}
+
+### POST /reservations with requester fields (professor) — expect 403
+POST {{base}}/api/v1/reservations
+Authorization: Bearer {{professor_token}}
+Content-Type: application/json
+
+{
+  "spaceId": "00000000-0000-0000-0000-000000000011",
+  "date": "2026-06-10",
+  "startTime": "13:00",
+  "endTime": "14:00",
+  "requesterName": "Centro Acadêmico"
+}
+
 ###############################################################################
 # 2 — Spaces
 ###############################################################################

@@ -2,7 +2,7 @@ import { eq, and, gte, lte, inArray } from 'drizzle-orm';
 import { spaces, reservations, blockings } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { NotFoundError, AppError } from '@/middleware/error-handler';
-import { formatReservationAuthor } from '@/lib/reservation-privacy';
+import { formatReservationAuthor, reservationAuthorInput } from '@/lib/reservation-privacy';
 import { departmentName } from '@/lib/department-name';
 import {
   buildAvailability,
@@ -154,7 +154,7 @@ export class ReportService {
         gte(reservations.date, startDate),
         lte(reservations.date, endDate)
       ),
-      with: { user: true, recurrence: true },
+      with: { user: true, requester: true, recurrence: true },
     });
 
     // Single query for all blockings in range
@@ -303,11 +303,10 @@ export class ReportService {
 
     // Build reservation details with privacy
     const reservationDetails = confirmedReservations.map((r) => {
-      const author = r.user
-        ? formatReservationAuthor(
-            { ownerId: r.userId, ownerName: r.user.name, ownerRole: r.user.role },
-            viewer
-          )
+      // The requester is the author when staff booked on someone's behalf (MEL-025).
+      const authorInput = reservationAuthorInput(r);
+      const author = authorInput
+        ? formatReservationAuthor(authorInput, viewer)
         : { displayName: 'desconhecido', role: 'student' };
 
       return {

@@ -130,18 +130,32 @@ export const equipmentReportsRelations = relations(equipmentReports, ({ one }) =
 }));
 
 // ─── Recurrences (recorrencias) ─────────────────────────────────────────────
+// Requester columns (MEL-025): staff may register a series or reservation on
+// behalf of someone else. Either `requesterUserId` (a registered user) or
+// `requesterName` (free text) is set, never both; `requesterContact` is
+// optional and only ever exposed to staff.
 export const recurrences = sqliteTable('recurrences', {
   id: text('id').primaryKey(),
   description: text('description').notNull(),
   createdBy: text('created_by').notNull().references(() => users.id),
+  requesterUserId: text('requester_user_id').references(() => users.id),
+  requesterName: text('requester_name'),
+  requesterContact: text('requester_contact'),
   createdAt: text('created_at').notNull(),
 });
 
 // ─── Reservations (reservas) ────────────────────────────────────────────────
+// `userId` is the owner: whoever registered the reservation, staff included
+// when booking on someone's behalf (MEL-025). `createdBy` records the same
+// person explicitly; the requester columns record who asked for it.
 export const reservations = sqliteTable('reservations', {
   id: text('id').primaryKey(),
   spaceId: text('space_id').notNull().references(() => spaces.id),
   userId: text('user_id').notNull().references(() => users.id),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  requesterUserId: text('requester_user_id').references(() => users.id),
+  requesterName: text('requester_name'),
+  requesterContact: text('requester_contact'),
   date: text('date').notNull(), // ISO date: YYYY-MM-DD
   timeSlot: text('time_slot').notNull(), // 'morning' | 'afternoon' | 'evening'
   startTime: text('start_time').notNull(),
@@ -158,6 +172,7 @@ export const reservations = sqliteTable('reservations', {
   confirmedSlotUnq: uniqueIndex('reservations_confirmed_slot_unq')
     .on(t.spaceId, t.date, t.startTime, t.endTime)
     .where(sql`status = 'confirmed'`),
+  requesterIdx: index('reservations_requester_idx').on(t.requesterUserId),
 }));
 
 // ─── Blockings (bloqueios) ──────────────────────────────────────────────────
@@ -327,7 +342,7 @@ export const departmentsRelations = relations(departments, ({ many }) => ({
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   department: one(departments, { fields: [users.department], references: [departments.id] }),
-  reservations: many(reservations),
+  reservations: many(reservations, { relationName: 'reservationOwner' }),
   blockings: many(blockings),
   notifications: many(notifications),
   auditLogs: many(auditLogs),
@@ -348,13 +363,16 @@ export const spacesRelations = relations(spaces, ({ one, many }) => ({
 }));
 
 export const recurrencesRelations = relations(recurrences, ({ one, many }) => ({
-  creator: one(users, { fields: [recurrences.createdBy], references: [users.id] }),
+  creator: one(users, { fields: [recurrences.createdBy], references: [users.id], relationName: 'recurrenceCreator' }),
+  requester: one(users, { fields: [recurrences.requesterUserId], references: [users.id], relationName: 'recurrenceRequester' }),
   reservations: many(reservations),
 }));
 
 export const reservationsRelations = relations(reservations, ({ one }) => ({
   space: one(spaces, { fields: [reservations.spaceId], references: [spaces.id] }),
-  user: one(users, { fields: [reservations.userId], references: [users.id] }),
+  user: one(users, { fields: [reservations.userId], references: [users.id], relationName: 'reservationOwner' }),
+  creator: one(users, { fields: [reservations.createdBy], references: [users.id], relationName: 'reservationCreator' }),
+  requester: one(users, { fields: [reservations.requesterUserId], references: [users.id], relationName: 'reservationRequester' }),
   recurrence: one(recurrences, { fields: [reservations.recurrenceId], references: [recurrences.id] }),
 }));
 

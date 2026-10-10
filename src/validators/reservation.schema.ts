@@ -5,6 +5,30 @@ import { meetsMinimumDuration } from '@/lib/schedule';
 const END_AFTER_START_MESSAGE = 'O horário de término deve ser posterior ao horário de início';
 const MIN_DURATION_MESSAGE = 'A reserva deve durar pelo menos 1 hora';
 
+/**
+ * Optional requester (MEL-025): staff registering on someone's behalf send a
+ * registered user (`requesterUserId`) or a free-text name, never both, plus an
+ * optional contact. Only staff may send any of them; the service returns 403
+ * otherwise and 400 for an unknown or inactive user.
+ */
+const requesterFields = {
+  requesterUserId: z.string().trim().min(1).max(64).optional(),
+  requesterName: z.string().trim().min(1, 'Informe o nome do solicitante').max(100).optional(),
+  requesterContact: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .transform((value) => value || undefined),
+};
+
+type RequesterFields = { requesterUserId?: string; requesterName?: string; requesterContact?: string };
+
+const ONE_REQUESTER_MESSAGE = 'Informe um usuário cadastrado ou um nome, não os dois';
+const CONTACT_NEEDS_REQUESTER_MESSAGE = 'Informe o solicitante para registrar o contato';
+const hasOneRequester = (d: RequesterFields) => !(d.requesterUserId && d.requesterName);
+const contactHasRequester = (d: RequesterFields) => !d.requesterContact || !!(d.requesterUserId || d.requesterName);
+
 export const createReservationSchema = z
   .object({
     spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
@@ -13,7 +37,10 @@ export const createReservationSchema = z
     endTime: slotEndTimeSchema,
     purpose: z.string().max(100).optional(),
     description: z.string().trim().max(100).optional(),
+    ...requesterFields,
   })
+  .refine(hasOneRequester, { message: ONE_REQUESTER_MESSAGE, path: ['requesterName'] })
+  .refine(contactHasRequester, { message: CONTACT_NEEDS_REQUESTER_MESSAGE, path: ['requesterContact'] })
   .refine((data) => data.startTime < data.endTime, {
     message: END_AFTER_START_MESSAGE,
     path: ['endTime'],
@@ -33,7 +60,10 @@ export const createRecurringReservationSchema = z
     endTime: slotEndTimeSchema,
     description: z.string().trim().max(100).optional(),
     purpose: z.string().max(100).optional(),
+    ...requesterFields,
   })
+  .refine(hasOneRequester, { message: ONE_REQUESTER_MESSAGE, path: ['requesterName'] })
+  .refine(contactHasRequester, { message: CONTACT_NEEDS_REQUESTER_MESSAGE, path: ['requesterContact'] })
   .refine((d) => new Date(d.endDate) > new Date(d.startDate), {
     message: 'A data final deve ser posterior à data inicial',
     path: ['endDate'],
