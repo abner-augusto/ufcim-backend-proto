@@ -373,7 +373,7 @@ export class ReservationService {
       'Você só pode cancelar as próprias séries de reservas'
     );
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = campusToday();
     const upcoming = seriesReservations.filter((r) => r.status === 'confirmed' && r.date >= today);
     if (upcoming.length === 0) {
       throw new AppError(400, 'A série de reservas recorrentes já está cancelada ou todas as ocorrências já passaram', 'ALREADY_CANCELED');
@@ -418,7 +418,7 @@ export class ReservationService {
       throw new NotFoundError('Recurring reservation series');
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = campusToday();
     const upcoming = seriesReservations
       .filter((r) => r.status === 'confirmed' && r.date >= today)
       .sort((a, b) => a.date.localeCompare(b.date));
@@ -563,7 +563,7 @@ export class ReservationService {
       throw new ForbiddenError('Sua função não permite criar reservas');
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = campusToday();
     const [row] = await this.db
       .select({ total: count() })
       .from(reservations)
