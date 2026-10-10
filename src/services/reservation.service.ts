@@ -303,7 +303,8 @@ export class ReservationService {
     return this.db.query.reservations.findMany({
       where: eq(reservations.userId, userId),
       with: { space: true },
-      orderBy: (r, { desc }) => [desc(r.date)],
+      // id tiebreak keeps page boundaries stable when many rows share a date.
+      orderBy: (r, { desc }) => [desc(r.date), desc(r.startTime), desc(r.id)],
       limit,
       offset: (page - 1) * limit,
     });
