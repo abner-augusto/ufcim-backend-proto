@@ -187,6 +187,38 @@ describe('createRecurringReservationSchema', () => {
     expect(createRecurringReservationSchema.safeParse({ ...base, dayOfWeek: -1 }).success).toBe(false);
   });
 
+  it('normalizes the legacy dayOfWeek into daysOfWeek', () => {
+    const result = createRecurringReservationSchema.safeParse(base);
+    expect(result.success && result.data.daysOfWeek).toEqual([1]);
+  });
+
+  describe('daysOfWeek', () => {
+    const { dayOfWeek: _dayOfWeek, ...multi } = base;
+
+    it('accepts up to 3 weekdays, sorted and deduplicated', () => {
+      const result = createRecurringReservationSchema.safeParse({ ...multi, daysOfWeek: [5, 1, 3, 1] });
+      expect(result.success && result.data.daysOfWeek).toEqual([1, 3, 5]);
+    });
+
+    it('rejects more than 3 weekdays', () => {
+      const result = createRecurringReservationSchema.safeParse({ ...multi, daysOfWeek: [1, 2, 3, 4] });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((i) => i.message)).toContain('Selecione no máximo 3 dias da semana');
+      }
+    });
+
+    it('rejects an empty list, an out-of-range day, or no day at all', () => {
+      expect(createRecurringReservationSchema.safeParse({ ...multi, daysOfWeek: [] }).success).toBe(false);
+      expect(createRecurringReservationSchema.safeParse({ ...multi, daysOfWeek: [7] }).success).toBe(false);
+      expect(createRecurringReservationSchema.safeParse(multi).success).toBe(false);
+    });
+
+    it('rejects sending both daysOfWeek and dayOfWeek', () => {
+      expect(createRecurringReservationSchema.safeParse({ ...base, daysOfWeek: [2] }).success).toBe(false);
+    });
+  });
+
   it('accepts empty description (optional, no minimum length)', () => {
     expect(createRecurringReservationSchema.safeParse({ ...base, description: '' }).success).toBe(true);
   });

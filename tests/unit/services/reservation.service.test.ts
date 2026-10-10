@@ -400,7 +400,7 @@ describe('ReservationService.createRecurring', () => {
         spaceId: SPACE_ID,
         startDate: '2099-06-02',
         endDate: '2099-06-30',
-        dayOfWeek: 1,
+        daysOfWeek: [1],
         startTime: START_TIME,
         endTime: END_TIME,
         description: 'Weekly',
@@ -414,7 +414,7 @@ describe('ReservationService.createRecurring', () => {
         spaceId: SPACE_ID,
         startDate: '2099-06-02',
         endDate: '2099-06-30',
-        dayOfWeek: 1,
+        daysOfWeek: [1],
         startTime: START_TIME,
         endTime: END_TIME,
         description: 'Weekly',
@@ -430,7 +430,7 @@ describe('ReservationService.createRecurring', () => {
         spaceId: SPACE_ID,
         startDate: '2099-06-02',
         endDate: '2099-06-30',
-        dayOfWeek: 1,
+        daysOfWeek: [1],
         startTime: START_TIME,
         endTime: END_TIME,
         description: 'Weekly',
@@ -446,7 +446,7 @@ describe('ReservationService.createRecurring', () => {
         spaceId: SPACE_ID,
         startDate: '2099-06-02',
         endDate: '2099-06-30',
-        dayOfWeek: 1,
+        daysOfWeek: [1],
         startTime: START_TIME,
         endTime: END_TIME,
         description: 'Weekly',
@@ -464,7 +464,7 @@ describe('ReservationService.createRecurring', () => {
       spaceId: SPACE_ID,
       startDate: '2099-06-02', // Monday
       endDate: '2099-06-16',   // 3 Mondays: 2, 9, 16
-      dayOfWeek: 1,
+      daysOfWeek: [1],
       startTime: START_TIME,
       endTime: END_TIME,
       description: 'Weekly lecture',
@@ -487,7 +487,7 @@ describe('ReservationService.createRecurring', () => {
       spaceId: SPACE_ID,
       startDate: '2099-06-02', // Monday
       endDate: '2099-06-16',   // 3 Mondays
-      dayOfWeek: 1,
+      daysOfWeek: [1],
       startTime: START_TIME,
       endTime: END_TIME,
       description: 'Weekly lecture',
@@ -509,7 +509,7 @@ describe('ReservationService.createRecurring', () => {
       spaceId: SPACE_ID,
       startDate: '2099-06-02',
       endDate: '2099-06-16',
-      dayOfWeek: 1,
+      daysOfWeek: [1],
       startTime: START_TIME,
       endTime: END_TIME,
       description: 'Weekly lecture',
@@ -517,6 +517,29 @@ describe('ReservationService.createRecurring', () => {
 
     expect(result.skipped).toHaveLength(1);
     expect(result.skipped[0].reason).toBe('Faixa de horário indisponível');
+  });
+
+  it('creates one series across several weekdays, in calendar order', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    const result = await service.createRecurring(OTHER_USER_ID, 'professor', SEED.space.department, {
+      spaceId: SPACE_ID,
+      startDate: '2099-06-01', // Monday
+      endDate: '2099-06-14',
+      daysOfWeek: [1, 3, 5],
+      startTime: START_TIME,
+      endTime: END_TIME,
+      description: 'Ateliê de Projeto',
+    });
+
+    const reservationRows = insertedValues(db).filter((v) => 'recurrenceId' in v);
+    expect(reservationRows.map((v) => v.date)).toEqual([
+      '2099-06-01', '2099-06-03', '2099-06-05', '2099-06-08', '2099-06-10', '2099-06-12',
+    ]);
+    expect(new Set(reservationRows.map((v) => v.recurrenceId))).toEqual(new Set([result.recurrenceId]));
+    expect(result.created).toHaveLength(6);
   });
 });
 
@@ -1011,7 +1034,7 @@ describe('ReservationService.createRecurring — on behalf of someone (MEL-025)'
     spaceId: SPACE_ID,
     startDate: '2099-06-01',
     endDate: '2099-06-30',
-    dayOfWeek: 1,
+    daysOfWeek: [1],
     startTime: START_TIME,
     endTime: END_TIME,
     description: 'Aula de Projeto',

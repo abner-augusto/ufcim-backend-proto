@@ -53,7 +53,8 @@ interface CreateRecurringInput extends RequesterInput {
   spaceId: string;
   startDate: string;
   endDate: string;
-  dayOfWeek: number;
+  /** 0 = Sunday; up to 3 days, validated by the schema. */
+  daysOfWeek: number[];
   startTime: string;
   endTime: string;
   description?: string;
@@ -182,7 +183,7 @@ export class ReservationService {
 
     this.assertDepartmentAccess(userRole, userDept, space.department);
 
-    const dates = this.generateRecurringDates(input.startDate, input.endDate, input.dayOfWeek);
+    const dates = this.generateRecurringDates(input.startDate, input.endDate, input.daysOfWeek);
 
     const recurrenceId = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -741,18 +742,17 @@ export class ReservationService {
     return reservation;
   }
 
-  private generateRecurringDates(start: string, end: string, dayOfWeek: number): string[] {
+  /** Every date in [start, end] falling on one of `daysOfWeek`, in calendar order. */
+  private generateRecurringDates(start: string, end: string, daysOfWeek: number[]): string[] {
+    const days = new Set(daysOfWeek);
     const dates: string[] = [];
+    // ISO dates parse as UTC midnight, so stay in UTC to avoid local-offset drift.
     const current = new Date(start);
     const endDate = new Date(end);
 
-    while (current.getDay() !== dayOfWeek) {
-      current.setDate(current.getDate() + 1);
-    }
-
     while (current <= endDate) {
-      dates.push(current.toISOString().split('T')[0]);
-      current.setDate(current.getDate() + 7);
+      if (days.has(current.getUTCDay())) dates.push(current.toISOString().split('T')[0]);
+      current.setUTCDate(current.getUTCDate() + 1);
     }
 
     return dates;

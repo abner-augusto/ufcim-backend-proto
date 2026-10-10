@@ -50,12 +50,27 @@ export const createReservationSchema = z
     path: ['endTime'],
   });
 
+const weekdaySchema = z.number().int().min(0).max(6); // 0 = Sunday
+export const MAX_RECURRING_WEEKDAYS = 3;
+
+/**
+ * A series repeats on up to 3 weekdays (`daysOfWeek`). `dayOfWeek` is the
+ * single-day field older clients still send; exactly one of the two is
+ * required, and the parsed body always carries `daysOfWeek`, sorted and unique.
+ */
 export const createRecurringReservationSchema = z
   .object({
     spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
     startDate: futureDateSchema,
     endDate: futureDateSchema,
-    dayOfWeek: z.number().int().min(0).max(6), // 0 = Sunday
+    daysOfWeek: z
+      .array(weekdaySchema)
+      .min(1, 'Selecione ao menos um dia da semana')
+      .refine((days) => new Set(days).size <= MAX_RECURRING_WEEKDAYS, {
+        message: `Selecione no máximo ${MAX_RECURRING_WEEKDAYS} dias da semana`,
+      })
+      .optional(),
+    dayOfWeek: weekdaySchema.optional(),
     startTime: slotStartTimeSchema,
     endTime: slotEndTimeSchema,
     description: z.string().trim().max(100).optional(),
@@ -64,6 +79,10 @@ export const createRecurringReservationSchema = z
   })
   .refine(hasOneRequester, { message: ONE_REQUESTER_MESSAGE, path: ['requesterName'] })
   .refine(contactHasRequester, { message: CONTACT_NEEDS_REQUESTER_MESSAGE, path: ['requesterContact'] })
+  .refine((d) => (d.daysOfWeek === undefined) !== (d.dayOfWeek === undefined), {
+    message: 'Selecione ao menos um dia da semana',
+    path: ['daysOfWeek'],
+  })
   .refine((d) => new Date(d.endDate) > new Date(d.startDate), {
     message: 'A data final deve ser posterior à data inicial',
     path: ['endDate'],
@@ -75,7 +94,11 @@ export const createRecurringReservationSchema = z
   .refine((d) => meetsMinimumDuration(d.startTime, d.endTime), {
     message: MIN_DURATION_MESSAGE,
     path: ['endTime'],
-  });
+  })
+  .transform(({ dayOfWeek, daysOfWeek, ...rest }) => ({
+    ...rest,
+    daysOfWeek: [...new Set(daysOfWeek ?? [dayOfWeek!])].sort((a, b) => a - b),
+  }));
 
 /**
  * PATCH /reservations/:id (MEL-023). The space, status and purpose are not

@@ -85,7 +85,7 @@ describe('advisor plan regressions', () => {
       spaceId: SEED.space.id,
       startDate: '2099-06-02',
       endDate: '2099-06-16',
-      dayOfWeek: 1,
+      daysOfWeek: [1],
       startTime: '09:00',
       endTime: '10:00',
       description: 'Weekly lecture',
