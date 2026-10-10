@@ -82,4 +82,31 @@ describe('createBlockingSchema', () => {
 
     expect(parsed.success).toBe(false);
   });
+
+  it('accepts half-hour times (MEL-024)', () => {
+    const parsed = createBlockingSchema.safeParse({
+      ...BASE,
+      date: '2099-06-15',
+      startTime: '16:30',
+      endTime: '18:00',
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it('rejects a blocking shorter than 1 hour (MEL-024)', () => {
+    const parsed = createBlockingSchema.safeParse({
+      ...BASE,
+      date: '2099-06-15',
+      startTime: '16:00',
+      endTime: '16:30',
+    });
+
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues.map((i) => i.message)).toContain(
+        'O bloqueio deve durar pelo menos 1 hora'
+      );
+    }
+  });
 });

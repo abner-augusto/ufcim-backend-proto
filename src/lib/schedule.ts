@@ -1,7 +1,17 @@
 export const DEFAULT_CLOSED_FROM = '22:00';
 export const DEFAULT_CLOSED_TO = '07:00';
+/** Hour-aligned times: still used for a space's closed hours (`closedFrom`/`closedTo`). */
 export const HOURLY_TIME_REGEX = /^([01]\d|2[0-3]):00$/;
 export const BOUNDARY_TIME_REGEX = /^(?:([01]\d|2[0-3]):00|24:00)$/;
+
+/** Booking granularity (MEL-024): reservations and blockings move in 30-minute steps. */
+export const SLOT_MINUTES = 30;
+/** Shortest reservation, series occurrence or blocking accepted (MEL-024). */
+export const MIN_DURATION_MINUTES = 60;
+/** A booking start: `HH:00` or `HH:30`. */
+export const SLOT_START_TIME_REGEX = /^([01]\d|2[0-3]):(00|30)$/;
+/** A booking end: `HH:00`, `HH:30` or `24:00`. */
+export const SLOT_END_TIME_REGEX = /^(?:([01]\d|2[0-3]):(00|30)|24:00)$/;
 
 export function timeToMinutes(time: string) {
   const [hours, minutes] = time.split(':').map(Number);
@@ -29,6 +39,19 @@ export function isBoundaryTime(value: string) {
   return BOUNDARY_TIME_REGEX.test(value);
 }
 
+export function isSlotStartTime(value: string) {
+  return SLOT_START_TIME_REGEX.test(value);
+}
+
+export function isSlotEndTime(value: string) {
+  return SLOT_END_TIME_REGEX.test(value);
+}
+
+/** True when `startTime`–`endTime` lasts at least {@link MIN_DURATION_MINUTES}. */
+export function meetsMinimumDuration(startTime: string, endTime: string) {
+  return timeToMinutes(endTime) - timeToMinutes(startTime) >= MIN_DURATION_MINUTES;
+}
+
 export function normalizeClosedHours(closedFrom?: string | null, closedTo?: string | null) {
   return {
     closedFrom: isHourlyTime(closedFrom ?? '') ? closedFrom! : DEFAULT_CLOSED_FROM,
@@ -37,7 +60,7 @@ export function normalizeClosedHours(closedFrom?: string | null, closedTo?: stri
 }
 
 function normalizeInterval(startTime?: string | null, endTime?: string | null) {
-  if (!isHourlyTime(startTime ?? '') || !isBoundaryTime(endTime ?? '')) return null;
+  if (!isSlotStartTime(startTime ?? '') || !isSlotEndTime(endTime ?? '')) return null;
   if (timeToMinutes(startTime!) >= timeToMinutes(endTime!)) return null;
 
   return { startTime: startTime!, endTime: endTime! };
@@ -93,12 +116,19 @@ export function overlapsClosedHours(
   );
 }
 
-export function buildHourlyAvailability(
+export type SlotStatus = 'closed' | 'blocked' | 'reserved' | 'available';
+
+/**
+ * Day availability in `stepMinutes` slots (default {@link SLOT_MINUTES}: 48 slots).
+ * Precedence per slot: closed > blocked > reserved > available.
+ */
+export function buildAvailability(
   closedFrom: string,
   closedTo: string,
   reservations: Array<{ startTime: string; endTime: string }>,
-  blockings: Array<{ startTime: string; endTime: string }>
-) {
+  blockings: Array<{ startTime: string; endTime: string }>,
+  stepMinutes: number = SLOT_MINUTES
+): Array<{ startTime: string; endTime: string; status: SlotStatus }> {
   const normalizedClosedHours = normalizeClosedHours(closedFrom, closedTo);
   const normalizedReservations = reservations
     .map((reservation) => normalizeInterval(reservation.startTime, reservation.endTime))
@@ -106,13 +136,13 @@ export function buildHourlyAvailability(
   const normalizedBlockings = blockings
     .map((blocking) => normalizeInterval(blocking.startTime, blocking.endTime))
     .filter((blocking): blocking is { startTime: string; endTime: string } => blocking !== null);
-  const slots = [];
+  const slots: Array<{ startTime: string; endTime: string; status: SlotStatus }> = [];
 
-  for (let minutes = 0; minutes < 24 * 60; minutes += 60) {
+  for (let minutes = 0; minutes < 24 * 60; minutes += stepMinutes) {
     const startTime = minutesToTime(minutes);
-    const endTime = minutes === 23 * 60 ? '24:00' : minutesToTime(minutes + 60);
+    const endTime = minutesToTime(Math.min(minutes + stepMinutes, 24 * 60));
 
-    const status = overlapsClosedHours(
+    const status: SlotStatus = overlapsClosedHours(
       startTime,
       endTime,
       normalizedClosedHours.closedFrom,
@@ -129,4 +159,28 @@ export function buildHourlyAvailability(
   }
 
   return slots;
+}
+
+/**
+ * Per-hour roll-up of {@link buildAvailability} slots (MEL-024): for each of the
+ * 24 hours, how many of its slots are open (not closed) and how many of those are
+ * occupied (reserved or blocked). Reports keep `hourlyAverage`/`peakHour` per hour.
+ */
+export function hourlyOccupancy(
+  slots: Array<{ startTime: string; status: string }>
+): Array<{ hour: string; occupied: number; open: number }> {
+  const hours = Array.from({ length: 24 }, (_, h) => ({
+    hour: `${String(h).padStart(2, '0')}:00`,
+    occupied: 0,
+    open: 0,
+  }));
+
+  for (const slot of slots) {
+    const bucket = hours[Math.floor(timeToMinutes(slot.startTime) / 60)];
+    if (!bucket || slot.status === 'closed') continue;
+    bucket.open++;
+    if (slot.status === 'reserved' || slot.status === 'blocked') bucket.occupied++;
+  }
+
+  return hours;
 }

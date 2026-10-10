@@ -5,8 +5,8 @@ import { SpaceService } from '@/services/space.service';
 import type { AdminContext } from '../context';
 import { blockingFilterSchema } from '../filters';
 import {
-  HOURLY_BOUNDARY_OPTIONS,
-  HOURLY_OPTIONS,
+  SLOT_END_OPTIONS,
+  SLOT_START_OPTIONS,
   escapeAttribute,
   escapeHtml,
   normalizeEmptyStrings,
@@ -44,8 +44,8 @@ export async function renderBlockingsView(
           <form class="mt-4 grid gap-3" hx-post="/admin/actions/blockings" hx-target="#admin-content" hx-swap="innerHTML">
             ${renderSelect('spaceId', 'Espaço', spaces.map((space) => ({ value: space.id, label: space.number })))}
             ${renderInput('date', 'Data', 'date', today())}
-            ${renderSelect('startTime', 'Hora Inicial', HOURLY_OPTIONS, '08:00', true)}
-            ${renderSelect('endTime', 'Hora Final', HOURLY_BOUNDARY_OPTIONS, '09:00', true)}
+            ${renderSelect('startTime', 'Hora Inicial', SLOT_START_OPTIONS, '08:00', true)}
+            ${renderSelect('endTime', 'Hora Final', SLOT_END_OPTIONS, '09:00', true)}
             ${renderSelect('blockType', 'Tipo de Bloqueio', [
               { value: 'maintenance', label: 'Manutenção' },
               { value: 'administrative', label: 'Administrativo' },

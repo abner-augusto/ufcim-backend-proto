@@ -4,7 +4,13 @@ import type { Database } from '@/db/client';
 import { ConflictError, ForbiddenError, NotFoundError, AppError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
 import { NotificationService } from './notification.service';
-import { deriveLegacyTimeSlot, timeToMinutes, intervalsOverlap, overlapsClosedHours } from '@/lib/schedule';
+import {
+  deriveLegacyTimeSlot,
+  timeToMinutes,
+  intervalsOverlap,
+  overlapsClosedHours,
+  SLOT_MINUTES,
+} from '@/lib/schedule';
 import { campusToday, campusNowMinutes } from '@/lib/clock';
 
 const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
@@ -365,10 +371,10 @@ export class ReservationService {
     startTime: string,
     endTime: string
   ) {
-    // Reject slots that already ended today (campus time). The in-progress hour
-    // stays bookable — the frontend grid allows it (its cells only become "past"
-    // when the hour ENDS), and the backend must not be stricter than the UI.
-    if (date === campusToday() && timeToMinutes(startTime) + 60 <= campusNowMinutes()) {
+    // Reject starts whose 30-minute slot already ended today (campus time). The
+    // in-progress slot stays bookable (MEL-024) — the frontend only treats a slot
+    // as "past" once it ENDS, and the backend must not be stricter than the UI.
+    if (date === campusToday() && timeToMinutes(startTime) + SLOT_MINUTES <= campusNowMinutes()) {
       throw new ConflictError('Esta faixa de horário já passou');
     }
 

@@ -315,6 +315,46 @@ describe('ReportService.getSpaceReport', () => {
     expect(report.summary.peakDay!.date).toBe('2026-06-02');
     expect(report.summary.peakHour).not.toBeNull();
   });
+
+  it('counts half-hours and aggregates them per hour (16:30–18:00, MEL-024)', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      {
+        id: 'res-half',
+        spaceId: SEED.space.id,
+        userId: 'user-1',
+        date: '2026-06-02',
+        timeSlot: 'afternoon',
+        startTime: '16:30',
+        endTime: '18:00',
+        status: 'confirmed',
+        recurrenceId: null,
+        purpose: 'class',
+        description: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        user: { id: 'user-1', name: 'João', role: 'professor' },
+        recurrence: null,
+      },
+    ]);
+
+    const report = await service.getSpaceReport({
+      spaceId: SEED.space.id,
+      startDate: '2026-06-02',
+      endDate: '2026-06-02',
+      viewer: { userId: 'user-1', role: 'staff' },
+      space: (service as any)._defaultSpace,
+    });
+
+    // 3 occupied half-hours out of 30 open ones (07:00–22:00).
+    expect(report.summary.occupancyRate).toBe(10);
+    expect(report.dailySeries[0].occupancyRate).toBe(10);
+    const rateAt = (hour: string) => report.hourlyAverage.find((h) => h.hour === hour)?.occupancyRate;
+    expect(rateAt('16:00')).toBe(50);
+    expect(rateAt('17:00')).toBe(100);
+    expect(rateAt('18:00')).toBe(0);
+    expect(report.hourlyAverage).toHaveLength(15);
+    expect(report.summary.peakHour).toEqual({ hour: '17:00', occupancyRate: 100 });
+  });
 });
 
 describe('ReportService.getOccupancyReport', () => {
@@ -367,5 +407,22 @@ describe('ReportService.getOccupancyReport', () => {
     });
 
     expect(result).toBeDefined();
+  });
+
+  it('measures occupancy over half-hour slots (MEL-024)', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, date: '2026-06-02', startTime: '16:30', endTime: '18:00' },
+    ]);
+
+    const result = await service.getOccupancyReport({
+      startDate: '2026-06-02',
+      endDate: '2026-06-02',
+    });
+
+    // 3 occupied half-hours out of 30 open ones (07:00–22:00); hourly slots would give 13%.
+    expect(result.spaces[0].occupancyRate).toBe(10);
+    expect(result.totalOccupancyRate).toBe(10);
+    expect(result.daily[0].occupancyRate).toBe(10);
+    expect(result.byTurno.find((t) => t.turno === 'Tarde')?.reservations).toBe(1);
   });
 });

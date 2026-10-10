@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { HOURLY_TIME_REGEX, BOUNDARY_TIME_REGEX } from '@/lib/schedule';
+import {
+  HOURLY_TIME_REGEX,
+  BOUNDARY_TIME_REGEX,
+  SLOT_START_TIME_REGEX,
+  SLOT_END_TIME_REGEX,
+} from '@/lib/schedule';
 import { campusToday } from '@/lib/clock';
 
 export const uuidSchema = z.string().uuid({ message: 'ID inválido' });
@@ -27,3 +32,11 @@ export const hourlyTimeSchema = z
 export const boundaryTimeSchema = z
   .string()
   .regex(BOUNDARY_TIME_REGEX, 'O horário deve ser uma hora cheia no formato HH:00 (ex: 14:00)');
+
+const SLOT_TIME_MESSAGE = 'Use um horário em hora cheia ou meia hora, no formato HH:MM (ex.: 14:00 ou 14:30)';
+
+/** Start of a reservation or blocking (MEL-024): `HH:00` or `HH:30`. */
+export const slotStartTimeSchema = z.string().regex(SLOT_START_TIME_REGEX, SLOT_TIME_MESSAGE);
+
+/** End of a reservation or blocking (MEL-024): `HH:00`, `HH:30` or `24:00`. */
+export const slotEndTimeSchema = z.string().regex(SLOT_END_TIME_REGEX, SLOT_TIME_MESSAGE);

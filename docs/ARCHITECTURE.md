@@ -58,7 +58,7 @@ equipment          – equipamentos vinculados a espaços
 equipment_reports  – reportes de equipamentos (pending/acknowledged/resolved/dismissed)
 equipment_status_history – transições de status (from→to, source report|manual|system); só para frente
 space_managers     – vínculo usuário↔espaço (coordinator|maintainer)
-reservations       – reservas; startTime/endTime "HH:00"; timeSlot legado derivado
+reservations       – reservas; startTime/endTime "HH:00"|"HH:30"; timeSlot legado derivado
 recurrences        – cabeçalhos de séries recorrentes
 blockings          – bloqueios administrativos; cancelam reservas em conflito
 notifications      – notificações in-app
@@ -72,11 +72,16 @@ rate_limit_buckets – janelas de rate limit por IP
 
 ### Modelo de agendamento (grade horária)
 
-Reservas e bloqueios usam `startTime`/`endTime` como strings `"HH:00"` (fim até
-`"24:00"`). A disponibilidade é calculada **dinamicamente** por
-`buildHourlyAvailability()` em `src/lib/schedule.ts` — o `status` por hora
+Reservas e bloqueios usam `startTime`/`endTime` como strings `"HH:00"` ou
+`"HH:30"` (fim até `"24:00"`), com duração mínima de 1 hora (MEL-024;
+`SLOT_MINUTES = 30` e `MIN_DURATION_MINUTES = 60` em `src/lib/schedule.ts`).
+O horário de funcionamento do espaço (`closedFrom`/`closedTo`) continua em hora
+cheia. A disponibilidade é calculada **dinamicamente** por `buildAvailability()`
+em `src/lib/schedule.ts`, em 48 slots de 30 minutos; o `status` por slot
 (`available`/`reserved`/`blocked`/`closed`) **nunca** é persistido. A
 sobreposição é semiaberta (`intervalsOverlap`): horários adjacentes não colidem.
+Os relatórios medem a ocupação nesses slots; `hourlyAverage` e `peakHour`
+agregam as duas metades de cada hora (`hourlyOccupancy`).
 
 **Regra crítica:** ao criar um bloqueio, o serviço cancela e notifica
 automaticamente as reservas confirmadas que conflitem no mesmo

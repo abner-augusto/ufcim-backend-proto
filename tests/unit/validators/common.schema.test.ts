@@ -5,6 +5,8 @@ import {
   paginationSchema,
   hourlyTimeSchema,
   boundaryTimeSchema,
+  slotStartTimeSchema,
+  slotEndTimeSchema,
   userRoleSchema,
   dateSchema,
   futureDateSchema,
@@ -103,6 +105,30 @@ describe('hourlyTimeSchema', () => {
 describe('boundaryTimeSchema', () => {
   it('accepts 24:00 as an end boundary', () => {
     expect(boundaryTimeSchema.safeParse('24:00').success).toBe(true);
+  });
+});
+
+describe('slotStartTimeSchema (MEL-024)', () => {
+  it.each(['07:00', '16:30', '23:30'])('accepts %s', (time) => {
+    expect(slotStartTimeSchema.safeParse(time).success).toBe(true);
+  });
+
+  it.each(['16:15', '24:00', '9:30'])('rejects %s with a pt-BR message', (time) => {
+    const result = slotStartTimeSchema.safeParse(time);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toMatch(/hora cheia ou meia hora/);
+    }
+  });
+});
+
+describe('slotEndTimeSchema (MEL-024)', () => {
+  it.each(['08:00', '17:30', '24:00'])('accepts %s', (time) => {
+    expect(slotEndTimeSchema.safeParse(time).success).toBe(true);
+  });
+
+  it.each(['17:45', '24:30'])('rejects %s', (time) => {
+    expect(slotEndTimeSchema.safeParse(time).success).toBe(false);
   });
 });
 

@@ -19,16 +19,33 @@ describe('SpaceService.getAvailability', () => {
     await expect(service.getAvailability('no-such-id', '2099-06-15')).rejects.toThrow(NotFoundError);
   });
 
-  it('returns hourly availability and marks open hours as available when no reservations or blockings exist', async () => {
+  it('returns half-hour availability and marks open slots as available when no reservations or blockings exist', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
 
     const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
 
-    expect(slots).toHaveLength(24);
+    expect(slots).toHaveLength(48);
     expect(slots.find((s) => s.startTime === '09:00')?.status).toBe('available');
+    expect(slots.find((s) => s.startTime === '09:30')?.status).toBe('available');
     expect(slots.find((s) => s.startTime === '23:00')?.status).toBe('closed');
+  });
+
+  it('marks only the half-hours a 16:30–18:00 reservation covers (MEL-024)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, startTime: '16:30', endTime: '18:00' },
+    ]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
+    const status = (time: string) => slots.find((s) => s.startTime === time)?.status;
+
+    expect(status('16:00')).toBe('available');
+    expect(status('16:30')).toBe('reserved');
+    expect(status('17:30')).toBe('reserved');
+    expect(status('18:00')).toBe('available');
   });
 
   it('marks an hourly interval as reserved when a confirmed reservation exists', async () => {
@@ -66,13 +83,15 @@ describe('SpaceService.getAvailability', () => {
     expect(morning?.status).toBe('blocked');
   });
 
-  it('returns hourly slots in order', async () => {
+  it('returns half-hour slots in order', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
 
     const slots = await service.getAvailability(SEED.space.id, '2099-06-15');
 
     expect(slots[0]?.startTime).toBe('00:00');
-    expect(slots[23]?.startTime).toBe('23:00');
+    expect(slots[1]?.startTime).toBe('00:30');
+    expect(slots[47]?.startTime).toBe('23:30');
+    expect(slots[47]?.endTime).toBe('24:00');
   });
 });
 

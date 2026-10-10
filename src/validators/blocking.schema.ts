@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
-import { datesBetween } from '@/lib/schedule';
+import { futureDateSchema, slotStartTimeSchema, slotEndTimeSchema } from './common.schema';
+import { datesBetween, meetsMinimumDuration } from '@/lib/schedule';
 
 export const blockTypeSchema = z.enum(['maintenance', 'administrative']);
 
@@ -14,13 +14,17 @@ export const createBlockingSchema = z
     date: futureDateSchema.optional(),
     dateFrom: futureDateSchema.optional(),
     dateTo: futureDateSchema.optional(),
-    startTime: hourlyTimeSchema,
-    endTime: boundaryTimeSchema,
+    startTime: slotStartTimeSchema,
+    endTime: slotEndTimeSchema,
     reason: z.string().max(500).optional().default(''),
     blockType: blockTypeSchema,
   })
   .refine((data) => data.startTime < data.endTime, {
     message: 'O horário de término deve ser posterior ao horário de início',
+    path: ['endTime'],
+  })
+  .refine((data) => meetsMinimumDuration(data.startTime, data.endTime), {
+    message: 'O bloqueio deve durar pelo menos 1 hora',
     path: ['endTime'],
   })
   .refine(

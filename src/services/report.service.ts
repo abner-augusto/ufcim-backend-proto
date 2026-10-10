@@ -4,7 +4,14 @@ import type { Database } from '@/db/client';
 import { NotFoundError, AppError } from '@/middleware/error-handler';
 import { formatReservationAuthor } from '@/lib/reservation-privacy';
 import { departmentName } from '@/lib/department-name';
-import { buildHourlyAvailability, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO, timeToMinutes } from '@/lib/schedule';
+import {
+  buildAvailability,
+  hourlyOccupancy,
+  DEFAULT_CLOSED_FROM,
+  DEFAULT_CLOSED_TO,
+  SLOT_MINUTES,
+  timeToMinutes,
+} from '@/lib/schedule';
 import type { UserRole } from '@/types/auth';
 
 /** Maximum span (inclusive, in days) accepted by the report endpoints. */
@@ -214,8 +221,8 @@ export class ReportService {
       const dateBlockings = allBlockings.filter((b) => b.date === date);
       const dateCanceled = canceledReservations.filter((r) => r.date === date);
 
-      // Check if the day has ANY closed hours (all closed = skip)
-      const slots = buildHourlyAvailability(
+      // Half-hour slots (MEL-024); all closed = skip the day
+      const slots = buildAvailability(
         closedFrom,
         closedTo,
         dateReservations.map((r) => ({ startTime: r.startTime, endTime: r.endTime })),
@@ -233,13 +240,13 @@ export class ReportService {
       }
 
       const occupancyRate = calculateOccupancyRate(
-        reservedSlots.length * 60,
-        blockedSlots.length * 60,
-        nonClosedSlots.length * 60
+        reservedSlots.length * SLOT_MINUTES,
+        blockedSlots.length * SLOT_MINUTES,
+        nonClosedSlots.length * SLOT_MINUTES
       );
 
-      totalOccupiedMinutes += (reservedSlots.length + blockedSlots.length) * 60;
-      totalOperationalMinutes += nonClosedSlots.length * 60;
+      totalOccupiedMinutes += (reservedSlots.length + blockedSlots.length) * SLOT_MINUTES;
+      totalOperationalMinutes += nonClosedSlots.length * SLOT_MINUTES;
       daysWithData++;
 
       dailySeries.push({
@@ -249,26 +256,19 @@ export class ReportService {
         blockings: dateBlockings.length,
       });
 
-      // Update hourly averages
-      for (let h = 0; h < 24; h++) {
-        const hourStr = `${String(h).padStart(2, '0')}:00`;
-        if (!hourlyTotals[hourStr]) {
-          hourlyTotals[hourStr] = { occupied: 0, total: 0 };
-        }
-        hourlyTotals[hourStr].total++;
-
-        const slot = slots[h];
-        if (slot && (slot.status === 'reserved' || slot.status === 'blocked')) {
-          hourlyTotals[hourStr].occupied++;
-        }
+      // Update hourly averages: each hour aggregates its two half-hour slots (MEL-024)
+      for (const { hour, occupied, open } of hourlyOccupancy(slots)) {
+        const totals = (hourlyTotals[hour] ??= { occupied: 0, total: 0 });
+        totals.total += open;
+        totals.occupied += occupied;
       }
     }
 
     // Calculate hourly average
     const hourlyAverage = operationalHours.map((h) => {
       const hourStr = `${String(h).padStart(2, '0')}:00`;
-      const data = hourlyTotals[hourStr] ?? { occupied: 0, total: 1 };
-      const rate = Math.round((data.occupied / data.total) * 100);
+      const data = hourlyTotals[hourStr];
+      const rate = data && data.total > 0 ? Math.round((data.occupied / data.total) * 100) : 0;
       return { hour: hourStr, occupancyRate: rate };
     });
 
@@ -462,7 +462,8 @@ export class ReportService {
       for (const date of dates) {
         const dayRes = resBySpaceDate.get(slotKey(s.id, date)) ?? [];
         const dayBlk = blkBySpaceDate.get(slotKey(s.id, date)) ?? [];
-        const slots = buildHourlyAvailability(closedFrom, closedTo, dayRes, dayBlk);
+        // Counts are in half-hour slots (MEL-024); rates are slot ratios.
+        const slots = buildAvailability(closedFrom, closedTo, dayRes, dayBlk);
         const operational = slots.filter((slot) => slot.status !== 'closed').length;
         if (operational === 0) continue;
         const occupied = slots.filter((slot) => slot.status === 'reserved' || slot.status === 'blocked').length;

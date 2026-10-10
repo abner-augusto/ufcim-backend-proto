@@ -82,6 +82,31 @@ describe('ReservationService.create', () => {
     ).rejects.toThrow(ConflictError);
   });
 
+  it('throws ConflictError on a partial half-hour overlap (16:00–17:00 vs 16:30–17:30, MEL-024)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, startTime: '16:00', endTime: '17:00' },
+    ]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, startTime: '16:30', endTime: '17:30' })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('accepts a half-hour range right after an existing reservation (MEL-024)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, startTime: '15:30', endTime: '16:30' },
+    ]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._select.where.mockResolvedValueOnce([{ total: 0 }]);
+
+    await expect(
+      service.create(USER_ID, 'professor', 'Ciência da Computação', { spaceId: SPACE_ID, date: DATE, startTime: '16:30', endTime: '18:00' })
+    ).resolves.toMatchObject({ id: SEED.reservation.id });
+  });
+
   it('throws ConflictError when the reservation falls within closed hours', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
 
@@ -179,12 +204,27 @@ describe('ReservationService.create — same-day past hour (BUG-005)', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2099-06-15T18:30:00Z')); // 15:30 in Fortaleza
+    vi.setSystemTime(new Date('2099-06-15T18:40:00Z')); // 15:40 in Fortaleza
     db = createMockDb();
     service = new ReservationService(db);
   });
 
   afterEach(() => vi.useRealTimers());
+
+  it('rejects a start whose half-hour slot already ended (15:00 at 15:40, MEL-024)', async () => {
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.create(USER_ID, 'professor', SEED.space.department, {
+        spaceId: SPACE_ID,
+        date: '2099-06-15',
+        startTime: '15:00',
+        endTime: '16:00',
+      })
+    ).rejects.toThrow(ConflictError);
+  });
 
   it('rejects an ended slot today', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
@@ -201,7 +241,7 @@ describe('ReservationService.create — same-day past hour (BUG-005)', () => {
     ).rejects.toThrow(ConflictError);
   });
 
-  it('allows the in-progress hour', async () => {
+  it('allows the in-progress half-hour slot (15:30 at 15:40, MEL-024)', async () => {
     db.query.spaces.findFirst.mockResolvedValue(SEED.space);
     db.query.reservations.findMany.mockResolvedValue([]);
     db.query.blockings.findMany.mockResolvedValue([]);
@@ -211,8 +251,8 @@ describe('ReservationService.create — same-day past hour (BUG-005)', () => {
     const result = await service.create(USER_ID, 'professor', SEED.space.department, {
       spaceId: SPACE_ID,
       date: '2099-06-15',
-      startTime: '15:00',
-      endTime: '16:00',
+      startTime: '15:30',
+      endTime: '16:30',
     });
 
     expect(result).toMatchObject({ id: SEED.reservation.id });

@@ -7,7 +7,7 @@ import { DepartmentService } from './department.service';
 import { EquipmentReportService } from './equipment-report.service';
 import { SpaceManagerService } from './space-manager.service';
 import { departmentName } from '@/lib/department-name';
-import { buildHourlyAvailability, intervalsOverlap, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
+import { buildAvailability, intervalsOverlap, DEFAULT_CLOSED_FROM, DEFAULT_CLOSED_TO } from '@/lib/schedule';
 import { formatReservationAuthor } from '@/lib/reservation-privacy';
 import type { UserRole } from '@/types/auth';
 
@@ -198,7 +198,7 @@ export class SpaceService {
       }),
     ]);
 
-    const slots = buildHourlyAvailability(
+    const slots = buildAvailability(
       space.closedFrom ?? DEFAULT_CLOSED_FROM,
       space.closedTo ?? DEFAULT_CLOSED_TO,
       confirmedReservations.map((reservation) => ({

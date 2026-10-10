@@ -1,17 +1,25 @@
 import { z } from 'zod';
-import { futureDateSchema, hourlyTimeSchema, boundaryTimeSchema } from './common.schema';
+import { futureDateSchema, slotStartTimeSchema, slotEndTimeSchema } from './common.schema';
+import { meetsMinimumDuration } from '@/lib/schedule';
+
+const END_AFTER_START_MESSAGE = 'O horário de término deve ser posterior ao horário de início';
+const MIN_DURATION_MESSAGE = 'A reserva deve durar pelo menos 1 hora';
 
 export const createReservationSchema = z
   .object({
     spaceId: z.string().min(1, 'ID do espaço é obrigatório'),
     date: futureDateSchema,
-    startTime: hourlyTimeSchema,
-    endTime: boundaryTimeSchema,
+    startTime: slotStartTimeSchema,
+    endTime: slotEndTimeSchema,
     purpose: z.string().max(100).optional(),
     description: z.string().trim().max(100).optional(),
   })
   .refine((data) => data.startTime < data.endTime, {
-    message: 'O horário de término deve ser posterior ao horário de início',
+    message: END_AFTER_START_MESSAGE,
+    path: ['endTime'],
+  })
+  .refine((data) => meetsMinimumDuration(data.startTime, data.endTime), {
+    message: MIN_DURATION_MESSAGE,
     path: ['endTime'],
   });
 
@@ -21,8 +29,8 @@ export const createRecurringReservationSchema = z
     startDate: futureDateSchema,
     endDate: futureDateSchema,
     dayOfWeek: z.number().int().min(0).max(6), // 0 = Sunday
-    startTime: hourlyTimeSchema,
-    endTime: boundaryTimeSchema,
+    startTime: slotStartTimeSchema,
+    endTime: slotEndTimeSchema,
     description: z.string().trim().max(100).optional(),
     purpose: z.string().max(100).optional(),
   })
@@ -31,19 +39,29 @@ export const createRecurringReservationSchema = z
     path: ['endDate'],
   })
   .refine((d) => d.startTime < d.endTime, {
-    message: 'O horário de término deve ser posterior ao horário de início',
+    message: END_AFTER_START_MESSAGE,
+    path: ['endTime'],
+  })
+  .refine((d) => meetsMinimumDuration(d.startTime, d.endTime), {
+    message: MIN_DURATION_MESSAGE,
     path: ['endTime'],
   });
 
-export const updateReservationSchema = z.object({
-  date: futureDateSchema.optional(),
-  startTime: hourlyTimeSchema.optional(),
-  endTime: boundaryTimeSchema.optional(),
-  status: z.enum(['confirmed', 'canceled', 'modified']).optional(),
-}).refine((data) => {
-  if (!data.startTime || !data.endTime) return true;
-  return data.startTime < data.endTime;
-}, {
-  message: 'O horário de término deve ser posterior ao horário de início',
-  path: ['endTime'],
-});
+export const updateReservationSchema = z
+  .object({
+    date: futureDateSchema.optional(),
+    startTime: slotStartTimeSchema.optional(),
+    endTime: slotEndTimeSchema.optional(),
+    status: z.enum(['confirmed', 'canceled', 'modified']).optional(),
+  })
+  .refine((data) => !data.startTime || !data.endTime || data.startTime < data.endTime, {
+    message: END_AFTER_START_MESSAGE,
+    path: ['endTime'],
+  })
+  .refine(
+    (data) => !data.startTime || !data.endTime || meetsMinimumDuration(data.startTime, data.endTime),
+    {
+      message: MIN_DURATION_MESSAGE,
+      path: ['endTime'],
+    }
+  );

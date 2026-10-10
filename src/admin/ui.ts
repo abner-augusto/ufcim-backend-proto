@@ -80,6 +80,15 @@ export const HOURLY_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
 
 export const HOURLY_BOUNDARY_OPTIONS = [...HOURLY_OPTIONS, { value: '24:00', label: '24:00' }];
 
+/** Half-hour starts for blockings (MEL-024). */
+export const SLOT_START_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const value = `${Math.floor(index / 2).toString().padStart(2, '0')}:${index % 2 === 0 ? '00' : '30'}`;
+  return { value, label: value };
+});
+
+/** Half-hour ends for blockings (MEL-024), up to 24:00. */
+export const SLOT_END_OPTIONS = [...SLOT_START_OPTIONS.slice(1), { value: '24:00', label: '24:00' }];
+
 // ── Form field components ─────────────────────────────────────────────────────
 export function renderInput(
   name: string,
