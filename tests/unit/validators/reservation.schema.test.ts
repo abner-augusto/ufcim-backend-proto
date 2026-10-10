@@ -218,14 +218,38 @@ describe('createRecurringReservationSchema', () => {
 });
 
 describe('updateReservationSchema', () => {
-  it('accepts all fields optional (empty object is valid)', () => {
-    expect(updateReservationSchema.safeParse({}).success).toBe(true);
+  it('rejects an empty body: at least one field must change (MEL-023)', () => {
+    expect(updateReservationSchema.safeParse({}).success).toBe(false);
   });
 
-  it('accepts valid status values', () => {
-    for (const status of ['confirmed', 'canceled', 'modified']) {
-      expect(updateReservationSchema.safeParse({ status }).success).toBe(true);
-    }
+  it('accepts a description-only edit (MEL-023)', () => {
+    expect(updateReservationSchema.safeParse({ description: 'Aula de revisão' }).success).toBe(true);
+  });
+
+  it('accepts an empty description, which clears it (MEL-023)', () => {
+    expect(updateReservationSchema.safeParse({ description: '' }).success).toBe(true);
+  });
+
+  it('rejects a description longer than 100 chars', () => {
+    expect(updateReservationSchema.safeParse({ description: 'x'.repeat(101) }).success).toBe(false);
+  });
+
+  it('accepts a date-only edit', () => {
+    expect(updateReservationSchema.safeParse({ date: '2099-06-16' }).success).toBe(true);
+  });
+
+  it('rejects a past date', () => {
+    expect(updateReservationSchema.safeParse({ date: '2020-01-01' }).success).toBe(false);
+  });
+
+  it('rejects status, purpose and spaceId: they are not editable (MEL-023)', () => {
+    expect(updateReservationSchema.safeParse({ status: 'canceled' }).success).toBe(false);
+    expect(updateReservationSchema.safeParse({ purpose: 'class' }).success).toBe(false);
+    expect(updateReservationSchema.safeParse({ spaceId: 'another-space', date: '2099-06-16' }).success).toBe(false);
+  });
+
+  it('rejects a start time off the 30-minute grid', () => {
+    expect(updateReservationSchema.safeParse({ startTime: '08:15' }).success).toBe(false);
   });
 
   it('accepts valid hourly update values', () => {
@@ -240,7 +264,4 @@ describe('updateReservationSchema', () => {
     expect(updateReservationSchema.safeParse({ startTime: '08:30', endTime: '09:00' }).success).toBe(false);
   });
 
-  it('rejects invalid status', () => {
-    expect(updateReservationSchema.safeParse({ status: 'overridden' }).success).toBe(false);
-  });
 });

@@ -8,6 +8,7 @@ import { extractRole } from '@/middleware/rbac';
 import {
   createReservationSchema,
   createRecurringReservationSchema,
+  updateReservationSchema,
 } from '@/validators/reservation.schema';
 import { paginationSchema } from '@/validators/common.schema';
 import type { z } from 'zod';
@@ -56,7 +57,30 @@ reservationRoutes.post(
   }
 );
 
-// PATCH /reservations/:id/cancel (student, professor, staff)
+// PATCH /reservations/:id — edit date, time or description (MEL-023).
+// Owner or staff; the service enforces ownership and revalidates the slot.
+reservationRoutes.patch(
+  '/:id',
+  rbac(['student', 'professor', 'staff']),
+  validate(updateReservationSchema),
+  async (c) => {
+    const db = createDb(c.env.DB);
+    const service = new ReservationService(db);
+    const user = c.get('user');
+    const body = c.get('validatedBody') as z.infer<typeof updateReservationSchema>;
+
+    const reservation = await service.update(
+      c.req.param('id'),
+      user.sub,
+      extractRole(user) ?? 'student',
+      user.department ?? 'Unknown',
+      body
+    );
+    return c.json(reservation);
+  }
+);
+
+// PATCH /reservations/:id/cancel (owner or staff)
 reservationRoutes.patch(
   '/:id/cancel',
   rbac(['student', 'professor', 'staff']),
@@ -80,7 +104,7 @@ reservationRoutes.patch(
   }
 );
 
-// PATCH /reservations/series/:recurrenceId/cancel (professor, staff)
+// PATCH /reservations/series/:recurrenceId/cancel (series owner or staff)
 reservationRoutes.patch(
   '/series/:recurrenceId/cancel',
   rbac(['professor', 'staff']),

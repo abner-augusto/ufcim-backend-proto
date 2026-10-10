@@ -47,12 +47,21 @@ export const createRecurringReservationSchema = z
     path: ['endTime'],
   });
 
+/**
+ * PATCH /reservations/:id (MEL-023). The space, status and purpose are not
+ * editable; unknown keys are rejected. When only one bound of the range is
+ * sent, the service re-checks order and minimum duration against the stored one.
+ */
 export const updateReservationSchema = z
   .object({
     date: futureDateSchema.optional(),
     startTime: slotStartTimeSchema.optional(),
     endTime: slotEndTimeSchema.optional(),
-    status: z.enum(['confirmed', 'canceled', 'modified']).optional(),
+    description: z.string().trim().max(100).optional(),
+  })
+  .strict()
+  .refine((data) => Object.values(data).some((value) => value !== undefined), {
+    message: 'Informe ao menos um campo para alterar',
   })
   .refine((data) => !data.startTime || !data.endTime || data.startTime < data.endTime, {
     message: END_AFTER_START_MESSAGE,

@@ -107,7 +107,9 @@ aplicados em toda a sub-app (`src/app.ts`).
 | `GET` | `/api/v1/spaces/:id/availability` | todos |
 | `POST` | `/api/v1/reservations` | student, professor, staff |
 | `POST` | `/api/v1/reservations/recurring` | professor, staff |
+| `PATCH` | `/api/v1/reservations/:id` (data, horário, descrição) | dono ou staff |
 | `PATCH` | `/api/v1/reservations/:id/cancel` | dono ou staff |
+| `PATCH` | `/api/v1/reservations/series/:recurrenceId/cancel` | dono da série ou staff |
 | `POST` | `/api/v1/blockings` | professor, staff, maintenance |
 | `GET` | `/api/v1/reports/occupancy` | professor, staff, maintenance |
 | `GET` | `/api/v1/reports/maintenance/equipment` | staff, maintenance |

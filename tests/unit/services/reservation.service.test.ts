@@ -341,15 +341,33 @@ describe('ReservationService.cancel', () => {
     expect(result).toMatchObject({ status: 'canceled' });
   });
 
-  it("sends a notification when a professor cancels someone else's reservation", async () => {
-    // Reservation owned by USER_ID, canceled by OTHER_USER_ID (professor)
+  it("throws ForbiddenError when a professor tries to cancel someone else's reservation (MEL-023)", async () => {
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // owned by USER_ID
+
+    await expect(
+      service.cancel(SEED.reservation.id, OTHER_USER_ID, 'professor')
+    ).rejects.toThrow(ForbiddenError);
+    expect(db._update.fn).not.toHaveBeenCalled();
+  });
+
+  it('allows a professor to cancel their own reservation', async () => {
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // owned by USER_ID
+
+    const result = await service.cancel(SEED.reservation.id, USER_ID, 'professor');
+    expect(result).toMatchObject({ status: 'canceled' });
+  });
+
+  it("lets staff cancel someone else's reservation and notifies the owner", async () => {
+    // Reservation owned by USER_ID, canceled by OTHER_USER_ID (staff)
     db.query.reservations.findFirst.mockResolvedValue(SEED.reservation);
     db._insert.returning.mockResolvedValue([{}]);
 
-    await service.cancel(SEED.reservation.id, OTHER_USER_ID, 'professor');
+    const result = await service.cancel(SEED.reservation.id, OTHER_USER_ID, 'staff');
 
-    // insert called at least for notification (and audit log)
-    expect(db._insert.fn).toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 'canceled' });
+    expect(db._insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_ID, type: 'canceled' })
+    );
   });
 
   it('does NOT send a notification when a user cancels their own reservation', async () => {
@@ -585,6 +603,230 @@ describe('ReservationService.cancelSeries', () => {
 
   it('throws ForbiddenError when a student tries to cancel a series', async () => {
     await expect(service.cancelSeries('series-1', USER_ID, 'student')).rejects.toThrow(ForbiddenError);
+  });
+
+  it("throws ForbiddenError when a professor cancels someone else's series (MEL-023)", async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula', createdBy: USER_ID }, space: SEED.space },
+    ]);
+
+    await expect(service.cancelSeries('series-1', OTHER_USER_ID, 'professor')).rejects.toThrow(ForbiddenError);
+    expect(db._update.fn).not.toHaveBeenCalled();
+  });
+
+  it('lets a professor cancel their own series (MEL-023)', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      { ...SEED.reservation, recurrenceId: 'series-1', recurrence: { id: 'series-1', description: 'Aula', createdBy: USER_ID }, space: SEED.space },
+    ]);
+
+    await expect(service.cancelSeries('series-1', USER_ID, 'professor')).resolves.toHaveLength(2);
+  });
+
+  it('throws ForbiddenError when maintenance tries to cancel a series', async () => {
+    await expect(service.cancelSeries('series-1', USER_ID, 'maintenance')).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe('ReservationService.update (MEL-023)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+  const DEPT = SEED.space.department;
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db.query.reservations.findFirst.mockResolvedValue(SEED.reservation); // owned by USER_ID, 2099-06-15 09:00–10:00
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._update.returning.mockImplementation(async () => [
+      { ...SEED.reservation, ...db._update.set.mock.calls.at(-1)?.[0] },
+    ]);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('lets the owner move the reservation to another time and keeps it confirmed', async () => {
+    const result = await service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, {
+      startTime: '14:00',
+      endTime: '15:30',
+      description: 'Banca de TCC',
+    });
+
+    expect(result).toMatchObject({ startTime: '14:00', endTime: '15:30', status: 'confirmed', description: 'Banca de TCC' });
+    const set = db._update.set.mock.calls[0][0];
+    expect(set).toMatchObject({ date: DATE, startTime: '14:00', endTime: '15:30', timeSlot: 'afternoon' });
+    expect(set).not.toHaveProperty('status');
+    expect(set).not.toHaveProperty('spaceId');
+    expect(set).not.toHaveProperty('recurrenceId');
+  });
+
+  it('keeps a recurring occurrence attached to its series', async () => {
+    const occurrence = { ...SEED.reservation, recurrenceId: 'series-1' };
+    db.query.reservations.findFirst.mockResolvedValue(occurrence);
+    db._update.returning.mockImplementation(async () => [
+      { ...occurrence, ...db._update.set.mock.calls.at(-1)?.[0] },
+    ]);
+
+    const result = await service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '11:00', endTime: '12:00' });
+
+    expect(result).toMatchObject({ recurrenceId: 'series-1', startTime: '11:00' });
+    expect(db._update.set.mock.calls[0][0]).not.toHaveProperty('recurrenceId');
+  });
+
+  it('treats the reservation itself as free when checking conflicts', async () => {
+    db.query.reservations.findMany.mockResolvedValue([SEED.reservation]); // 09:00–10:00, same id
+
+    await expect(
+      service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '09:30', endTime: '10:30' })
+    ).resolves.toMatchObject({ startTime: '09:30', endTime: '10:30' });
+  });
+
+  it('throws ConflictError (409) when the new range overlaps another reservation', async () => {
+    db.query.reservations.findMany.mockResolvedValue([
+      SEED.reservation,
+      { ...SEED.reservation, id: 'other-reservation', userId: OTHER_USER_ID, startTime: '10:00', endTime: '11:00' },
+    ]);
+
+    const err = await service
+      .update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '09:30', endTime: '10:30' })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(ConflictError);
+    expect((err as AppError).statusCode).toBe(409);
+    expect(db._update.fn).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictError when the new range hits an active blocking', async () => {
+    db.query.blockings.findMany.mockResolvedValue([SEED.blocking]); // 08:00–09:00
+
+    await expect(
+      service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '08:00', endTime: '09:00' })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('throws ConflictError when the new range falls within closed hours', async () => {
+    await expect(
+      service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '22:00', endTime: '23:00' })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('throws ConflictError (409) for a reservation that already happened', async () => {
+    db.query.reservations.findFirst.mockResolvedValue({ ...SEED.reservation, date: '2020-01-01' });
+
+    const err = await service
+      .update(SEED.reservation.id, USER_ID, 'professor', DEPT, { description: 'x' })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(ConflictError);
+    expect(db._update.fn).not.toHaveBeenCalled();
+  });
+
+  it('throws ConflictError (409) for a reservation in progress', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-06-15T12:30:00Z')); // 09:30 in Fortaleza, inside 09:00–10:00
+
+    await expect(
+      service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { description: 'x' })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('throws ConflictError (409) for a canceled reservation', async () => {
+    db.query.reservations.findFirst.mockResolvedValue({ ...SEED.reservation, status: 'canceled' });
+
+    await expect(
+      service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { description: 'x' })
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('throws a 400 when the merged range is shorter than 1 hour', async () => {
+    // Only startTime changes: 09:30 with the stored 10:00 end lasts 30 minutes.
+    const err = await service
+      .update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '09:30' })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).statusCode).toBe(400);
+  });
+
+  it('throws a 400 when the merged end is not after the start', async () => {
+    const err = await service
+      .update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '11:00' })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).statusCode).toBe(400);
+  });
+
+  it('throws NotFoundError when the reservation does not exist', async () => {
+    db.query.reservations.findFirst.mockResolvedValue(undefined);
+
+    await expect(
+      service.update('missing', USER_ID, 'professor', DEPT, { description: 'x' })
+    ).rejects.toThrow(NotFoundError);
+  });
+
+  it.each(['student', 'professor'])("throws ForbiddenError (403) when a %s edits someone else's reservation", async (role) => {
+    const err = await service
+      .update(SEED.reservation.id, OTHER_USER_ID, role, DEPT, { description: 'x' })
+      .catch((e) => e);
+
+    expect(err).toBeInstanceOf(ForbiddenError);
+    expect((err as AppError).statusCode).toBe(403);
+    expect(db._update.fn).not.toHaveBeenCalled();
+  });
+
+  it('throws ForbiddenError when maintenance edits a reservation', async () => {
+    await expect(
+      service.update(SEED.reservation.id, OTHER_USER_ID, 'maintenance', DEPT, { description: 'x' })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("lets staff edit anyone's reservation, even outside their department", async () => {
+    await expect(
+      service.update(SEED.reservation.id, OTHER_USER_ID, 'staff', 'Administração', { date: '2099-06-16' })
+    ).resolves.toMatchObject({ date: '2099-06-16' });
+  });
+
+  it('keeps the department check for students and professors', async () => {
+    await expect(
+      service.update(SEED.reservation.id, USER_ID, 'student', 'Administração', { description: 'x' })
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('notifies the owner with type "modified" when someone else edits', async () => {
+    await service.update(SEED.reservation.id, OTHER_USER_ID, 'staff', DEPT, { startTime: '14:00', endTime: '15:00' });
+
+    expect(db._insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: USER_ID, type: 'modified' })
+    );
+  });
+
+  it('does not notify the owner when they edit their own reservation', async () => {
+    await service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '14:00', endTime: '15:00' });
+
+    expect(db._insert.values).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'modified' }));
+  });
+
+  it('writes an update_reservation audit entry with the from → to change', async () => {
+    await service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { date: '2099-06-16', startTime: '14:00', endTime: '15:00' });
+
+    const audit = db._insert.values.mock.calls
+      .map(([values]) => values)
+      .find((values) => values.actionType === 'update_reservation');
+    expect(audit).toBeDefined();
+    expect(audit.referenceId).toBe(SEED.reservation.id);
+    expect(audit.details).toContain('2099-06-15 09:00-10:00');
+    expect(audit.details).toContain('2099-06-16 14:00-15:00');
+    expect(audit.details).toContain('→');
+  });
+
+  it('throws ConflictError when the confirmed slot unique index rejects the update', async () => {
+    db._update.returning.mockRejectedValueOnce(new Error('D1_ERROR: UNIQUE constraint failed: reservations.space_id'));
+
+    await expect(
+      service.update(SEED.reservation.id, USER_ID, 'professor', DEPT, { startTime: '14:00', endTime: '15:00' })
+    ).rejects.toThrow(ConflictError);
   });
 });
 

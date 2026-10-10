@@ -9,9 +9,11 @@ import {
   timeToMinutes,
   intervalsOverlap,
   overlapsClosedHours,
+  meetsMinimumDuration,
   SLOT_MINUTES,
 } from '@/lib/schedule';
 import { campusToday, campusNowMinutes } from '@/lib/clock';
+import { canManageReservation } from '@/lib/reservation-permissions';
 
 const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
   student: 5,
@@ -38,6 +40,13 @@ interface CreateRecurringInput {
   endTime: string;
   description?: string;
   purpose?: string;
+}
+
+interface UpdateReservationInput {
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  description?: string;
 }
 
 interface ListReservationsFilters {
@@ -191,19 +200,123 @@ export class ReservationService {
     return { recurrenceId, created, skipped };
   }
 
+  /**
+   * Edits one reservation's date, time range or description (MEL-023). The space
+   * is fixed. Revalidates exactly like creation, with the reservation itself
+   * excluded from the conflict check. Only a confirmed reservation that has not
+   * started yet is editable; it stays confirmed and, if recurring, in its series.
+   */
+  async update(
+    reservationId: string,
+    userId: string,
+    userRole: string,
+    userDept: string,
+    input: UpdateReservationInput
+  ) {
+    const reservation = await this.findOrThrow(reservationId);
+    this.assertCanManage(userId, userRole, reservation, 'Você só pode editar as próprias reservas');
+
+    if (reservation.status !== 'confirmed') {
+      throw new ConflictError('Só é possível editar reservas confirmadas');
+    }
+
+    if (this.hasStarted(reservation.date, reservation.startTime)) {
+      throw new ConflictError('Esta reserva já começou ou já terminou e não pode mais ser editada');
+    }
+
+    const space = await this.db.query.spaces.findFirst({ where: eq(spaces.id, reservation.spaceId) });
+    if (!space) throw new NotFoundError('Space');
+
+    this.assertDepartmentAccess(userRole, userDept, space.department);
+
+    const next = {
+      date: input.date ?? reservation.date,
+      startTime: input.startTime ?? reservation.startTime,
+      endTime: input.endTime ?? reservation.endTime,
+    };
+
+    if (timeToMinutes(next.startTime) >= timeToMinutes(next.endTime)) {
+      throw new AppError(400, 'O horário de término deve ser posterior ao horário de início', 'VALIDATION_ERROR');
+    }
+
+    if (!meetsMinimumDuration(next.startTime, next.endTime)) {
+      throw new AppError(400, 'A reserva deve durar pelo menos 1 hora', 'VALIDATION_ERROR');
+    }
+
+    const scheduleChanged =
+      next.date !== reservation.date ||
+      next.startTime !== reservation.startTime ||
+      next.endTime !== reservation.endTime;
+
+    if (scheduleChanged) {
+      await this.checkSlotAvailability(
+        space,
+        reservation.spaceId,
+        next.date,
+        next.startTime,
+        next.endTime,
+        reservation.id
+      );
+    }
+
+    const description =
+      input.description === undefined ? reservation.description : input.description.trim() || null;
+
+    let updated: typeof reservations.$inferSelect;
+    try {
+      [updated] = await this.db
+        .update(reservations)
+        .set({
+          date: next.date,
+          timeSlot: deriveLegacyTimeSlot(next.startTime),
+          startTime: next.startTime,
+          endTime: next.endTime,
+          description,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(reservations.id, reservationId))
+        .returning();
+    } catch (error) {
+      if (error instanceof Error && /UNIQUE constraint failed/i.test(error.message)) {
+        throw new ConflictError('Esta faixa de horário conflita com uma reserva existente');
+      }
+
+      throw error;
+    }
+
+    const from = `${reservation.date} ${reservation.startTime}-${reservation.endTime}`;
+    const to = `${next.date} ${next.startTime}-${next.endTime}`;
+    const changes = [`${from} → ${to}`];
+    if (description !== reservation.description) {
+      changes.push(`descrição: "${reservation.description ?? ''}" → "${description ?? ''}"`);
+    }
+
+    await this.auditLog.log(
+      userId,
+      'update_reservation',
+      reservationId,
+      'reservation',
+      `Editou a reserva do espaço ${space.number}: ${changes.join('; ')}`
+    );
+
+    if (reservation.userId !== userId) {
+      await this.notification.create(
+        reservation.userId,
+        'Reserva alterada',
+        `Sua reserva para o espaço ${space.number} foi alterada: agora em ${next.date} (${next.startTime}-${next.endTime}).`,
+        'modified'
+      );
+    }
+
+    return updated;
+  }
+
   async cancel(reservationId: string, userId: string, userRole: string, cancelReason?: string) {
     const reservation = await this.findOrThrow(reservationId);
+    this.assertCanManage(userId, userRole, reservation, 'Você só pode cancelar as próprias reservas');
 
     if (reservation.status === 'canceled') {
       throw new AppError(400, 'A reserva já está cancelada', 'ALREADY_CANCELED');
-    }
-
-    if (userRole === 'student' && reservation.userId !== userId) {
-      throw new ForbiddenError('Estudantes só podem cancelar as próprias reservas');
-    }
-
-    if (userRole === 'maintenance') {
-      throw new ForbiddenError('A equipe de manutenção não pode gerenciar reservas');
     }
 
     const now = new Date().toISOString();
@@ -251,6 +364,14 @@ export class ReservationService {
     if (seriesReservations.length === 0) {
       throw new NotFoundError('Recurring reservation series');
     }
+
+    const first = seriesReservations[0];
+    this.assertCanManage(
+      userId,
+      userRole,
+      { userId: first.recurrence?.createdBy ?? first.userId },
+      'Você só pode cancelar as próprias séries de reservas'
+    );
 
     const today = new Date().toISOString().slice(0, 10);
     const upcoming = seriesReservations.filter((r) => r.status === 'confirmed' && r.date >= today);
@@ -364,12 +485,39 @@ export class ReservationService {
     }
   }
 
+  /** Owner or staff (MEL-023); maintenance never. See {@link canManageReservation}. */
+  private assertCanManage(
+    userId: string,
+    userRole: string,
+    reservation: { userId: string },
+    notOwnerMessage: string
+  ) {
+    if (userRole === 'maintenance') {
+      throw new ForbiddenError('A equipe de manutenção não pode gerenciar reservas');
+    }
+    if (!canManageReservation({ userId, role: userRole }, reservation)) {
+      throw new ForbiddenError(notOwnerMessage);
+    }
+  }
+
+  /** True once the reservation's start is at or before campus "now". */
+  private hasStarted(date: string, startTime: string) {
+    const today = campusToday();
+    if (date !== today) return date < today;
+    return timeToMinutes(startTime) <= campusNowMinutes();
+  }
+
+  /**
+   * @param excludeReservationId the reservation being edited (MEL-023): its own
+   *   interval counts as free, so it never conflicts with itself.
+   */
   private async checkSlotAvailability(
     space: { closedFrom: string; closedTo: string },
     spaceId: string,
     date: string,
     startTime: string,
-    endTime: string
+    endTime: string,
+    excludeReservationId?: string
   ) {
     // Reject starts whose 30-minute slot already ended today (campus time). The
     // in-progress slot stays bookable (MEL-024) — the frontend only treats a slot
@@ -389,7 +537,9 @@ export class ReservationService {
         eq(reservations.status, 'confirmed')
       ),
     });
-    if (existingReservations.some((existing) => intervalsOverlap(startTime, endTime, existing.startTime, existing.endTime))) {
+    if (existingReservations.some((existing) =>
+      existing.id !== excludeReservationId &&
+      intervalsOverlap(startTime, endTime, existing.startTime, existing.endTime))) {
       throw new ConflictError('Esta faixa de horário conflita com uma reserva existente');
     }
 
