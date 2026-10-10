@@ -1,5 +1,5 @@
 import { eq, and, gte, desc, lte, isNull, inArray } from 'drizzle-orm';
-import { equipmentReports, equipment, users } from '@/db/schema';
+import { equipmentReports, equipment, equipmentStatusHistory, users } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { AppError, NotFoundError, ConflictError, ForbiddenError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
@@ -78,12 +78,24 @@ export class EquipmentReportService {
       })
       .returning();
 
-    // Auto-move equipment to broken if severity >= major and currently working
+    // Auto-move equipment to broken if severity >= major and currently working,
+    // recording the transition in the status history (MEL-013).
     if ((input.severity === 'major' || input.severity === 'blocking') && equip.status === 'working') {
-      await this.db
-        .update(equipment)
-        .set({ status: 'broken', updatedBy: userId, updatedAt: now })
-        .where(eq(equipment.id, input.equipmentId));
+      await this.db.batch([
+        this.db
+          .update(equipment)
+          .set({ status: 'broken', updatedBy: userId, updatedAt: now })
+          .where(eq(equipment.id, input.equipmentId)),
+        this.db.insert(equipmentStatusHistory).values({
+          id: crypto.randomUUID(),
+          equipmentId: input.equipmentId,
+          fromStatus: 'working',
+          toStatus: 'broken',
+          changedBy: userId,
+          changedAt: now,
+          source: 'report',
+        }),
+      ]);
     }
 
     // Notify staff and maintenance

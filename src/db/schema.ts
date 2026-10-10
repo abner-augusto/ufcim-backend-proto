@@ -90,6 +90,32 @@ export const equipmentReports = sqliteTable(
   })
 );
 
+// ─── Equipment Status History (MEL-013) ─────────────────────────────────────
+// Forward-only log of equipment status transitions; nothing before the
+// migration is reconstructed. `changedBy` is null for system rows (the
+// baseline snapshot written by migration 0004).
+export const equipmentStatusHistory = sqliteTable(
+  'equipment_status_history',
+  {
+    id: text('id').primaryKey(),
+    equipmentId: text('equipment_id').notNull().references(() => equipment.id),
+    fromStatus: text('from_status').notNull(),
+    toStatus: text('to_status').notNull(),
+    changedBy: text('changed_by').references(() => users.id),
+    changedAt: text('changed_at').notNull(),
+    source: text('source').notNull(), // 'report' | 'manual' | 'system'
+  },
+  (t) => ({
+    equipmentChangedIdx: index('equipment_status_history_equipment_changed_idx').on(t.equipmentId, t.changedAt),
+    changedAtIdx: index('equipment_status_history_changed_at_idx').on(t.changedAt),
+  })
+);
+
+export const equipmentStatusHistoryRelations = relations(equipmentStatusHistory, ({ one }) => ({
+  equipment: one(equipment, { fields: [equipmentStatusHistory.equipmentId], references: [equipment.id] }),
+  changer: one(users, { fields: [equipmentStatusHistory.changedBy], references: [users.id] }),
+}));
+
 export const equipmentReportsRelations = relations(equipmentReports, ({ one }) => ({
   equipment: one(equipment, { fields: [equipmentReports.equipmentId], references: [equipment.id] }),
   reporter: one(users, { fields: [equipmentReports.reportedBy], references: [users.id], relationName: 'reporter' }),

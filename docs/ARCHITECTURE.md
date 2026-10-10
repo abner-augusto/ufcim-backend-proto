@@ -56,6 +56,7 @@ users              – sincronizados do Keycloak; roles: student|professor|staff
 spaces             – espaços físicos; closedFrom/closedTo; modelId (pino 3D)
 equipment          – equipamentos vinculados a espaços
 equipment_reports  – reportes de equipamentos (pending/acknowledged/resolved/dismissed)
+equipment_status_history – transições de status (from→to, source report|manual|system); só para frente
 space_managers     – vínculo usuário↔espaço (coordinator|maintainer)
 reservations       – reservas; startTime/endTime "HH:00"; timeSlot legado derivado
 recurrences        – cabeçalhos de séries recorrentes
@@ -103,6 +104,8 @@ aplicados em toda a sub-app (`src/app.ts`).
 | `PATCH` | `/api/v1/reservations/:id/cancel` | dono ou staff |
 | `POST` | `/api/v1/blockings` | professor, staff, maintenance |
 | `GET` | `/api/v1/reports/occupancy` | professor, staff, maintenance |
+| `GET` | `/api/v1/reports/maintenance/equipment` | staff, maintenance |
+| `GET` | `/api/v1/equipment/:id/maintenance-report` | staff, maintenance |
 | `GET` | `/api/v1/stats` · `/logs` | staff |
 | `POST` | `/api/v1/departments` | staff |
 | `GET` | `/api/v1/notifications` | todos |

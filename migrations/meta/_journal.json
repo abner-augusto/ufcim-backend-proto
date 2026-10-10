@@ -29,6 +29,13 @@
       "when": 1789562736848,
       "tag": "0003_uneven_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791633150628,
+      "tag": "0004_equipment_status_history",
+      "breakpoints": true
     }
   ]
 }

@@ -32,6 +32,9 @@ export function createMockDb() {
   const selectFrom = vi.fn().mockReturnValue({ where: selectWhere });
   const selectFn = vi.fn().mockReturnValue({ from: selectFrom });
 
+  // batch([...queries]) resolves each pre-built query, mirroring D1 batch results
+  const batchFn = vi.fn(async (queries: unknown[]) => Promise.all(queries));
+
   const db = {
     query: {
       spaces:        { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
@@ -42,7 +45,8 @@ export function createMockDb() {
       auditLogs:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       equipment:     { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       equipmentReports: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
-      recurrences:   { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      equipmentStatusHistory: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
+      recurrences:  { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       spaceManagers: { findFirst: vi.fn().mockResolvedValue(undefined), findMany: vi.fn().mockResolvedValue([]) },
       departments:   { findFirst: vi.fn().mockResolvedValue({ id: 'iaud', name: 'IAUD', campus: 'Benfica' }), findMany: vi.fn().mockResolvedValue([]) },
     },
@@ -50,11 +54,13 @@ export function createMockDb() {
     update: updateFn,
     delete: deleteFn,
     select: selectFn,
+    batch: batchFn,
     // Exposed for assertions and per-test overrides
     _insert: { fn: insertFn, values: insertValues, returning: insertReturning },
     _update: { fn: updateFn, set: updateSet, where: updateWhere, returning: updateReturning },
     _delete: { fn: deleteFn, where: deleteWhere },
     _select: { fn: selectFn, from: selectFrom, where: selectWhere },
+    _batch: batchFn,
   };
 
   return db as unknown as Database & {
@@ -63,6 +69,7 @@ export function createMockDb() {
     _update: typeof db._update;
     _delete: typeof db._delete;
     _select: typeof db._select;
+    _batch: typeof db._batch;
   };
 }
 

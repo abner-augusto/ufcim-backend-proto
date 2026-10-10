@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EquipmentReportService } from '@/services/equipment-report.service';
 import { NotFoundError, ConflictError } from '@/middleware/error-handler';
+import { equipmentStatusHistory } from '@/db/schema';
 import { createMockDb, SEED } from '../helpers/mock-db';
 
 describe('EquipmentReportService.create', () => {
@@ -67,6 +68,43 @@ describe('EquipmentReportService.create', () => {
     expect(result.status).toBe('pending');
     // Verify update was called for equipment status
     expect(db._update.fn).toHaveBeenCalled();
+  });
+
+  it('records the auto-move working→broken as a report-sourced history row (MEL-013)', async () => {
+    db.query.equipment.findFirst.mockResolvedValue({ ...SEED.equipment, status: 'working', space: null });
+    db.query.equipmentReports.findFirst.mockResolvedValue(undefined);
+
+    await service.create(SEED.user.id, 'student', {
+      equipmentId: SEED.equipment.id,
+      description: 'Projetor não liga',
+      severity: 'major',
+    });
+
+    expect(db._batch).toHaveBeenCalledTimes(1);
+    expect(db._insert.fn).toHaveBeenCalledWith(equipmentStatusHistory);
+    expect(db._insert.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        equipmentId: SEED.equipment.id,
+        fromStatus: 'working',
+        toStatus: 'broken',
+        changedBy: SEED.user.id,
+        source: 'report',
+      })
+    );
+  });
+
+  it('records no history when the equipment is not auto-moved (minor, or already not working)', async () => {
+    db.query.equipment.findFirst.mockResolvedValue({ ...SEED.equipment, status: 'under_repair', space: null });
+    db.query.equipmentReports.findFirst.mockResolvedValue(undefined);
+
+    await service.create(SEED.user.id, 'student', {
+      equipmentId: SEED.equipment.id,
+      description: 'Continua sem funcionar',
+      severity: 'blocking',
+    });
+
+    expect(db._insert.fn).not.toHaveBeenCalledWith(equipmentStatusHistory);
+    expect(db._update.fn).not.toHaveBeenCalled();
   });
 
   it('creates report without moving equipment when severity is minor', async () => {

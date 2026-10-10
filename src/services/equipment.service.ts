@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { equipment, spaces } from '@/db/schema';
+import { equipment, equipmentStatusHistory, spaces } from '@/db/schema';
 import type { Database } from '@/db/client';
 import { ConflictError, NotFoundError } from '@/middleware/error-handler';
 import { AuditLogService } from './audit-log.service';
@@ -58,17 +58,38 @@ export class EquipmentService {
     const item = await this.db.query.equipment.findFirst({ where: eq(equipment.id, id) });
     if (!item) throw new NotFoundError('Equipment');
 
-    const [updated] = await this.db
+    const now = new Date().toISOString();
+    const updateQuery = this.db
       .update(equipment)
       .set({
         assetId: input.assetId ?? item.assetId,
         status: input.status,
         notes: input.notes ?? item.notes,
         updatedBy: userId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       })
       .where(eq(equipment.id, id))
       .returning();
+
+    let updated: typeof equipment.$inferSelect | undefined;
+    if (item.status !== input.status) {
+      // Status change and its history row land atomically (MEL-013).
+      const [rows] = await this.db.batch([
+        updateQuery,
+        this.db.insert(equipmentStatusHistory).values({
+          id: crypto.randomUUID(),
+          equipmentId: id,
+          fromStatus: item.status,
+          toStatus: input.status,
+          changedBy: userId,
+          changedAt: now,
+          source: 'manual',
+        }),
+      ]);
+      [updated] = rows;
+    } else {
+      [updated] = await updateQuery;
+    }
 
     await this.auditLog.log(
       userId,

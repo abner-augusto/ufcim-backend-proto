@@ -3,10 +3,12 @@ import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
 import { EquipmentService } from '@/services/equipment.service';
 import { EquipmentReportService } from '@/services/equipment-report.service';
-import { validate } from '@/middleware/validation';
+import { MaintenanceReportService } from '@/services/maintenance-report.service';
+import { validate, validateQuery } from '@/middleware/validation';
 import { rbac, extractRole } from '@/middleware/rbac';
 import { createEquipmentSchema, updateEquipmentStatusSchema } from '@/validators/equipment.schema';
 import { createEquipmentReportSchema, dismissReportSchema } from '@/validators/equipment-report.schema';
+import { maintenanceRangeQuerySchema } from '@/validators/report.schema';
 import type { z } from 'zod';
 
 export const equipmentRoutes = new Hono<AppEnv>();
@@ -102,6 +104,19 @@ equipmentRoutes.post(
       ...body,
     });
     return c.json(report, 201);
+  }
+);
+
+// GET /equipment/:id/maintenance-report — staff/maintenance (MEL-013)
+equipmentRoutes.get(
+  '/:id/maintenance-report',
+  rbac(['staff', 'maintenance']),
+  validateQuery(maintenanceRangeQuerySchema),
+  async (c) => {
+    const db = createDb(c.env.DB);
+    const service = new MaintenanceReportService(db);
+    const range = c.get('validatedQuery') as z.infer<typeof maintenanceRangeQuerySchema>;
+    return c.json(await service.getEquipmentReport(c.req.param('id'), range));
   }
 );
 
