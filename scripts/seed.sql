@@ -63,7 +63,7 @@ VALUES
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
   ('a1a00005-0000-4000-8000-000000000000',
-   'Atelier Digital', 'B1-05', 'study_room', 'Bloco 1', 'Benfica',
+   'Atelier Digital 2', 'B1-05', 'study_room', 'Bloco 1', 'Benfica',
    'iaud',
    20, NULL, NULL, NULL, NULL,
    'Atelier Digital',
@@ -96,7 +96,7 @@ VALUES
   ('a1a00009-0000-4000-8000-000000000000',
    'Auditório', 'B2-02', 'hall', 'Bloco 2', 'Benfica',
    'iaud',
-   100, NULL, NULL, NULL, NULL,
+   63, NULL, NULL, NULL, NULL,
    'Auditório',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
