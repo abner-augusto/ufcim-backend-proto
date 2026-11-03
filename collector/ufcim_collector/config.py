@@ -87,3 +87,41 @@ def load_config(path: Path, env: dict[str, str] | None = None) -> Config:
         data_dir=data_dir,
         devices=devices,
     )
+
+
+def load_env_config(env: dict[str, str] | None = None) -> Config:
+    """Configuração só por variáveis de ambiente, para um aparelho (modo container).
+
+    Obrigatórias: UFCIM_SERVER_URL, UFCIM_COLLECTOR_TOKEN, UFCIM_DEVICE_ID,
+    UFCIM_DEVICE_IP e UFCIM_DEVICE_LOCAL_KEY. Opcionais: UFCIM_DEVICE_PROTOCOL
+    (3.5), UFCIM_DEVICE_PROFILE (breathe-btl40001), UFCIM_POLL_SECONDS (15),
+    UFCIM_SEND_SECONDS (60), UFCIM_OUTBOX_MAX_AGE_DAYS (7), UFCIM_DATA_DIR (/data).
+    """
+    env = dict(os.environ) if env is None else env
+
+    def required(name: str) -> str:
+        return _secret(env, name)
+
+    def number(name: str, default: float) -> float:
+        raw = env.get(name, "").strip()
+        try:
+            return float(raw) if raw else default
+        except ValueError as error:
+            raise ConfigError(f"{name} não é um número: {raw!r}") from error
+
+    device = DeviceConfig(
+        id=required("UFCIM_DEVICE_ID"),
+        ip=required("UFCIM_DEVICE_IP"),
+        protocol=number("UFCIM_DEVICE_PROTOCOL", 3.5),
+        profile=env.get("UFCIM_DEVICE_PROFILE", "").strip() or "breathe-btl40001",
+        local_key=required("UFCIM_DEVICE_LOCAL_KEY"),
+    )
+    return Config(
+        server_url=required("UFCIM_SERVER_URL").rstrip("/"),
+        token=required("UFCIM_COLLECTOR_TOKEN"),
+        poll_seconds=number("UFCIM_POLL_SECONDS", 15),
+        send_seconds=number("UFCIM_SEND_SECONDS", 60),
+        outbox_max_age_days=number("UFCIM_OUTBOX_MAX_AGE_DAYS", 7),
+        data_dir=Path(env.get("UFCIM_DATA_DIR", "").strip() or "/data"),
+        devices=(device,),
+    )

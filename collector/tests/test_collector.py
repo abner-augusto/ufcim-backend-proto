@@ -93,6 +93,31 @@ def test_env_file_and_config(tmp_path):
         load_config(tmp_path / "config.toml", {})
 
 
+def test_env_only_config_for_one_device():
+    from ufcim_collector.config import load_env_config
+
+    env = {
+        "UFCIM_SERVER_URL": "https://worker.example/",
+        "UFCIM_COLLECTOR_TOKEN": "tok",
+        "UFCIM_DEVICE_ID": "dev",
+        "UFCIM_DEVICE_IP": "192.168.50.33",
+        "UFCIM_DEVICE_LOCAL_KEY": "k*]y.",
+        "UFCIM_POLL_SECONDS": "20",
+    }
+    config = load_env_config(env)
+    assert config.server_url == "https://worker.example"
+    assert config.poll_seconds == 20 and config.send_seconds == 60
+    assert str(config.data_dir).replace("\\", "/") == "/data"
+    device = config.devices[0]
+    assert (device.id, device.ip, device.protocol, device.profile, device.local_key) == (
+        "dev", "192.168.50.33", 3.5, "breathe-btl40001", "k*]y.",
+    )
+    with pytest.raises(ConfigError, match="UFCIM_DEVICE_LOCAL_KEY"):
+        load_env_config({k: v for k, v in env.items() if k != "UFCIM_DEVICE_LOCAL_KEY"})
+    with pytest.raises(ConfigError, match="UFCIM_POLL_SECONDS"):
+        load_env_config({**env, "UFCIM_POLL_SECONDS": "rápido"})
+
+
 def _server(status: int, body: dict):
     received = []
 

@@ -1,11 +1,27 @@
+# Coletor de um aparelho, configurado só pelo .env (ver .env.example).
+# No homelab a stack fica em /mnt/stacks/ufcim-collector/ com build context
+# apontando para a cópia do código; ver docs/AIR-QUALITY-COLLECTOR.md.
 services:
   collector:
     build: .
+    image: ufcim-collector:local
+    container_name: ufcim-collector
     restart: unless-stopped
+    init: true
     env_file: .env
     volumes:
-      # config.toml do host, com storage.data_dir = "/data"
-      - ./config.toml:/app/config.toml:ro
-      - collector-data:/data
+      - collector-data:/data      # outbox.sqlite3 e heartbeat
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 volumes:
   collector-data:
