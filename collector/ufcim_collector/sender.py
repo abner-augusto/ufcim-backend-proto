@@ -7,6 +7,8 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
+from . import __version__
+
 
 @dataclass(frozen=True)
 class SendResult:
@@ -15,12 +17,21 @@ class SendResult:
     body: dict | str | None
 
 
+# A Cloudflare barra o User-Agent padrão "Python-urllib/x.y" (erro 1010,
+# assinatura de bot) antes de chegar ao Worker; um nome próprio passa.
+USER_AGENT = f"ufcim-collector/{__version__}"
+
+
 def post_batch(url: str, token: str, payload: dict, timeout: float = 15.0) -> SendResult:
     request = urllib.request.Request(
         f"{url}/ingest/v1/samples",
         data=json.dumps(payload).encode("utf-8"),
         method="POST",
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            "User-Agent": USER_AGENT,
+        },
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:

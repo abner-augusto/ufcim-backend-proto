@@ -397,7 +397,14 @@ aparelho vinculado à Sala 09 do Bloco 3:
 | Logs | stdout JSON → Alloy → Loki (`container="ufcim-collector"`) |
 
 O container é endurecido como as outras stacks do host: `read_only`, `cap_drop:
-ALL`, `no-new-privileges`, `init`. Para atualizar, copie de novo `collector/`
+ALL`, `no-new-privileges`, `init`. A imagem tem ~55 MB: Alpine limpo com o Python
+oficial enxugado, `tinytuya` sem dependências e `pycryptodomex` para o AES-GCM do
+protocolo 3.5 (detalhes no `Dockerfile`).
+
+> A Cloudflare barra o User-Agent padrão `Python-urllib` com o erro **1010**
+> (assinatura de bot), antes do Worker. O coletor se identifica como
+> `ufcim-collector/<versão>`; qualquer cliente novo do contrato precisa fazer o
+> mesmo. Para atualizar, copie de novo `collector/`
 para `/opt/ufcim-collector`, sem `.env` nem `config.toml`, e rode
 `docker compose up -d --build` na stack. Ao levar o aparelho para o IAUD, troque
 `UFCIM_DEVICE_IP` (e o coletor de host, se a rede for outra) e vincule a sala real
