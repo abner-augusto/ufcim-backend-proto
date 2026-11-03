@@ -21,6 +21,8 @@ import { departmentRoutes } from '@/routes/departments';
 import { adminRoutes } from '@/routes/admin';
 import { authRoutes } from '@/routes/auth';
 import { bootstrapRoutes } from '@/routes/bootstrap';
+import { ingestRoutes } from '@/routes/ingest';
+import { airQualityRoutes } from '@/routes/air-quality';
 import { rbac, requireMasterAdmin } from '@/middleware/rbac';
 import { renderAdminLogin } from '@/admin/admin-login';
 import { renderAdminShell } from '@/admin/admin-shell';
@@ -89,6 +91,7 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
 
   app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
   app.route('/bootstrap', bootstrapRoutes);
+  app.route('/ingest/v1', ingestRoutes);
 
   if (devRoutes) {
     app.route('/', devRoutes);
@@ -102,6 +105,7 @@ export function createApp({ authMiddleware, devRoutes }: CreateAppOptions) {
   api.route('/users', userRoutes);
   api.route('/spaces', spaceRoutes);
   api.route('/spaces', spaceManagerRoutes);
+  api.route('/spaces', airQualityRoutes);
   api.route('/equipment', equipmentRoutes);
   api.route('/reservations', reservationRoutes);
   api.route('/blockings', blockingRoutes);

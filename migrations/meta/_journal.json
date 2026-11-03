@@ -50,6 +50,13 @@
       "when": 1791637175342,
       "tag": "0006_reservation_requester",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793727293732,
+      "tag": "0007_air_quality_sensors",
+      "breakpoints": true
     }
   ]
 }

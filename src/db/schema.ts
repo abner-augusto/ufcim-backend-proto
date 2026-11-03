@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
 import { relations, sql } from 'drizzle-orm';
 
 // ─── Departments ─────────────────────────────────────────────────────────────
@@ -330,6 +330,64 @@ export const rateLimitBuckets = sqliteTable(
   },
   (t) => ({
     windowStartIdx: index('rate_limit_buckets_window_start_idx').on(t.windowStart),
+  })
+);
+
+// ─── Air quality sensors (ADR 0002, docs/AIR-QUALITY-COLLECTOR.md) ───────────
+// A collector is a process on the room's network that reads devices locally and
+// posts samples to /ingest/v1. Its token is stored only as a SHA-256 hex hash.
+export const sensorCollectors = sqliteTable('sensor_collectors', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  lastSeenAt: text('last_seen_at'),
+  lastVersion: text('last_version'),
+  revokedAt: text('revoked_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
+export const sensorDevices = sqliteTable(
+  'sensor_devices',
+  {
+    id: text('id').primaryKey(),
+    externalId: text('external_id').notNull().unique(), // vendor device id (Tuya device_id)
+    vendor: text('vendor').notNull(), // 'tuya'
+    model: text('model').notNull(),
+    label: text('label'),
+    collectorId: text('collector_id').notNull().references(() => sensorCollectors.id),
+    spaceId: text('space_id').references(() => spaces.id), // null = on the bench, no room
+    lastStatus: text('last_status'), // 'ok' | 'unreachable' | 'auth_failed' | 'bad_payload'
+    lastStatusAt: text('last_status_at'),
+    lastError: text('last_error'),
+    retiredAt: text('retired_at'),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => ({
+    spaceIdx: index('sensor_devices_space_idx').on(t.spaceId),
+  })
+);
+
+// One row per device per minute. The composite PK makes a resent batch a no-op.
+export const sensorReadings = sqliteTable(
+  'sensor_readings',
+  {
+    deviceId: text('device_id').notNull().references(() => sensorDevices.id),
+    measuredAt: text('measured_at').notNull(), // ISO UTC, start of the sample minute
+    receivedAt: text('received_at').notNull(),
+    co2Ppm: real('co2_ppm'),
+    pm1Ugm3: real('pm1_ugm3'),
+    pm25Ugm3: real('pm25_ugm3'),
+    pm10Ugm3: real('pm10_ugm3'),
+    tvocMgm3: real('tvoc_mgm3'),
+    hchoMgm3: real('hcho_mgm3'),
+    temperatureC: real('temperature_c'),
+    humidityPct: real('humidity_pct'),
+    batteryPct: integer('battery_pct'),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.deviceId, t.measuredAt] }),
   })
 );
 

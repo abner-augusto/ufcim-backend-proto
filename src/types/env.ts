@@ -1,4 +1,5 @@
 import type { JwtPayload } from './auth';
+import type { Collector } from '@/services/air-quality.service';
 
 export type Env = {
   DB: D1Database;
@@ -26,6 +27,8 @@ export type Env = {
 
 export type AppVariables = {
   user: JwtPayload;
+  /** Set by the collector auth middleware on /ingest/v1 routes only. */
+  collector: Collector;
   validatedBody: unknown;
   validatedQuery: unknown;
 };
