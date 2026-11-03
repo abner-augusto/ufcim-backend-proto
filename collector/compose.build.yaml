@@ -1,0 +1,6 @@
+# Sobreposição para montar a imagem a partir do código local, em vez de baixar do GHCR:
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+services:
+  collector:
+    build: .
+    image: ufcim-collector:local

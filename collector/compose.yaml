@@ -1,10 +1,12 @@
 # Coletor de um aparelho, configurado só pelo .env (ver .env.example).
-# No homelab a stack fica em /mnt/stacks/ufcim-collector/ com build context
-# apontando para a cópia do código; ver docs/AIR-QUALITY-COLLECTOR.md.
+# Imagem publicada pelo workflow collector-image (amd64 e arm64). Para fixar uma
+# versão, defina UFCIM_IMAGE no .env, por exemplo ghcr.io/abner-augusto/ufcim-collector:0.1.0.
+# Para testar uma alteração local sem publicar:
+#   docker compose -f compose.yaml -f compose.build.yaml up -d --build
+# Ver docs/AIR-QUALITY-COLLECTOR.md, "Implantação".
 services:
   collector:
-    build: .
-    image: ufcim-collector:local
+    image: ${UFCIM_IMAGE:-ghcr.io/abner-augusto/ufcim-collector:latest}
     container_name: ufcim-collector
     restart: unless-stopped
     init: true

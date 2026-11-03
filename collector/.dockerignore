@@ -1,0 +1,6 @@
+# A imagem só copia ufcim_collector/; segredos e dados locais nunca entram no contexto de build.
+.env
+config.toml
+data/
+tests/
+**/__pycache__
