@@ -1,0 +1,23 @@
+[project]
+name = "ufcim-collector"
+version = "0.1.0"
+description = "Coletor local de qualidade do ar do UFCIM (ADR 0002, docs/AIR-QUALITY-COLLECTOR.md)"
+requires-python = ">=3.11"
+dependencies = ["tinytuya>=1.17,<2"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+import = ["openpyxl>=3.1"]  # ufcim_collector.import_smartlife
+
+[project.scripts]
+ufcim-collector = "ufcim_collector.__main__:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ufcim_collector"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

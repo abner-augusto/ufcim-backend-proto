@@ -1,0 +1,11 @@
+services:
+  collector:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # config.toml do host, com storage.data_dir = "/data"
+      - ./config.toml:/app/config.toml:ro
+      - collector-data:/data
+volumes:
+  collector-data:

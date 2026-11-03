@@ -1,0 +1,19 @@
+# Copie para config.toml (gitignored: depende do host) e ajuste.
+[server]
+url = "http://127.0.0.1:8787"          # produção: https://ufcim-production.abner-hey.workers.dev
+token_env = "UFCIM_COLLECTOR_TOKEN"
+
+[sampling]
+poll_seconds = 15                      # leitura de cada aparelho
+send_seconds = 60                      # um lote por minuto
+outbox_max_age_days = 7
+
+[storage]
+data_dir = "data"                      # no container: /data
+
+[[devices]]
+id = "ebdaebfb3e5ed2f01crg1m"
+ip = "192.168.50.33"                   # reservado no DHCP
+protocol = 3.5
+profile = "breathe-btl40001"
+local_key_env = "LOCAL_KEY_EBDAEBFB"
