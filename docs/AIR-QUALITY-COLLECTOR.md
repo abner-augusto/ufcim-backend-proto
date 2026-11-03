@@ -5,15 +5,14 @@ do ar ao UFCIM. A decisão e as alternativas rejeitadas estão no
 [ADR 0002](adr/0002-air-quality-local-collector.md). Nada disto foi construído
 ainda; as fases de entrega estão no fim do documento.
 
-> **Estado em 2026-11-03.** A fatia mínima das fases 0–3 roda localmente, no
-> branch `feat/air-quality-ingest` (backend + coletor) e `feat/air-quality-popup`
-> (front): migração `0007`, `POST /ingest/v1/samples`,
-> `GET /api/v1/spaces/:id/air-quality`, `scripts/register-sensor.mjs`, o coletor
-> em `collector/` (protocolo 3.5 confirmado na bancada) e o bloco "Qualidade do
-> ar" no `RoomPopup`, com o aparelho vinculado à Sala 09 do Bloco 3, e o
-> histórico por hora (`…/history`) na seção "Qualidade do ar" do relatório da
-> sala. Ainda não foram feitos: `GET /api/v1/air-quality/latest`, a página de
-> admin e a retenção. Exploração do aparelho e evidências: nota do vault
+> **Estado em 2026-11-03.** A fatia mínima das fases 0–3 está em produção:
+> migração `0007`, `POST /ingest/v1/samples`,
+> `GET /api/v1/spaces/:id/air-quality` e `…/history`,
+> `scripts/register-sensor.mjs`, o coletor em `collector/` (protocolo 3.5) rodando
+> no homelab e, no front, o bloco "Qualidade do ar" no `RoomPopup` e a seção de
+> histórico no relatório da sala. O aparelho está vinculado à Sala 09 do Bloco 3
+> até ir para o IAUD ([Migração para o IAUD](#migração-para-o-iaud)). Ainda não
+> foram feitos: `GET /api/v1/air-quality/latest`, a página de admin e a retenção. Exploração do aparelho e evidências: nota do vault
 > `01-Projects/Hackaton UFC/BREATHE Airmonitor Plus — exploração e integração no UFCIM.md`.
 
 ---
@@ -352,22 +351,25 @@ Logs em JSON de uma linha no stdout, sem *local key* nem token.
 
 ### Implantação
 
-```yaml
-# compose.yaml
-services:
-  collector:
-    build: .
-    restart: unless-stopped
-    env_file: .env
-    volumes:
-      - ./config.toml:/app/config.toml:ro
-      - collector-data:/data      # outbox.sqlite3 e heartbeat
-    healthcheck:
-      test: ["CMD", "python", "-m", "ufcim_collector.health"]   # heartbeat < 3 min
-      interval: 60s
-volumes:
-  collector-data:
+**Imagem publicada.** O workflow `.github/workflows/collector-image.yml` roda os
+testes do coletor e publica `ghcr.io/abner-augusto/ufcim-collector` para
+`linux/amd64` e `linux/arm64` (Raspberry Pi) a cada mudança em `collector/` no
+`main`, com as tags `:latest`, `:<versão do pyproject>` e `:sha-<commit>`. Em pull
+request ele só monta as duas arquiteturas, sem publicar. O pacote é público, então
+o host baixa sem login. Para publicar uma versão nova, suba `version` no
+`pyproject.toml` e `__version__` no pacote, que também vira o User-Agent.
+
+Um host novo precisa só de Docker e de dois arquivos, `compose.yaml` (o de
+`collector/`) e `.env` (a partir de `collector/.env.example`, modo 600):
+
+```bash
+docker compose pull && docker compose up -d
+docker compose logs -f     # espere "send_ok" em até 1 min
 ```
+
+`UFCIM_IMAGE` no `.env` fixa uma tag (`…:0.1.0` ou `…:sha-abc1234`); sem ela vale
+`:latest`. Para testar código local sem publicar:
+`docker compose -f compose.yaml -f compose.build.yaml up -d --build`.
 
 A rede *bridge* padrão do Docker alcança os IPs da LAN; não é preciso
 `network_mode: host`. O coletor só abre conexões de saída: TCP 6668 para os
@@ -391,8 +393,7 @@ aparelho vinculado à Sala 09 do Bloco 3:
 
 | O quê | Onde |
 |---|---|
-| Código (cópia de `collector/`) | `/opt/ufcim-collector` |
-| Stack (`compose.yaml` + `.env` modo 600) | `/mnt/stacks/ufcim-collector` |
+| Stack (`compose.yaml` + `.env` modo 600), imagem do GHCR | `/mnt/stacks/ufcim-collector` |
 | Fila e heartbeat | `/mnt/app-configs/ufcim-collector/data` (dono uid 10001) |
 | Logs | stdout JSON → Alloy → Loki (`container="ufcim-collector"`) |
 
@@ -404,11 +405,74 @@ protocolo 3.5 (detalhes no `Dockerfile`).
 > A Cloudflare barra o User-Agent padrão `Python-urllib` com o erro **1010**
 > (assinatura de bot), antes do Worker. O coletor se identifica como
 > `ufcim-collector/<versão>`; qualquer cliente novo do contrato precisa fazer o
-> mesmo. Para atualizar, copie de novo `collector/`
-para `/opt/ufcim-collector`, sem `.env` nem `config.toml`, e rode
-`docker compose up -d --build` na stack. Ao levar o aparelho para o IAUD, troque
-`UFCIM_DEVICE_IP` (e o coletor de host, se a rede for outra) e vincule a sala real
-com `register-sensor.mjs --space-model …`.
+> mesmo.
+
+Para atualizar o homelab depois de um merge, `docker compose pull && docker
+compose up -d` na stack.
+
+### Migração para o IAUD
+
+O IAUD repete o homelab com outro host, outra rede e outra sala. A imagem e o
+`compose.yaml` não mudam, só o `.env` e o cadastro.
+
+**Antes do dia**
+
+1. **Rede.** Confirmar com a STI (ou com o roteador próprio da sala) uma rede
+   **2,4 GHz WPA2-Personal**: o aparelho não entra em rede 5 GHz nem em
+   WPA2-Enterprise (eduroam). O host e o aparelho precisam estar na mesma rede, e
+   ela precisa liberar TCP 6668 entre os dois e HTTPS de saída para
+   `*.workers.dev`. Teste o HTTPS no próprio host:
+   `curl -sI https://ufcim-production.abner-hey.workers.dev/health`.
+2. **Host.** Um Raspberry Pi (arm64) ou mini-PC com Docker e NTP ativo. Copie
+   `collector/compose.yaml` e um `.env` a partir de `.env.example`.
+3. **Sala.** Anote o `model_id` da sala real no manifesto do IAUD (o `id` do pin).
+
+**No dia**
+
+1. **Pôr o aparelho na rede nova.** Reset de Wi-Fi conforme o manual (nota do
+   vault, seção do reset) e novo pareamento no Smart Life, na mesma conta. Reserve
+   o IP no DHCP dessa rede.
+2. **Ler a *local key* nova.** O pareamento troca a chave. Na Tuya Developer
+   Platform, projeto do UFCIM, *API Explorer → Query Device Details* com o ID do
+   aparelho. Confira se o `id` continua
+   `ebdaebfb3e5ed2f01crg1m`; se mudou, use o novo em `UFCIM_DEVICE_ID` e em
+   `--device`. Exige o trial do IoT Core ativo; se vencido, peça extensão antes.
+3. **Emitir o coletor do IAUD e mover o aparelho para a sala real**, no backend:
+
+   ```bash
+   node scripts/register-sensor.mjs --collector iaud-<host> \
+     --device ebdaebfb3e5ed2f01crg1m --label "Airmonitor 01" \
+     --space-model "<model_id da sala>" --write-env <.env do host>
+   npx wrangler d1 execute ufcim-db --remote --env production --file scripts/seed_sensor.sql
+   ```
+
+   O `ON CONFLICT` move o aparelho para o coletor novo; o token do homelab deixa
+   de valer para ele na hora.
+4. **Subir o host.** Preencha `UFCIM_DEVICE_IP` e `UFCIM_DEVICE_LOCAL_KEY` no
+   `.env`, depois `docker compose pull && docker compose up -d`. Espere `send_ok`
+   no log e o popup da sala mostrar a leitura.
+5. **Desligar o homelab e revogar o coletor dele:**
+
+   ```bash
+   ssh docker-vm 'cd /mnt/stacks/ufcim-collector && docker compose down'
+   npx wrangler d1 execute ufcim-db --remote --env production --command \
+     "UPDATE sensor_collectors SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE name = 'homelab-docker-vm'"
+   ```
+6. **Histórico de casa.** A sala é resolvida pelo aparelho, então as leituras da
+   Sala 09 passariam a aparecer na sala do IAUD. Apague as anteriores à
+   instalação (troque o horário pelo do passo 4, em UTC):
+
+   ```bash
+   npx wrangler d1 execute ufcim-db --remote --env production --command \
+     "DELETE FROM sensor_readings WHERE device_id = (SELECT id FROM sensor_devices WHERE external_id = 'ebdaebfb3e5ed2f01crg1m') AND measured_at < '2026-11-20T12:00:00.000Z'"
+   ```
+
+   Se o histórico da bancada precisar ser preservado, crie antes
+   `sensor_device_placements` (ver [Modelo de dados](#modelo-de-dados-d1)).
+
+**Se algo falhar:** `auth_failed` no log é *local key* errada (repita o passo 2);
+`unreachable` é IP errado ou rede que isola clientes; 401 no envio é token
+errado ou coletor revogado; 403 com 1010 é rede/proxy reescrevendo o User-Agent.
 
 ### Backfill pelo export do Smart Life
 
