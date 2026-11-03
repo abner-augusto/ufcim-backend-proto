@@ -1,6 +1,7 @@
 """Laço do coletor: lê os aparelhos, fecha amostras de 1 min, enfileira e envia.
 
-    python -m ufcim_collector --config config.toml [--env-file .env] [--once]
+    python -m ufcim_collector [--env-file .env] [--once]            # um aparelho, variáveis UFCIM_*
+    python -m ufcim_collector --config config.toml [--env-file .env]  # vários aparelhos
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
-from .config import Config, ConfigError, load_config, read_env_file
+from .config import Config, ConfigError, load_config, load_env_config, read_env_file
 from .device import ReadError, TuyaReader
 from .outbox import Outbox
 from .profiles import decode, get_profile
@@ -111,7 +112,7 @@ class Collector:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="ufcim-collector")
-    parser.add_argument("--config", type=Path, default=Path("config.toml"))
+    parser.add_argument("--config", type=Path, help="TOML com vários aparelhos; sem ele, tudo vem das variáveis UFCIM_*")
     parser.add_argument("--env-file", type=Path, help="arquivo KEY=valor com os segredos (fora do Docker)")
     parser.add_argument("--once", action="store_true", help="uma leitura e sai, sem enviar (diagnóstico)")
     args = parser.parse_args(argv)
@@ -122,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
 
         env = {**os.environ, **read_env_file(args.env_file)}
     try:
-        config = load_config(args.config, env)
+        config = load_config(args.config, env) if args.config else load_env_config(env)
     except (ConfigError, KeyError, FileNotFoundError) as error:
         log("config_error", error=str(error))
         return 2

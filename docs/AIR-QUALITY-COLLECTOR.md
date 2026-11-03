@@ -380,6 +380,29 @@ aparelhos e HTTPS 443 para o Worker.
 
 O host precisa de NTP ativo: o carimbo de tempo da amostra é o relógio dele.
 
+**Modo container: um aparelho, tudo por variáveis.** Sem `--config`, o coletor
+lê só as variáveis `UFCIM_*` (`collector/.env.example`): servidor, token, ID, IP,
+protocolo, perfil e *local key* do aparelho. É o formato do protótipo do IAUD. Um
+`config.toml` continua aceito para vários aparelhos na mesma rede.
+
+**Protótipo no homelab (desde 2026-11-03).** Roda no `docker-vm` (192.168.50.110,
+Debian 13), na mesma LAN do aparelho, enviando ao Worker de produção, com o
+aparelho vinculado à Sala 09 do Bloco 3:
+
+| O quê | Onde |
+|---|---|
+| Código (cópia de `collector/`) | `/opt/ufcim-collector` |
+| Stack (`compose.yaml` + `.env` modo 600) | `/mnt/stacks/ufcim-collector` |
+| Fila e heartbeat | `/mnt/app-configs/ufcim-collector/data` (dono uid 10001) |
+| Logs | stdout JSON → Alloy → Loki (`container="ufcim-collector"`) |
+
+O container é endurecido como as outras stacks do host: `read_only`, `cap_drop:
+ALL`, `no-new-privileges`, `init`. Para atualizar, copie de novo `collector/`
+para `/opt/ufcim-collector`, sem `.env` nem `config.toml`, e rode
+`docker compose up -d --build` na stack. Ao levar o aparelho para o IAUD, troque
+`UFCIM_DEVICE_IP` (e o coletor de host, se a rede for outra) e vincule a sala real
+com `register-sensor.mjs --space-model …`.
+
 ### Backfill pelo export do Smart Life
 
 O app Smart Life ("Export Data") envia por e-mail um link para uma planilha
