@@ -123,7 +123,7 @@ def _server(status: int, body: dict):
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
-            received.append((self.headers["Authorization"], json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
+            received.append((self.headers["Authorization"], json.loads(self.rfile.read(int(self.headers["Content-Length"]))), self.headers["User-Agent"]))
             data = json.dumps(body).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
@@ -148,6 +148,8 @@ def test_post_batch_outcomes(status, outcome):
         server.shutdown()
     assert result.outcome == outcome
     assert received[0][0] == "Bearer tok"
+    # Cloudflare bloqueia "Python-urllib" com erro 1010: o coletor se identifica.
+    assert received[0][2].startswith("ufcim-collector/")
 
 
 def test_post_batch_network_error_retries():

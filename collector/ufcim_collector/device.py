@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 from dataclasses import dataclass
 
 from .config import DeviceConfig
@@ -37,7 +39,11 @@ def classify(response: object) -> ReadError | None:
 
 class TuyaReader:
     def __init__(self, config: DeviceConfig, timeout: float = 5.0):
-        import tinytuya  # importado aqui para os testes não exigirem a dependência
+        # Importado aqui para os testes não exigirem a dependência. A imagem não
+        # instala `requests` (só a API de nuvem usa), e o tinytuya avisa disso no
+        # stdout ao importar; o aviso é descartado para não sujar o log JSON.
+        with contextlib.redirect_stdout(io.StringIO()):
+            import tinytuya
 
         self.config = config
         self._device = tinytuya.Device(config.id, config.ip, config.local_key, version=config.protocol)
