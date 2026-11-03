@@ -86,4 +86,18 @@ amplificação de recurso. Investigar e alinhar.
 - Expansão para outros departamentos e campi além do IAUD/Benfica (é o **gatilho
   (a)** do item 1, Estágio 2).
 - Migração D1 → Postgres em servidor universitário (é o **Estágio 3** do item 1).
-- Integração com monitoramento ambiental IoT (Zigbee2MQTT + Raspberry Pi).
+- Integração com monitoramento ambiental IoT — substituída pelo item 7.
+
+## 7. Qualidade do ar por coletor local · *Ideia*
+
+Decisão: `docs/adr/0002-air-quality-local-collector.md`. Especificação, contrato
+de ingestão, modelo de dados e fases: `docs/AIR-QUALITY-COLLECTOR.md`.
+
+Coletor próprio em Python (`collector/`), em container na rede IoT da sala, lê o
+BREATHE Airmonitor Plus pelo protocolo local Tuya e envia amostras de 1 minuto a
+`POST /ingest/v1/samples`, autenticado por token de coletor com hash no D1. O
+popup da sala lê `GET /api/v1/spaces/:id/air-quality`.
+
+O IoT Core da Tuya foi renovado em 2026-11-03 (até 2027-02-03), a *local key*
+está disponível e o modelo de dados oficial já está na especificação. A fase 0
+(bancada) e a fase 1 (backend de ingestão) podem começar em paralelo.
