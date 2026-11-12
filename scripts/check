@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# The one gate: typecheck, Vitest, the collector's pytest, tropa quality.
+# Runs offline against local test doubles; it touches no remote database or Worker.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+start=$(tropa gate tree) || { echo "check: FAILED (tropa gate tree)"; exit 1; }
+failed=()
+
+run() {
+  local name=$1
+  shift
+  echo "== $name"
+  "$@" || failed+=("$name")
+}
+
+collector_tests() {
+  (cd collector && python -m pytest -q)
+}
+
+run typecheck npm run typecheck
+run vitest npm test
+run collector collector_tests
+run quality tropa quality
+
+if ((${#failed[@]})); then
+  echo "check: FAILED (${failed[*]})"
+  exit 1
+fi
+tropa gate record full --tree "$start" || { echo "check: FAILED (gate record)"; exit 1; }
+echo "check: ok (typecheck, vitest, collector, quality)"

@@ -1,0 +1,3 @@
+# Bash scripts; CRLF breaks them on Windows checkouts.
+scripts/check text eol=lf
+scripts/git-hooks/* text eol=lf

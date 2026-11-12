@@ -1,0 +1,33 @@
+[check]
+command = "bash scripts/check"
+
+[tracker]
+kind = "github"
+
+[autonomy]
+merge = "pr"
+push = false
+
+[night]
+eligible = false
+
+[deploy]
+commands = [
+  "npm run deploy",
+  "wrangler deploy",
+  "wrangler secret",
+  "wrangler d1",
+]
+local = ["wrangler d1 --local"]
+
+[quality]
+include = [
+  "src/**/*.ts",
+  "scripts/**/*.mjs",
+  "collector/ufcim_collector/**/*.py",
+]
+exclude = ["migrations/**", "worker-configuration.d.ts"]
+max_file_lines = 300
+max_function_lines = 40
+max_crap = 30
+baseline = "docs/agents/quality-baseline.json"
