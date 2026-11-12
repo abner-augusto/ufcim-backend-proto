@@ -156,7 +156,7 @@ Mapeamento Keycloak → app: `ufcim-student|professor|staff|maintenance` →
 | maintenance | 0 |
 
 Séries recorrentes são **isentas** do limite (decisão de produto, 2026-06-23 —
-ver `plans/001-recurring-active-limit-exempt.md`).
+ver `docs/archive/plans/001-recurring-active-limit-exempt.md`).
 
 ## Ambientes
 

@@ -2,10 +2,12 @@
 
 Trabalho futuro, com detalhe suficiente para retomar sem recarregar contexto.
 Itens com decisão de arquitetura tomada apontam para o ADR correspondente em
-`docs/adr/`; itens prontos para execução apontam para `plans/`.
+`docs/adr/`; itens prontos para execução viram issue no repositório do front
+(`docs/agents/issue-tracker.md`). A fila de planos foi aposentada: os planos
+concluídos estão em `docs/archive/plans/`.
 
 Convenção de prontidão:
-- **Pronto p/ executar** — existe um plano em `plans/`.
+- **Pronto p/ executar** — existe uma issue pronta no repositório do front.
 - **Sob gatilho** — especificado, mas só executar quando o gatilho disparar.
 - **Concluído** — implementado e verificado em `main`.
 - **Ideia** — direção validada, sem plano ainda.
@@ -17,7 +19,7 @@ Convenção de prontidão:
 Decisão completa: `docs/adr/0001-reservation-overlap-enforcement.md`.
 
 - **Estágio 1 — agora (POC/D1)** · *Concluído* ·
-  `plans/003-double-booking-guard-and-doc-fix.md`
+  `docs/archive/plans/003-double-booking-guard-and-doc-fix.md`
   Índice único parcial contra duplicata exata + tradução do erro + correção da
   doc. Mata a corrida de double-submit. Implementado em `main` (`eda04c8`).
 

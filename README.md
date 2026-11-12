@@ -17,7 +17,10 @@ Este README é só visão geral + quickstart. O detalhe vive em `docs/`:
 - **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — trabalho futuro e itens sob gatilho.
 - **[`docs/adr/`](docs/adr/)** — registros de decisão de arquitetura (ADRs).
 - **[`CLAUDE.md`](CLAUDE.md)** — notas operacionais do POC (contas, bancos, slugs).
-- **[`plans/`](plans/)** — planos de implementação prontos para execução.
+- **[`docs/archive/plans/`](docs/archive/plans/)** — planos de implementação
+  concluídos (histórico). O trabalho novo vive nas issues do repositório do front
+  ([`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)); em
+  [`plans/`](plans/) resta só o plano 004, sob gatilho.
 
 ## Stack
 

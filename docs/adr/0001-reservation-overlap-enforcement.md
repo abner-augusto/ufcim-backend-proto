@@ -63,7 +63,7 @@ seria demolida na migração para Postgres.
   residual**: sobreposições *parciais* simultâneas ainda não são bloqueadas pelo
   banco neste estágio.
 
-Implementado em `plans/003-double-booking-guard-and-doc-fix.md`.
+Implementado em `docs/archive/plans/003-double-booking-guard-and-doc-fix.md`.
 
 ### Estágio 2 — Sob gatilho (escala em D1): grade horária de ocupação
 

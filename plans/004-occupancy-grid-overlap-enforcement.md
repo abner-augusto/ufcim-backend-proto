@@ -15,7 +15,7 @@
 > **Executor instructions**: Follow step by step. Run every verification command
 > and confirm the expected result before moving on. If a STOP condition occurs,
 > stop and report — do not improvise. When done, update the status row in
-> `plans/README.md`.
+> `docs/archive/plans/README.md`.
 >
 > **Drift check (run first — this plan may be months stale)**:
 > `git diff --stat ad08a7d..HEAD -- src/db/schema.ts src/services/reservation.service.ts src/services/blocking.service.ts src/lib/schedule.ts`
@@ -28,7 +28,7 @@
 - **Priority**: P2 — **deferred / trigger-gated** (not part of the POC backlog)
 - **Effort**: L (multi-day)
 - **Risk**: MED-HIGH (new core table + rewrite of every reservation/blocking mutation)
-- **Depends on**: `plans/003` should already be live (it's the POC stopgap this supersedes). On execution, the Plan 003 partial index is replaced by this grid.
+- **Depends on**: `docs/archive/plans/003` should already be live (it's the POC stopgap this supersedes). On execution, the Plan 003 partial index is replaced by this grid.
 - **Category**: bug / tech-debt (atomicity)
 - **Planned at**: commit `ad08a7d`, 2026-06-23
 - **Decision record**: `docs/adr/0001-reservation-overlap-enforcement.md`
@@ -233,7 +233,7 @@ ALL must hold:
 - [ ] A concurrent-duplicate insert path is covered by a test asserting `ConflictError` (via a rejecting `db.batch` mock)
 - [ ] Local DB rebuilds clean with seeds (Step 6)
 - [ ] No read-path file modified (`buildHourlyAvailability`, `report.service`, admin views) — `git status`
-- [ ] `plans/README.md` status row for 004 updated; ADR 0001 status note updated if appropriate
+- [ ] `docs/archive/plans/README.md` status row for 004 updated; ADR 0001 status note updated if appropriate
 
 ## STOP conditions
 
