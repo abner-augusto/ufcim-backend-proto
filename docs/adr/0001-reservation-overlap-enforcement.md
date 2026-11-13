@@ -68,7 +68,8 @@ Implementado em `docs/archive/plans/003-double-booking-guard-and-doc-fix.md`.
 ### Estágio 2 — Sob gatilho (escala em D1): grade horária de ocupação
 
 Refatorar para enforcement real no banco via **tabela de ocupação compartilhada**
-(detalhe em `plans/004-occupancy-grid-overlap-enforcement.md`):
+(issue `abner-augusto/UFCIM-FRONT3D#43`; detalhe em
+`docs/archive/plans/004-occupancy-grid-overlap-enforcement.md`):
 
 - `reservations` e `blockings` permanecem como **duas tabelas-pai distintas**
   (cada uma com seus atributos, ciclo de vida e RBAC — **não** fundir em uma

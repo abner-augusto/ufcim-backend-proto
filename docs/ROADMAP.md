@@ -24,7 +24,8 @@ Decisão completa: `docs/adr/0001-reservation-overlap-enforcement.md`.
   doc. Mata a corrida de double-submit. Implementado em `main` (`eda04c8`).
 
 - **Estágio 2 — grade horária de ocupação** · *Sob gatilho* ·
-  `plans/004-occupancy-grid-overlap-enforcement.md`
+  issue `abner-augusto/UFCIM-FRONT3D#43` ·
+  plano detalhado em `docs/archive/plans/004-occupancy-grid-overlap-enforcement.md`
   Tabela compartilhada `occupancy_slots` (presença = ocupação), `OccupancyService`
   como único escritor, mutações em `db.batch`, override = evict-then-claim.
   **Gatilho composto:** (a) 2º departamento com usuários reais criando reservas

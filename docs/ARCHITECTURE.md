@@ -92,8 +92,8 @@ espaço/data/horário (status → `overridden`).
 (single-occupancy). Espaço divisível é modelado como **espaços distintos**.
 Como a não-sobreposição é hoje garantida só na camada de aplicação, veja
 `docs/adr/0001-reservation-overlap-enforcement.md` para a estratégia de
-enforcement (índice de duplicata exata agora; grade de ocupação sob gatilho;
-restrição de exclusão no Postgres).
+enforcement (índice de duplicata exata agora; grade de ocupação sob gatilho,
+issue `abner-augusto/UFCIM-FRONT3D#43`; restrição de exclusão no Postgres).
 
 ## Rotas da API
 

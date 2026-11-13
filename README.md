@@ -18,9 +18,9 @@ Este README é só visão geral + quickstart. O detalhe vive em `docs/`:
 - **[`docs/adr/`](docs/adr/)** — registros de decisão de arquitetura (ADRs).
 - **[`AGENTS.md`](AGENTS.md)** — notas operacionais do POC (escopo, bancos, slugs, RBAC).
 - **[`docs/archive/plans/`](docs/archive/plans/)** — planos de implementação
-  concluídos (histórico). O trabalho novo vive nas issues do repositório do front
-  ([`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)); em
-  [`plans/`](plans/) resta só o plano 004, sob gatilho.
+  concluídos e arquivados (histórico). O trabalho novo vive nas issues do repositório do front
+  ([`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md)); o plano 004, sob
+  gatilho, virou a issue `abner-augusto/UFCIM-FRONT3D#43`.
 
 ## Stack
 
