@@ -35,7 +35,7 @@ Fatos observados que pesam na decisão:
 - **O Worker não tem como abrir conexão com a LAN do campus**, e Cron Triggers
   não substituem um processo de longa duração.
 - **O token de deploy não tem `Workers Scripts:Edit`.** `wrangler secret put`
-  falha (ver `CLAUDE.md`), então um desenho que dependa de segredos novos no
+  falha, então um desenho que dependa de segredos novos no
   Worker fica travado.
 
 ## Decisão

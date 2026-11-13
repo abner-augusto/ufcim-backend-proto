@@ -6,7 +6,7 @@ detalhe vive aqui. Decisões com trade-offs ficam em `docs/adr/`; o que ainda
 não foi construído fica em `docs/ROADMAP.md`.
 
 > **Escopo atual:** MVP focado no departamento **IAUD**, campus Benfica.
-> Veja as notas de POC em `CLAUDE.md`.
+> Veja as notas de POC em `AGENTS.md`.
 
 ---
 
