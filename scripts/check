@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The one gate: typecheck, Vitest, the collector's pytest, tropa quality.
+# The one gate: typecheck, Vitest (with v8 coverage for CRAP), the collector's pytest, tropa quality.
 # Runs offline against local test doubles; it touches no remote database or Worker.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -19,7 +19,7 @@ collector_tests() {
 }
 
 run typecheck npm run typecheck
-run vitest npm test
+run vitest npm test -- --coverage --coverage.reporter=json --coverage.include='src/**/*.ts'
 run collector collector_tests
 run quality tropa quality
 
