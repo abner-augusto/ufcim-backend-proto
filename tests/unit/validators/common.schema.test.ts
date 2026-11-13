@@ -11,20 +11,23 @@ import {
   dateSchema,
   futureDateSchema,
 } from '@/validators/common.schema';
+import { campusToday } from '@/lib/clock';
 
-// Helper: today in YYYY-MM-DD
+// Helpers: campus-local dates in YYYY-MM-DD. The schema compares against campus
+// time, so a UTC date is a day ahead between 21:00 and 24:00 local.
+function shiftCampusDate(days: number) {
+  const d = new Date(`${campusToday()}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
 function today() {
-  return new Date().toISOString().split('T')[0];
+  return campusToday();
 }
 function yesterday() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().split('T')[0];
+  return shiftCampusDate(-1);
 }
 function tomorrow() {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
+  return shiftCampusDate(1);
 }
 
 describe('uuidSchema', () => {
