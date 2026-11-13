@@ -17,6 +17,9 @@ commands = [
   "wrangler deploy",
   "wrangler secret",
   "wrangler d1",
+  "npm run dev:admin",
+  "node scripts/create-admin.mjs",
+  "node scripts/create-admin-direct.mjs",
 ]
 local = ["wrangler d1 --local"]
 
