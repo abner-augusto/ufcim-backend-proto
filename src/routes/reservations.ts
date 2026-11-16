@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { AppEnv } from '@/types/env';
 import { createDb } from '@/db/client';
 import { ReservationService } from '@/services/reservation.service';
+import { DepartmentReservationService } from '@/services/department-reservation.service';
 import { validate, validateQuery } from '@/middleware/validation';
 import { rbac } from '@/middleware/rbac';
 import { extractRole } from '@/middleware/rbac';
@@ -10,6 +11,7 @@ import {
   createRecurringReservationSchema,
   updateReservationSchema,
 } from '@/validators/reservation.schema';
+import { departmentReservationQuerySchema } from '@/validators/department-reservation.schema';
 import { paginationSchema } from '@/validators/common.schema';
 import { withRequesterContactFor } from '@/lib/reservation-privacy';
 import type { z } from 'zod';
@@ -159,6 +161,21 @@ reservationRoutes.get(
     const user = c.get('user');
 
     const data = await service.listByUser(user.sub, extractRole(user) ?? 'student', page, limit);
+    return c.json(data);
+  }
+);
+
+reservationRoutes.get(
+  '/department',
+  rbac(['staff']),
+  validateQuery(departmentReservationQuerySchema),
+  async (c) => {
+    const db = createDb(c.env.DB);
+    const service = new DepartmentReservationService(db);
+    const filters = c.get('validatedQuery') as z.infer<typeof departmentReservationQuerySchema>;
+    const user = c.get('user');
+
+    const data = await service.list(user.sub, user.department, filters);
     return c.json(data);
   }
 );
