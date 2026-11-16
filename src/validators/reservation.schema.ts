@@ -4,6 +4,7 @@ import { meetsMinimumDuration } from '@/lib/schedule';
 
 const END_AFTER_START_MESSAGE = 'O horário de término deve ser posterior ao horário de início';
 const MIN_DURATION_MESSAGE = 'A reserva deve durar pelo menos 1 hora';
+const DESCRIPTION_MAX_LENGTH = 300;
 
 /**
  * Optional requester (MEL-025): staff registering on someone's behalf send a
@@ -52,7 +53,7 @@ export const createReservationSchema = z
     startTime: slotStartTimeSchema,
     endTime: slotEndTimeSchema,
     purpose: z.string().max(100).optional(),
-    description: z.string().trim().max(100).optional(),
+    description: z.string().trim().max(DESCRIPTION_MAX_LENGTH).optional(),
     ...requesterFields,
   })
   .refine(hasOneRequester, { message: ONE_REQUESTER_MESSAGE, path: ['requesterName'] })
@@ -89,7 +90,7 @@ export const createRecurringReservationSchema = z
     dayOfWeek: weekdaySchema.optional(),
     startTime: slotStartTimeSchema,
     endTime: slotEndTimeSchema,
-    description: z.string().trim().max(100).optional(),
+    description: z.string().trim().max(DESCRIPTION_MAX_LENGTH).optional(),
     purpose: z.string().max(100).optional(),
     ...requesterFields,
   })
@@ -127,7 +128,7 @@ export const updateReservationSchema = z
     date: futureDateSchema.optional(),
     startTime: slotStartTimeSchema.optional(),
     endTime: slotEndTimeSchema.optional(),
-    description: z.string().trim().max(100).optional(),
+    description: z.string().trim().max(DESCRIPTION_MAX_LENGTH).optional(),
     ...nullableRequesterFields,
   })
   .strict()

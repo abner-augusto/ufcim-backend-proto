@@ -52,7 +52,7 @@ interface CreateReservationInput extends RequesterInput {
   startTime: string;
   endTime: string;
   purpose?: string;
-  description?: string; // optional free-text, max 100 chars
+  description?: string; // optional free-text, max 300 chars
 }
 
 interface CreateRecurringInput extends RequesterInput {

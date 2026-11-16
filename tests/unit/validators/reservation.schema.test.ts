@@ -129,6 +129,12 @@ describe('createReservationSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts description up to 300 chars and rejects 301 chars (#28)', () => {
+    const base = { spaceId: VALID_UUID, date: FUTURE_DATE, startTime: '09:00', endTime: '10:00' };
+    expect(createReservationSchema.safeParse({ ...base, description: 'x'.repeat(300) }).success).toBe(true);
+    expect(createReservationSchema.safeParse({ ...base, description: 'x'.repeat(301) }).success).toBe(false);
+  });
 });
 
 describe('createRecurringReservationSchema', () => {
@@ -242,9 +248,12 @@ describe('createRecurringReservationSchema', () => {
     ).toBe(false);
   });
 
-  it('rejects description longer than 200 chars', () => {
+  it('accepts description up to 300 chars and rejects 301 chars (#28)', () => {
     expect(
-      createRecurringReservationSchema.safeParse({ ...base, description: 'x'.repeat(201) }).success
+      createRecurringReservationSchema.safeParse({ ...base, description: 'x'.repeat(300) }).success
+    ).toBe(true);
+    expect(
+      createRecurringReservationSchema.safeParse({ ...base, description: 'x'.repeat(301) }).success
     ).toBe(false);
   });
 });
@@ -262,8 +271,9 @@ describe('updateReservationSchema', () => {
     expect(updateReservationSchema.safeParse({ description: '' }).success).toBe(true);
   });
 
-  it('rejects a description longer than 100 chars', () => {
-    expect(updateReservationSchema.safeParse({ description: 'x'.repeat(101) }).success).toBe(false);
+  it('accepts a description up to 300 chars and rejects 301 chars (#28)', () => {
+    expect(updateReservationSchema.safeParse({ description: 'x'.repeat(300) }).success).toBe(true);
+    expect(updateReservationSchema.safeParse({ description: 'x'.repeat(301) }).success).toBe(false);
   });
 
   it('accepts a date-only edit', () => {
