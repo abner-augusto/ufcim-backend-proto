@@ -96,7 +96,7 @@ VALUES
   ('a1a00009-0000-4000-8000-000000000000',
    'Auditório', 'B2-02', 'hall', 'Bloco 2', 'Benfica',
    'iaud',
-   63, NULL, NULL, NULL, NULL,
+   63, NULL, NULL, 'Ar condicionado split (1 unidade)', 'Projetor (1), Microfone com pedestal (1), Caixas de som (2)',
    'Auditório',
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z'),
 
@@ -264,7 +264,7 @@ VALUES
    '22:00', '07:00', '2026-04-03T00:00:00.000Z', '2026-04-03T00:00:00.000Z');
 
 -- ── Equipment ────────────────────────────────────────────────────────────────
--- Only inserted for rooms present in pins_db_popup.json.
+-- Inserted for rooms present in pins_db_popup.json and Auditório (B2-02).
 -- Asset IDs use the IAUD- prefix. updated_by is NULL (no IAUD staff user seeded).
 -- UUID scheme: e9e0XXYY-0000-4000-8000-000000000000
 
@@ -314,4 +314,11 @@ VALUES
   -- Sala 13 — 2 AC, 1 projector
   ('e9e00022-0000-4000-8000-000000000000', 'IAUD-AC-014',   'a1a00027-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
   ('e9e00023-0000-4000-8000-000000000000', 'IAUD-AC-015',   'a1a00027-0000-4000-8000-000000000000', 'Ar Condicionado Split', 'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
-  ('e9e00024-0000-4000-8000-000000000000', 'IAUD-PROJ-009', 'a1a00027-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z');
+  ('e9e00024-0000-4000-8000-000000000000', 'IAUD-PROJ-009', 'a1a00027-0000-4000-8000-000000000000', 'Projetor',              'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+
+  -- Auditório (B2-02) — 1 AC, 1 projector, 1 microphone, 2 speakers
+  ('e9e00025-0000-4000-8000-000000000000', 'IAUD-AC-016',   'a1a00009-0000-4000-8000-000000000000', 'Ar Condicionado Split',  'hvac',      'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00026-0000-4000-8000-000000000000', 'IAUD-PROJ-010', 'a1a00009-0000-4000-8000-000000000000', 'Projetor',               'projector', 'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00027-0000-4000-8000-000000000000', 'IAUD-MIC-001',  'a1a00009-0000-4000-8000-000000000000', 'Microfone com pedestal', 'audio',     'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00028-0000-4000-8000-000000000000', 'IAUD-SOM-001',  'a1a00009-0000-4000-8000-000000000000', 'Caixa de som',           'audio',     'working', NULL, NULL, '2026-04-03T00:00:00.000Z'),
+  ('e9e00029-0000-4000-8000-000000000000', 'IAUD-SOM-002',  'a1a00009-0000-4000-8000-000000000000', 'Caixa de som',           'audio',     'working', NULL, NULL, '2026-04-03T00:00:00.000Z');
