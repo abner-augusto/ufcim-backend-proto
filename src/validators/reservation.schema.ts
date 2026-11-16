@@ -22,7 +22,23 @@ const requesterFields = {
     .transform((value) => value || undefined),
 };
 
-type RequesterFields = { requesterUserId?: string; requesterName?: string; requesterContact?: string };
+type RequesterFields = {
+  requesterUserId?: string | null;
+  requesterName?: string | null;
+  requesterContact?: string | null;
+};
+
+const nullableRequesterFields = {
+  requesterUserId: z.string().trim().min(1).max(64).nullable().optional(),
+  requesterName: z.string().trim().min(1, 'Informe o nome do solicitante').max(100).nullable().optional(),
+  requesterContact: z
+    .string()
+    .trim()
+    .max(100)
+    .nullable()
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value || null)),
+};
 
 const ONE_REQUESTER_MESSAGE = 'Informe um usuário cadastrado ou um nome, não os dois';
 const CONTACT_NEEDS_REQUESTER_MESSAGE = 'Informe o solicitante para registrar o contato';
@@ -101,9 +117,10 @@ export const createRecurringReservationSchema = z
   }));
 
 /**
- * PATCH /reservations/:id (MEL-023). The space, status and purpose are not
- * editable; unknown keys are rejected. When only one bound of the range is
+ * PATCH /reservations/:id (MEL-023, #27). The space, status and purpose are
+ * not editable; unknown keys are rejected. When only one bound of the range is
  * sent, the service re-checks order and minimum duration against the stored one.
+ * Staff may also update or clear (`null`) the requester fields.
  */
 export const updateReservationSchema = z
   .object({
@@ -111,11 +128,14 @@ export const updateReservationSchema = z
     startTime: slotStartTimeSchema.optional(),
     endTime: slotEndTimeSchema.optional(),
     description: z.string().trim().max(100).optional(),
+    ...nullableRequesterFields,
   })
   .strict()
   .refine((data) => Object.values(data).some((value) => value !== undefined), {
     message: 'Informe ao menos um campo para alterar',
   })
+  .refine(hasOneRequester, { message: ONE_REQUESTER_MESSAGE, path: ['requesterName'] })
+  .refine(contactHasRequester, { message: CONTACT_NEEDS_REQUESTER_MESSAGE, path: ['requesterContact'] })
   .refine((data) => !data.startTime || !data.endTime || data.startTime < data.endTime, {
     message: END_AFTER_START_MESSAGE,
     path: ['endTime'],

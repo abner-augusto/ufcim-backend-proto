@@ -9,12 +9,18 @@ import {
   timeToMinutes,
   intervalsOverlap,
   overlapsClosedHours,
-  meetsMinimumDuration,
   SLOT_MINUTES,
 } from '@/lib/schedule';
 import { campusToday, campusNowMinutes } from '@/lib/clock';
 import { canManageReservation, type ReservationAction } from '@/lib/reservation-permissions';
 import { presentReservationForViewer } from '@/lib/reservation-privacy';
+import {
+  assertValidTimeRange,
+  buildUpdateAuditDetails,
+  notifyReservationUpdate,
+  persistReservationUpdate,
+  resolveRequesterUpdate,
+} from '@/lib/reservation-update';
 
 const ACTIVE_RESERVATION_LIMITS: Record<string, number | null> = {
   student: 5,
@@ -66,6 +72,9 @@ interface UpdateReservationInput {
   startTime?: string;
   endTime?: string;
   description?: string;
+  requesterUserId?: string | null;
+  requesterName?: string | null;
+  requesterContact?: string | null;
 }
 
 interface ListReservationsFilters {
@@ -284,19 +293,16 @@ export class ReservationService {
 
     this.assertDepartmentAccess(userRole, userDept, space.department);
 
+    const requesterUpdate = await resolveRequesterUpdate(userRole, reservation, input, (req) =>
+      this.resolveRequester(userId, userRole, req)
+    );
+
     const next = {
       date: input.date ?? reservation.date,
       startTime: input.startTime ?? reservation.startTime,
       endTime: input.endTime ?? reservation.endTime,
     };
-
-    if (timeToMinutes(next.startTime) >= timeToMinutes(next.endTime)) {
-      throw new AppError(400, 'O horário de término deve ser posterior ao horário de início', 'VALIDATION_ERROR');
-    }
-
-    if (!meetsMinimumDuration(next.startTime, next.endTime)) {
-      throw new AppError(400, 'A reserva deve durar pelo menos 1 hora', 'VALIDATION_ERROR');
-    }
+    assertValidTimeRange(next.startTime, next.endTime);
 
     const scheduleChanged =
       next.date !== reservation.date ||
@@ -317,60 +323,15 @@ export class ReservationService {
     const description =
       input.description === undefined ? reservation.description : input.description.trim() || null;
 
-    let updated: typeof reservations.$inferSelect;
-    try {
-      [updated] = await this.db
-        .update(reservations)
-        .set({
-          date: next.date,
-          timeSlot: deriveLegacyTimeSlot(next.startTime),
-          startTime: next.startTime,
-          endTime: next.endTime,
-          description,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(reservations.id, reservationId))
-        .returning();
-    } catch (error) {
-      if (error instanceof Error && /UNIQUE constraint failed/i.test(error.message)) {
-        throw new ConflictError('Esta faixa de horário conflita com uma reserva existente');
-      }
-
-      throw error;
-    }
-
-    const from = `${reservation.date} ${reservation.startTime}-${reservation.endTime}`;
-    const to = `${next.date} ${next.startTime}-${next.endTime}`;
-    const changes = [`${from} → ${to}`];
-    if (description !== reservation.description) {
-      changes.push(`descrição: "${reservation.description ?? ''}" → "${description ?? ''}"`);
-    }
-
+    const updated = await persistReservationUpdate(this.db, reservation, next, description, requesterUpdate);
     await this.auditLog.log(
       userId,
       'update_reservation',
-      reservationId,
+      reservation.id,
       'reservation',
-      `Editou a reserva do espaço ${space.number}: ${changes.join('; ')}`
+      buildUpdateAuditDetails(space.number, reservation, next, description, requesterUpdate)
     );
-
-    if (reservation.userId !== userId) {
-      await this.notification.create(
-        reservation.userId,
-        'Reserva alterada',
-        `Sua reserva para o espaço ${space.number} foi alterada: agora em ${next.date} (${next.startTime}-${next.endTime}).`,
-        'modified'
-      );
-    }
-
-    if (this.shouldNotifyRequester(reservation, userId)) {
-      await this.notification.create(
-        reservation.requesterUserId!,
-        'Reserva alterada',
-        `A reserva do espaço ${space.number} feita para você foi alterada: agora em ${next.date} (${next.startTime}-${next.endTime}).`,
-        'modified'
-      );
-    }
+    await notifyReservationUpdate(this.notification, reservation, space.number, userId, next, requesterUpdate);
 
     return updated;
   }

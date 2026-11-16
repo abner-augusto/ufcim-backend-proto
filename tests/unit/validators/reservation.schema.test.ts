@@ -296,8 +296,31 @@ describe('updateReservationSchema', () => {
     expect(updateReservationSchema.safeParse({ startTime: '08:30', endTime: '09:00' }).success).toBe(false);
   });
 
-  it('does not accept requester fields: the requester is fixed at creation (MEL-025)', () => {
-    expect(updateReservationSchema.safeParse({ description: 'x', requesterName: 'Fulano' }).success).toBe(false);
+  it('accepts requester fields and null to clear them (#27)', () => {
+    expect(
+      updateReservationSchema.safeParse({ requesterUserId: VALID_UUID, requesterContact: '85 99999-0000' }).success
+    ).toBe(true);
+    expect(
+      updateReservationSchema.safeParse({ requesterName: '  Centro Acadêmico  ', requesterContact: '85 3366-0000' })
+    ).toMatchObject({ success: true, data: { requesterName: 'Centro Acadêmico', requesterContact: '85 3366-0000' } });
+    expect(
+      updateReservationSchema.safeParse({ requesterUserId: null, requesterName: null, requesterContact: null }).success
+    ).toBe(true);
+  });
+
+  it('rejects both requesterUserId and requesterName, or contact without requester (#27)', () => {
+    expect(
+      updateReservationSchema.safeParse({ requesterUserId: VALID_UUID, requesterName: 'Fulano' }).success
+    ).toBe(false);
+    expect(updateReservationSchema.safeParse({ requesterContact: 'x@ufc.br' }).success).toBe(false);
+    expect(updateReservationSchema.safeParse({ requesterName: '   ' }).success).toBe(false);
+    expect(updateReservationSchema.safeParse({ requesterUserId: '   ' }).success).toBe(false);
+  });
+
+  it('transforms empty requesterContact into null on update (#27)', () => {
+    const result = updateReservationSchema.safeParse({ requesterUserId: VALID_UUID, requesterContact: '   ' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.requesterContact).toBeNull();
   });
 
 });

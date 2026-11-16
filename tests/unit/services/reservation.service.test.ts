@@ -8,6 +8,7 @@ import {
   AppError,
 } from '@/middleware/error-handler';
 import { createMockDb, SEED } from '../helpers/mock-db';
+import { reservations, recurrences } from '@/db/schema';
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import type { SQL } from 'drizzle-orm';
 
@@ -1272,5 +1273,152 @@ describe('ReservationService.listByUser (MEL-025)', () => {
       requester: { userId: null, name: 'Coordenação do CAU' },
       requesterContact: '85 3366-0000',
     });
+  });
+});
+
+describe('ReservationService.update — requester (#27)', () => {
+  let db: ReturnType<typeof createMockDb>;
+  let service: ReservationService;
+  const DEPT = SEED.space.department;
+  const NEW_REQUESTER_ID = '00000000-0000-0000-0000-000000000004';
+  const NEW_REQUESTER_USER = {
+    ...REQUESTER_USER,
+    id: NEW_REQUESTER_ID,
+    name: 'Prof. João Silva',
+    email: 'joao.silva@ufc.br',
+  };
+  const onBehalf = {
+    ...SEED.reservation,
+    userId: STAFF_ID,
+    createdBy: STAFF_ID,
+    requesterUserId: REQUESTER_ID,
+    requesterName: null,
+    requesterContact: 'maria@ufc.br',
+  };
+
+  beforeEach(() => {
+    db = createMockDb();
+    service = new ReservationService(db);
+    db.query.reservations.findFirst.mockResolvedValue(onBehalf);
+    db.query.spaces.findFirst.mockResolvedValue(SEED.space);
+    db.query.reservations.findMany.mockResolvedValue([]);
+    db.query.blockings.findMany.mockResolvedValue([]);
+    db._update.returning.mockImplementation(async () => [{ ...onBehalf, ...db._update.set.mock.calls.at(-1)?.[0] }]);
+    mockUsers(db, STAFF_USER, REQUESTER_USER, NEW_REQUESTER_USER);
+  });
+
+  it('lets staff switch a registered requester to a free-text name with contact', async () => {
+    const result = await service.update(onBehalf.id, STAFF_ID, 'staff', 'Administração', {
+      requesterUserId: null,
+      requesterName: 'Centro Acadêmico',
+      requesterContact: '85 3366-0000',
+    });
+
+    expect(result).toMatchObject({
+      requesterUserId: null,
+      requesterName: 'Centro Acadêmico',
+      requesterContact: '85 3366-0000',
+    });
+  });
+
+  it('lets staff remove the requester so all three fields return to null', async () => {
+    const result = await service.update(onBehalf.id, STAFF_ID, 'staff', 'Administração', {
+      requesterUserId: null,
+      requesterName: null,
+      requesterContact: null,
+    });
+
+    expect(result).toMatchObject({
+      userId: STAFF_ID,
+      requesterUserId: null,
+      requesterName: null,
+      requesterContact: null,
+    });
+  });
+
+  it('updates all non-canceled occurrences and the series record in one db.batch when editing a series requester', async () => {
+    const seriesOccurrence = { ...onBehalf, id: 'occ-1', recurrenceId: 'series-1' };
+    db.query.reservations.findFirst.mockResolvedValue(seriesOccurrence);
+    db._update.returning.mockImplementation(async () => [{ ...seriesOccurrence, ...db._update.set.mock.calls[0]?.[0] }]);
+
+    const result = await service.update('occ-1', STAFF_ID, 'staff', 'Administração', {
+      requesterUserId: null,
+      requesterName: 'Coordenação do CAU',
+      requesterContact: '85 3366-1111',
+    });
+
+    expect(result).toMatchObject({
+      requesterUserId: null,
+      requesterName: 'Coordenação do CAU',
+      requesterContact: '85 3366-1111',
+    });
+    expect(db._batch).toHaveBeenCalledTimes(1);
+    expect(db._update.fn).toHaveBeenCalledWith(reservations);
+    expect(db._update.fn).toHaveBeenCalledWith(recurrences);
+
+    // Series-wide update targets recurrenceId and excludes canceled rows and the primary row.
+    const seriesWhere = dialect.sqlToQuery(db._update.where.mock.calls[1][0] as SQL);
+    expect(seriesWhere.sql).toContain('"recurrence_id" = ?');
+    expect(seriesWhere.sql).toContain('"status" <> ?');
+    expect(seriesWhere.params).toEqual(['series-1', 'canceled', 'occ-1']);
+  });
+
+  it.each(['student', 'professor'])('rejects requester fields from a %s with 403', async (role) => {
+    const own = { ...SEED.reservation, userId: USER_ID, createdBy: USER_ID, requesterUserId: null, requesterName: null, requesterContact: null };
+    db.query.reservations.findFirst.mockResolvedValue(own);
+
+    for (const payload of [
+      { requesterName: 'Fulano' },
+      { requesterUserId: REQUESTER_ID },
+      { requesterContact: '85 99999-0000' },
+      { requesterUserId: null, requesterName: null, requesterContact: null },
+    ]) {
+      const err = await service.update(own.id, USER_ID, role, DEPT, payload).catch((e) => e);
+      expect(err).toBeInstanceOf(ForbiddenError);
+    }
+    expect(db._update.fn).not.toHaveBeenCalled();
+  });
+
+  it('notifies the old and new registered requesters once each, even on a series', async () => {
+    db.query.reservations.findFirst.mockResolvedValue({ ...onBehalf, recurrenceId: 'series-1' });
+    db._update.returning.mockImplementation(async () => [{ ...onBehalf, recurrenceId: 'series-1', ...db._update.set.mock.calls[0]?.[0] }]);
+
+    await service.update(onBehalf.id, STAFF_ID, 'staff', 'Administração', {
+      requesterUserId: NEW_REQUESTER_ID,
+      requesterName: null,
+      requesterContact: 'joao@ufc.br',
+    });
+
+    const sent = notifications(db);
+    expect(sent.filter((n) => n.userId === REQUESTER_ID)).toHaveLength(1);
+    expect(sent.filter((n) => n.userId === NEW_REQUESTER_ID)).toHaveLength(1);
+    expect(sent.find((n) => n.userId === REQUESTER_ID)).toMatchObject({ type: 'modified' });
+    expect(sent.find((n) => n.userId === NEW_REQUESTER_ID)).toMatchObject({ type: 'confirmed' });
+  });
+
+  it('notifies only the old registered requester when removing the requester', async () => {
+    await service.update(onBehalf.id, STAFF_ID, 'staff', 'Administração', {
+      requesterUserId: null,
+      requesterName: null,
+      requesterContact: null,
+    });
+
+    const sent = notifications(db);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ userId: REQUESTER_ID, type: 'modified' });
+  });
+
+  it('rejects an invalid or self-named requesterUserId with 400', async () => {
+    mockUsers(db, STAFF_USER);
+    const missingErr = await service
+      .update(onBehalf.id, STAFF_ID, 'staff', 'Administração', { requesterUserId: NEW_REQUESTER_ID })
+      .catch((e) => e);
+    expect((missingErr as AppError).statusCode).toBe(400);
+
+    const selfErr = await service
+      .update(onBehalf.id, STAFF_ID, 'staff', 'Administração', { requesterUserId: STAFF_ID })
+      .catch((e) => e);
+    expect((selfErr as AppError).statusCode).toBe(400);
+    expect(db._update.fn).not.toHaveBeenCalled();
   });
 });
