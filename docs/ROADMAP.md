@@ -1,8 +1,7 @@
 # Roadmap — UFCIM backend
 
 Trabalho futuro, com detalhe suficiente para retomar sem recarregar contexto.
-Itens com decisão de arquitetura tomada apontam para o ADR correspondente em
-`docs/adr/`; itens prontos para execução viram issue no repositório do front
+Itens prontos para execução viram issue no repositório do front
 (`docs/agents/issue-tracker.md`). A fila de planos foi aposentada: os planos
 concluídos estão em `docs/archive/plans/`.
 
@@ -15,8 +14,6 @@ Convenção de prontidão:
 ---
 
 ## 1. Enforcement de sobreposição de reservas — *em 3 estágios*
-
-Decisão completa: `docs/adr/0001-reservation-overlap-enforcement.md`.
 
 - **Estágio 1 — agora (POC/D1)** · *Concluído* ·
   `docs/archive/plans/003-double-booking-guard-and-doc-fix.md`
@@ -93,7 +90,7 @@ amplificação de recurso. Investigar e alinhar.
 
 ## 7. Qualidade do ar por coletor local · *Ideia*
 
-Decisão: `docs/adr/0002-air-quality-local-collector.md`. Especificação, contrato
+Especificação, contrato
 de ingestão, modelo de dados e fases: `docs/AIR-QUALITY-COLLECTOR.md`.
 
 Coletor próprio em Python (`collector/`), em container na rede IoT da sala, lê o

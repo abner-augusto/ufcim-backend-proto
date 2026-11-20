@@ -15,7 +15,6 @@ Este README é só visão geral + quickstart. O detalhe vive em `docs/`:
 - **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — stack, estrutura de pastas,
   modelo de dados, rotas, autenticação/RBAC, ambientes e postura de segurança.
 - **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — trabalho futuro e itens sob gatilho.
-- **[`docs/adr/`](docs/adr/)** — registros de decisão de arquitetura (ADRs).
 - **[`AGENTS.md`](AGENTS.md)** — notas operacionais do POC (escopo, bancos, slugs, RBAC).
 - **[`docs/archive/plans/`](docs/archive/plans/)** — planos de implementação
   concluídos e arquivados (histórico). O trabalho novo vive nas issues do repositório do front

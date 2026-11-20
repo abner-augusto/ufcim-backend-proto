@@ -2,7 +2,7 @@
 
 Documento de referência da arquitetura, modelo de dados e convenções do
 `ufcim-backend-proto`. O `README.md` na raiz é só visão geral + quickstart; o
-detalhe vive aqui. Decisões com trade-offs ficam em `docs/adr/`; o que ainda
+detalhe vive aqui; o que ainda
 não foi construído fica em `docs/ROADMAP.md`.
 
 > **Escopo atual:** MVP focado no departamento **IAUD**, campus Benfica.
@@ -90,10 +90,9 @@ espaço/data/horário (status → `overridden`).
 
 **Invariante de ocupação:** reserva é sempre do **espaço inteiro**
 (single-occupancy). Espaço divisível é modelado como **espaços distintos**.
-Como a não-sobreposição é hoje garantida só na camada de aplicação, veja
-`docs/adr/0001-reservation-overlap-enforcement.md` para a estratégia de
-enforcement (índice de duplicata exata agora; grade de ocupação sob gatilho,
-issue `abner-augusto/UFCIM-FRONT3D#43`; restrição de exclusão no Postgres).
+A não-sobreposição é hoje garantida na camada de aplicação, com índice único de
+duplicata exata no D1 (grade de ocupação sob gatilho na issue
+`abner-augusto/UFCIM-FRONT3D#43`; restrição de exclusão no Postgres).
 
 ## Rotas da API
 
